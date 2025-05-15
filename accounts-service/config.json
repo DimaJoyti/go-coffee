@@ -1,0 +1,19 @@
+{
+  "server": {
+    "port": 4000
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
+    "password": "postgres",
+    "dbname": "coffee_accounts",
+    "sslmode": "disable"
+  },
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "topic": "account_events",
+    "retry_max": 5,
+    "required_acks": "all"
+  }
+}

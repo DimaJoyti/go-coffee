@@ -1,0 +1,188 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  # Account queries
+  account(id: ID!): Account
+  accounts(offset: Int = 0, limit: Int = 10): [Account!]!
+  accountsCount: Int!
+
+  # Vendor queries
+  vendor(id: ID!): Vendor
+  vendors(offset: Int = 0, limit: Int = 10): [Vendor!]!
+  vendorsCount: Int!
+  searchVendors(query: String!, offset: Int = 0, limit: Int = 10): [Vendor!]!
+
+  # Product queries
+  product(id: ID!): Product
+  products(offset: Int = 0, limit: Int = 10): [Product!]!
+  productsByVendor(vendorId: ID!, offset: Int = 0, limit: Int = 10): [Product!]!
+  productsCount: Int!
+  searchProducts(query: String!, offset: Int = 0, limit: Int = 10): [Product!]!
+
+  # Order queries
+  order(id: ID!): Order
+  orders(offset: Int = 0, limit: Int = 10): [Order!]!
+  ordersByAccount(accountId: ID!, offset: Int = 0, limit: Int = 10): [Order!]!
+  ordersByStatus(status: OrderStatus!, offset: Int = 0, limit: Int = 10): [Order!]!
+  ordersCount: Int!
+}
+
+type Mutation {
+  # Account mutations
+  createAccount(input: CreateAccountInput!): Account!
+  updateAccount(id: ID!, input: UpdateAccountInput!): Account!
+  deleteAccount(id: ID!): Boolean!
+
+  # Vendor mutations
+  createVendor(input: CreateVendorInput!): Vendor!
+  updateVendor(id: ID!, input: UpdateVendorInput!): Vendor!
+  deleteVendor(id: ID!): Boolean!
+
+  # Product mutations
+  createProduct(input: CreateProductInput!): Product!
+  updateProduct(id: ID!, input: UpdateProductInput!): Product!
+  deleteProduct(id: ID!): Boolean!
+
+  # Order mutations
+  createOrder(input: CreateOrderInput!): Order!
+  updateOrderStatus(id: ID!, status: OrderStatus!): Order!
+  deleteOrder(id: ID!): Boolean!
+}
+
+# Account types
+type Account {
+  id: ID!
+  username: String!
+  email: String!
+  firstName: String
+  lastName: String
+  isActive: Boolean!
+  isAdmin: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  orders: [Order!]
+}
+
+input CreateAccountInput {
+  username: String!
+  email: String!
+  password: String!
+  firstName: String
+  lastName: String
+  isActive: Boolean
+  isAdmin: Boolean
+}
+
+input UpdateAccountInput {
+  username: String
+  email: String
+  password: String
+  firstName: String
+  lastName: String
+  isActive: Boolean
+  isAdmin: Boolean
+}
+
+# Vendor types
+type Vendor {
+  id: ID!
+  name: String!
+  description: String
+  contactEmail: String
+  contactPhone: String
+  address: String
+  isActive: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  products: [Product!]
+}
+
+input CreateVendorInput {
+  name: String!
+  description: String
+  contactEmail: String
+  contactPhone: String
+  address: String
+  isActive: Boolean
+}
+
+input UpdateVendorInput {
+  name: String
+  description: String
+  contactEmail: String
+  contactPhone: String
+  address: String
+  isActive: Boolean
+}
+
+# Product types
+type Product {
+  id: ID!
+  vendorId: ID!
+  name: String!
+  description: String
+  price: Float!
+  isAvailable: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  vendor: Vendor
+}
+
+input CreateProductInput {
+  vendorId: ID!
+  name: String!
+  description: String
+  price: Float!
+  isAvailable: Boolean
+}
+
+input UpdateProductInput {
+  name: String
+  description: String
+  price: Float
+  isAvailable: Boolean
+}
+
+# Order types
+type Order {
+  id: ID!
+  accountId: ID!
+  status: OrderStatus!
+  totalAmount: Float!
+  createdAt: String!
+  updatedAt: String!
+  account: Account
+  items: [OrderItem!]
+}
+
+type OrderItem {
+  id: ID!
+  orderId: ID!
+  productId: ID!
+  quantity: Int!
+  unitPrice: Float!
+  totalPrice: Float!
+  createdAt: String!
+  product: Product
+}
+
+input CreateOrderInput {
+  accountId: ID!
+  items: [OrderItemInput!]!
+}
+
+input OrderItemInput {
+  productId: ID!
+  quantity: Int!
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}

@@ -1,6 +1,26 @@
 version: '3.8'
 
 services:
+  # PostgreSQL database for accounts service
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: coffee_accounts
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - coffee-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     container_name: zookeeper
@@ -52,6 +72,7 @@ services:
         echo 'Creating topics...' &&
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic coffee_orders --partitions 3 --replication-factor 1 &&
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic processed_orders --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic account_events --partitions 3 --replication-factor 1 &&
         echo 'Topics created.' &&
         kafka-topics --bootstrap-server kafka:9092 --list
       "
@@ -117,6 +138,42 @@ services:
     networks:
       - coffee-network
 
+  # Accounts service
+  accounts-service:
+    build:
+      context: ./accounts-service
+      dockerfile: Dockerfile
+    container_name: accounts-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+    ports:
+      - "4000:4000"
+    environment:
+      SERVER_PORT: 4000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: coffee_accounts
+      DB_SSLMODE: disable
+      KAFKA_BROKERS: '["kafka:9092"]'
+      KAFKA_TOPIC: account_events
+      KAFKA_RETRY_MAX: 5
+      KAFKA_REQUIRED_ACKS: all
+    networks:
+      - coffee-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   coffee-network:
     driver: bridge
+
+volumes:
+  postgres_data:
