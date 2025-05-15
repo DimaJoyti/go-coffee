@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
+	pgmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/yourusername/coffee-order-system/accounts-service/internal/config"
+	"github.com/yourusername/coffee-order-system/accounts-service/internal/kafka"
 	"github.com/yourusername/coffee-order-system/accounts-service/internal/repository/postgres"
 	"github.com/yourusername/coffee-order-system/accounts-service/internal/server"
+	"github.com/yourusername/coffee-order-system/accounts-service/internal/service"
 )
 
 func main() {
@@ -46,13 +48,36 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
+	// Create Kafka producer
+	kafkaProducer, err := kafka.NewKafkaProducer(cfg)
+	if err != nil {
+		log.Fatalf("Failed to create Kafka producer: %v", err)
+	}
+	defer kafkaProducer.Close()
+
 	// Create repositories
 	accountRepo := postgres.NewAccountRepository(db)
 	vendorRepo := postgres.NewVendorRepository(db)
-	// TODO: Create other repositories
+	productRepo := postgres.NewProductRepository(db)
+	orderRepo := postgres.NewOrderRepository(db)
+	orderItemRepo := postgres.NewOrderItemRepository(db)
+
+	// Create services
+	accountService := service.NewAccountService(accountRepo)
+	vendorService := service.NewVendorService(vendorRepo)
+	productService := service.NewProductService(productRepo, vendorRepo)
+	orderService := service.NewOrderService(orderRepo, orderItemRepo, accountRepo, productRepo)
+
+	// Use services in the resolver
+	resolver := &server.Resolver{
+		AccountService: accountService,
+		VendorService:  vendorService,
+		ProductService: productService,
+		OrderService:   orderService,
+	}
 
 	// Create HTTP server
-	httpServer := server.NewHTTPServer(cfg, accountRepo, vendorRepo)
+	httpServer := server.NewHTTPServer(cfg, resolver)
 
 	// Start the server in a goroutine
 	go func() {
@@ -83,7 +108,7 @@ func main() {
 
 // runMigrations runs the database migrations
 func runMigrations(db *postgres.Database, dbConfig config.DatabaseConfig) error {
-	driver, err := postgres.WithInstance(db.GetDB().DB, &postgres.Config{})
+	driver, err := pgmigrate.WithInstance(db.GetDB().DB, &pgmigrate.Config{})
 	if err != nil {
 		return fmt.Errorf("failed to create migration driver: %w", err)
 	}
