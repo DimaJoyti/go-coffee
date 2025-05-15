@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
+	migrate "github.com/golang-migrate/migrate/v4"
 	pgmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/yourusername/coffee-order-system/accounts-service/internal/config"
@@ -55,6 +55,13 @@ func main() {
 	}
 	defer kafkaProducer.Close()
 
+	// Create Kafka consumer
+	kafkaConsumer, err := kafka.NewKafkaConsumer(cfg)
+	if err != nil {
+		log.Fatalf("Failed to create Kafka consumer: %v", err)
+	}
+	defer kafkaConsumer.Close()
+
 	// Create repositories
 	accountRepo := postgres.NewAccountRepository(db)
 	vendorRepo := postgres.NewVendorRepository(db)
@@ -78,6 +85,23 @@ func main() {
 
 	// Create HTTP server
 	httpServer := server.NewHTTPServer(cfg, resolver)
+
+	// Create event handlers
+	eventHandlers := kafka.NewEventHandlers(accountService, orderService, productService, vendorService)
+
+	// Register event handlers
+	eventHandlers.RegisterHandlers(kafkaConsumer)
+
+	// Start the Kafka consumer in a goroutine
+	consumerCtx, consumerCancel := context.WithCancel(context.Background())
+	defer consumerCancel()
+
+	go func() {
+		log.Println("Starting Kafka consumer...")
+		if err := kafkaConsumer.Start(consumerCtx); err != nil {
+			log.Fatalf("Failed to start Kafka consumer: %v", err)
+		}
+	}()
 
 	// Start the server in a goroutine
 	go func() {

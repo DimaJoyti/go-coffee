@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: accounts-service
+  labels:
+    app: accounts-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: accounts-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: accounts-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: accounts-service
+        image: ${DOCKER_REGISTRY}/accounts-service:${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4000
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: SERVER_PORT
+          value: "4000"
+        - name: DB_HOST
+          value: postgres
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: DB_NAME
+          value: coffee_accounts
+        - name: DB_SSLMODE
+          value: disable
+        - name: KAFKA_BROKERS
+          value: '["kafka-0.kafka-headless:9092", "kafka-1.kafka-headless:9092", "kafka-2.kafka-headless:9092"]'
+        - name: KAFKA_TOPIC
+          value: account_events
+        - name: KAFKA_RETRY_MAX
+          value: "5"
+        - name: KAFKA_REQUIRED_ACKS
+          value: all
+        - name: LOG_LEVEL
+          value: info
+        - name: LOG_DEVELOPMENT
+          value: "false"
+        - name: LOG_ENCODING
+          value: json
+        - name: METRICS_ENABLED
+          value: "true"
+        - name: METRICS_PORT
+          value: "9090"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.json
+          subPath: config.json
+      volumes:
+      - name: config-volume
+        configMap:
+          name: accounts-service-config

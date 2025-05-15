@@ -15,6 +15,21 @@ type Resolver struct {
 
 // NewResolver creates a new resolver
 func NewResolver(
+	accountService *service.AccountService,
+	vendorService *service.VendorService,
+	productService *service.ProductService,
+	orderService *service.OrderService,
+) *Resolver {
+	return &Resolver{
+		accountService: accountService,
+		vendorService:  vendorService,
+		productService: productService,
+		orderService:   orderService,
+	}
+}
+
+// NewResolverFromRepositories creates a new resolver from repositories
+func NewResolverFromRepositories(
 	accountRepo repository.AccountRepository,
 	vendorRepo repository.VendorRepository,
 	productRepo repository.ProductRepository,

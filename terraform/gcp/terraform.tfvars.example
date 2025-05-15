@@ -1,0 +1,7 @@
+project_id   = "your-gcp-project-id"
+project_name = "coffee-order-system"
+region       = "us-central1"
+zone         = "us-central1-a"
+gke_num_nodes = 2
+machine_type = "e2-medium"
+db_password  = "your-secure-password"

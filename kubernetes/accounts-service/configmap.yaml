@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: accounts-service-config
+data:
+  config.json: |
+    {
+      "server": {
+        "port": 4000
+      },
+      "database": {
+        "host": "postgres",
+        "port": 5432,
+        "user": "postgres",
+        "password": "postgres",
+        "dbname": "coffee_accounts",
+        "sslmode": "disable"
+      },
+      "kafka": {
+        "brokers": ["kafka-0.kafka-headless:9092", "kafka-1.kafka-headless:9092", "kafka-2.kafka-headless:9092"],
+        "topic": "account_events",
+        "retry_max": 5,
+        "required_acks": "all"
+      },
+      "logging": {
+        "level": "info",
+        "development": false,
+        "encoding": "json"
+      },
+      "metrics": {
+        "enabled": true,
+        "port": 9090
+      }
+    }

@@ -13,6 +13,8 @@ type Config struct {
 	Server   ServerConfig   `json:"server"`
 	Database DatabaseConfig `json:"database"`
 	Kafka    KafkaConfig    `json:"kafka"`
+	Logging  LoggingConfig  `json:"logging"`
+	Metrics  MetricsConfig  `json:"metrics"`
 }
 
 // ServerConfig represents the HTTP server configuration
@@ -38,6 +40,19 @@ type KafkaConfig struct {
 	RequiredAcks string   `json:"required_acks"`
 }
 
+// LoggingConfig represents the logging configuration
+type LoggingConfig struct {
+	Level       string `json:"level"`
+	Development bool   `json:"development"`
+	Encoding    string `json:"encoding"`
+}
+
+// MetricsConfig represents the metrics configuration
+type MetricsConfig struct {
+	Enabled bool `json:"enabled"`
+	Port    int  `json:"port"`
+}
+
 // LoadConfig loads the configuration from environment variables or a config file
 func LoadConfig() (*Config, error) {
 	config := &Config{
@@ -57,6 +72,15 @@ func LoadConfig() (*Config, error) {
 			Topic:        getEnv("KAFKA_TOPIC", "account_events"),
 			RetryMax:     getEnvAsInt("KAFKA_RETRY_MAX", 5),
 			RequiredAcks: getEnv("KAFKA_REQUIRED_ACKS", "all"),
+		},
+		Logging: LoggingConfig{
+			Level:       getEnv("LOG_LEVEL", "info"),
+			Development: getEnvAsBool("LOG_DEVELOPMENT", false),
+			Encoding:    getEnv("LOG_ENCODING", "json"),
+		},
+		Metrics: MetricsConfig{
+			Enabled: getEnvAsBool("METRICS_ENABLED", true),
+			Port:    getEnvAsInt("METRICS_PORT", 9090),
 		},
 	}
 
@@ -118,6 +142,16 @@ func getEnvAsSlice(key string, defaultValue []string) []string {
 		}
 		// Fall back to comma-separated list
 		return strings.Split(value, ",")
+	}
+	return defaultValue
+}
+
+// getEnvAsBool gets an environment variable as a boolean or returns a default value
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value, exists := os.LookupEnv(key); exists {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
+		}
 	}
 	return defaultValue
 }

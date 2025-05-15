@@ -10,7 +10,10 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
+	github.com/prometheus/client_golang v1.19.0
+	github.com/stretchr/testify v1.8.4
 	github.com/vektah/gqlparser/v2 v2.5.11
+	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.22.0
 )
 
