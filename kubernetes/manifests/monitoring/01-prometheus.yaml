@@ -1,0 +1,235 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      scrape_timeout: 10s
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'producer'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - coffee-system
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: producer-service
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+
+      - job_name: 'consumer'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - coffee-system
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: consumer-service
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+
+      - job_name: 'streams'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - coffee-system
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: streams-service
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+
+      - job_name: 'kubernetes-nodes'
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  coffee_system_alerts.yml: |
+    groups:
+      - name: coffee_system_alerts
+        rules:
+          # Producer alerts
+          - alert: ProducerDown
+            expr: up{job="producer"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Producer is down"
+              description: "Producer has been down for more than 1 minute."
+
+          - alert: ProducerHighErrorRate
+            expr: rate(coffee_orders_failed_total[5m]) / rate(coffee_orders_total[5m]) > 0.05
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Producer has high error rate"
+              description: "Producer error rate is above 5% for more than 5 minutes."
+
+          # Consumer alerts
+          - alert: ConsumerDown
+            expr: up{job="consumer"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Consumer is down"
+              description: "Consumer has been down for more than 1 minute."
+
+          # Streams alerts
+          - alert: StreamsDown
+            expr: up{job="streams"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Streams processor is down"
+              description: "Streams processor has been down for more than 1 minute."
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-pvc
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+            - name: prometheus-rules
+              mountPath: /etc/prometheus/rules
+            - name: prometheus-data
+              mountPath: /prometheus
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+            - "--web.console.templates=/usr/share/prometheus/consoles"
+            - "--web.enable-lifecycle"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+      volumes:
+        - name: prometheus-config
+          configMap:
+            name: prometheus-config
+        - name: prometheus-rules
+          configMap:
+            name: prometheus-rules
+        - name: prometheus-data
+          persistentVolumeClaim:
+            claimName: prometheus-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+  type: ClusterIP

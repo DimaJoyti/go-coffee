@@ -1,0 +1,39 @@
+# Приклад файлу terraform.tfvars
+# Скопіюйте цей файл в terraform.tfvars і змініть значення відповідно до ваших потреб
+
+# Основні налаштування GCP
+project_id = "your-gcp-project-id"
+region     = "europe-west3"
+zone       = "europe-west3-a"
+environment = "dev"
+
+# Налаштування мережі
+network_name = "coffee-network"
+subnet_name  = "coffee-subnet"
+subnet_cidr  = "10.0.0.0/24"
+
+# Налаштування GKE
+gke_cluster_name = "coffee-cluster"
+gke_node_count   = 3
+gke_machine_type = "e2-standard-2"
+gke_min_node_count = 1
+gke_max_node_count = 5
+
+# Налаштування Kafka
+kafka_instance_name = "coffee-kafka"
+kafka_version       = "3.4"
+kafka_topic_name    = "coffee_orders"
+kafka_processed_topic_name = "processed_orders"
+
+# Налаштування моніторингу
+enable_monitoring     = true
+grafana_admin_password = "change-me-in-production"  # Змініть це значення в продакшн
+
+# Налаштування бекенду Terraform
+# Розкоментуйте та змініть значення для використання GCS як бекенду
+# terraform {
+#   backend "gcs" {
+#     bucket  = "your-terraform-state-bucket"
+#     prefix  = "terraform/state"
+#   }
+# }

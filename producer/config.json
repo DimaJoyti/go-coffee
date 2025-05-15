@@ -1,0 +1,11 @@
+{
+  "server": {
+    "port": 3000
+  },
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "topic": "coffee_orders",
+    "retry_max": 5,
+    "required_acks": "all"
+  }
+}

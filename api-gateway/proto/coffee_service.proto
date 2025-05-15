@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package coffee;
+
+option go_package = "api_gateway/proto/coffee";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Сервіс для роботи з замовленнями кави
+service CoffeeService {
+  // Створення нового замовлення
+  rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse) {
+    option (google.api.http) = {
+      post: "/v1/order"
+      body: "*"
+    };
+  }
+  
+  // Отримання інформації про замовлення
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) {
+    option (google.api.http) = {
+      get: "/v1/order/{order_id}"
+    };
+  }
+  
+  // Отримання списку всіх замовлень
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse) {
+    option (google.api.http) = {
+      get: "/v1/orders"
+    };
+  }
+  
+  // Скасування замовлення
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse) {
+    option (google.api.http) = {
+      post: "/v1/order/{order_id}/cancel"
+      body: "*"
+    };
+  }
+}
+
+// Запит на створення замовлення
+message PlaceOrderRequest {
+  string customer_name = 1;
+  string coffee_type = 2;
+}
+
+// Відповідь на створення замовлення
+message PlaceOrderResponse {
+  bool success = 1;
+  string message = 2;
+  Order order = 3;
+}
+
+// Запит на отримання інформації про замовлення
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+// Відповідь з інформацією про замовлення
+message GetOrderResponse {
+  bool success = 1;
+  string message = 2;
+  Order order = 3;
+}
+
+// Запит на отримання списку замовлень
+message ListOrdersRequest {
+  // Можна додати параметри для пагінації та фільтрації
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+// Відповідь зі списком замовлень
+message ListOrdersResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Order orders = 3;
+  int32 total_count = 4;
+}
+
+// Запит на скасування замовлення
+message CancelOrderRequest {
+  string order_id = 1;
+}
+
+// Відповідь на скасування замовлення
+message CancelOrderResponse {
+  bool success = 1;
+  string message = 2;
+  Order order = 3;
+}
+
+// Модель замовлення
+message Order {
+  string id = 1;
+  string customer_name = 2;
+  string coffee_type = 3;
+  string status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}

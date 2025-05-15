@@ -1,0 +1,9 @@
+{
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "topic": "coffee_orders",
+    "processed_topic": "processed_orders",
+    "consumer_group": "coffee-consumer-group",
+    "worker_pool_size": 3
+  }
+}

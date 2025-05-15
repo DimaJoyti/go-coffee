@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coffee-config
+  namespace: {{ .Values.namespace.name }}
+data:
+  KAFKA_BROKERS: {{ .Values.config.kafka.brokers | quote }}
+  KAFKA_TOPIC: {{ .Values.config.kafka.topic }}
+  KAFKA_PROCESSED_TOPIC: {{ .Values.config.kafka.processedTopic }}
+  KAFKA_RETRY_MAX: {{ .Values.config.kafka.retryMax | quote }}
+  KAFKA_REQUIRED_ACKS: {{ .Values.config.kafka.requiredAcks }}
+  KAFKA_APPLICATION_ID: {{ .Values.config.kafka.applicationId }}
+  KAFKA_AUTO_OFFSET_RESET: {{ .Values.config.kafka.autoOffsetReset }}
+  KAFKA_PROCESSING_GUARANTEE: {{ .Values.config.kafka.processingGuarantee }}
+  KAFKA_CONSUMER_GROUP: {{ .Values.config.kafka.consumerGroup }}
+  KAFKA_WORKER_POOL_SIZE: {{ .Values.config.kafka.workerPoolSize | quote }}

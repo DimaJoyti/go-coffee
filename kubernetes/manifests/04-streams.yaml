@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streams
+  namespace: coffee-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: streams
+  template:
+    metadata:
+      labels:
+        app: streams
+    spec:
+      containers:
+      - name: streams
+        image: ${DOCKER_REGISTRY}/coffee-streams:latest
+        imagePullPolicy: Always
+        env:
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_BROKERS
+        - name: KAFKA_INPUT_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_TOPIC
+        - name: KAFKA_OUTPUT_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_PROCESSED_TOPIC
+        - name: KAFKA_APPLICATION_ID
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_APPLICATION_ID
+        - name: KAFKA_AUTO_OFFSET_RESET
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_AUTO_OFFSET_RESET
+        - name: KAFKA_PROCESSING_GUARANTEE
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_PROCESSING_GUARANTEE
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"

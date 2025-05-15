@@ -1,0 +1,10 @@
+{
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "input_topic": "coffee_orders",
+    "output_topic": "processed_orders",
+    "application_id": "coffee-streams-app",
+    "auto_offset_reset": "earliest",
+    "processing_guarantee": "at_least_once"
+  }
+}

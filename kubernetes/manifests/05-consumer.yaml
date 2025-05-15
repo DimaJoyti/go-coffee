@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+  namespace: coffee-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      containers:
+      - name: consumer
+        image: ${DOCKER_REGISTRY}/coffee-consumer:latest
+        imagePullPolicy: Always
+        env:
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_BROKERS
+        - name: KAFKA_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_TOPIC
+        - name: KAFKA_PROCESSED_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_PROCESSED_TOPIC
+        - name: KAFKA_CONSUMER_GROUP
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_CONSUMER_GROUP
+        - name: KAFKA_WORKER_POOL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_WORKER_POOL_SIZE
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"

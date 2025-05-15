@@ -1,0 +1,133 @@
+groups:
+  - name: coffee_system_alerts
+    rules:
+      # Producer alerts
+      - alert: ProducerDown
+        expr: up{job="producer"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Producer is down"
+          description: "Producer has been down for more than 1 minute."
+
+      - alert: ProducerHighErrorRate
+        expr: rate(coffee_orders_failed_total[5m]) / rate(coffee_orders_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Producer has high error rate"
+          description: "Producer error rate is above 5% for more than 5 minutes."
+
+      - alert: ProducerHighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="producer"}[5m])) by (le, endpoint)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Producer has high latency"
+          description: "Producer 95th percentile latency is above 1 second for more than 5 minutes."
+
+      # Consumer alerts
+      - alert: ConsumerDown
+        expr: up{job="consumer"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Consumer is down"
+          description: "Consumer has been down for more than 1 minute."
+
+      - alert: ConsumerHighErrorRate
+        expr: rate(coffee_orders_processed_failed_total[5m]) / rate(coffee_orders_processed_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumer has high error rate"
+          description: "Consumer error rate is above 5% for more than 5 minutes."
+
+      - alert: ConsumerHighLatency
+        expr: histogram_quantile(0.95, sum(rate(coffee_order_preparation_seconds_bucket{job="consumer"}[5m])) by (le)) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumer has high latency"
+          description: "Consumer 95th percentile preparation time is above 5 seconds for more than 5 minutes."
+
+      # Streams alerts
+      - alert: StreamsDown
+        expr: up{job="streams"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Streams processor is down"
+          description: "Streams processor has been down for more than 1 minute."
+
+      - alert: StreamsNotRunning
+        expr: streams_running == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Streams processor is not running"
+          description: "Streams processor is not running for more than 1 minute."
+
+      - alert: StreamsHighErrorRate
+        expr: sum(rate(streams_errors_total[5m])) / sum(rate(streams_input_messages_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Streams processor has high error rate"
+          description: "Streams processor error rate is above 5% for more than 5 minutes."
+
+      # Kafka alerts
+      - alert: KafkaDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka is down"
+          description: "Kafka has been down for more than 1 minute."
+
+      - alert: KafkaHighLag
+        expr: kafka_consumergroup_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer group has high lag"
+          description: "Kafka consumer group {{ $labels.consumergroup }} has lag above 1000 for more than 5 minutes."
+
+      # System alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is above 80% for more than 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 80% for more than 5 minutes."
+
+      - alert: HighDiskUsage
+        expr: 100 - ((node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage"
+          description: "Disk usage is above 80% for more than 5 minutes."

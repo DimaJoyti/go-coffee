@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coffee-config
+  namespace: coffee-system
+data:
+  KAFKA_BROKERS: '["kafka-service:9092"]'
+  KAFKA_TOPIC: coffee_orders
+  KAFKA_PROCESSED_TOPIC: processed_orders
+  KAFKA_RETRY_MAX: "5"
+  KAFKA_REQUIRED_ACKS: "all"
+  KAFKA_APPLICATION_ID: coffee-streams-app
+  KAFKA_AUTO_OFFSET_RESET: earliest
+  KAFKA_PROCESSING_GUARANTEE: at_least_once
+  KAFKA_CONSUMER_GROUP: coffee-consumer-group
+  KAFKA_WORKER_POOL_SIZE: "3"

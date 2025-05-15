@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - coffee-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - coffee-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-setup
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka to be ready...' &&
+        kafka-topics --bootstrap-server kafka:9092 --list &&
+        echo 'Creating topics...' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic coffee_orders --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic processed_orders --partitions 3 --replication-factor 1 &&
+        echo 'Topics created.' &&
+        kafka-topics --bootstrap-server kafka:9092 --list
+      "
+    networks:
+      - coffee-network
+
+  producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    container_name: producer
+    depends_on:
+      kafka-setup:
+        condition: service_completed_successfully
+    ports:
+      - "3000:3000"
+    environment:
+      SERVER_PORT: 3000
+      KAFKA_BROKERS: '["kafka:9092"]'
+      KAFKA_TOPIC: coffee_orders
+      KAFKA_RETRY_MAX: 5
+      KAFKA_REQUIRED_ACKS: all
+    networks:
+      - coffee-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  streams:
+    build:
+      context: ./streams
+      dockerfile: Dockerfile
+    container_name: streams
+    depends_on:
+      kafka-setup:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BROKERS: '["kafka:9092"]'
+      KAFKA_INPUT_TOPIC: coffee_orders
+      KAFKA_OUTPUT_TOPIC: processed_orders
+      KAFKA_APPLICATION_ID: coffee-streams-app
+      KAFKA_AUTO_OFFSET_RESET: earliest
+      KAFKA_PROCESSING_GUARANTEE: at_least_once
+    networks:
+      - coffee-network
+
+  consumer:
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile
+    container_name: consumer
+    depends_on:
+      kafka-setup:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BROKERS: '["kafka:9092"]'
+      KAFKA_TOPIC: coffee_orders
+      KAFKA_PROCESSED_TOPIC: processed_orders
+      KAFKA_CONSUMER_GROUP: coffee-consumer-group
+      KAFKA_WORKER_POOL_SIZE: 3
+    networks:
+      - coffee-network
+
+networks:
+  coffee-network:
+    driver: bridge

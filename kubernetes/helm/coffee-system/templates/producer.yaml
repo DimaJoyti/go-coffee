@@ -1,0 +1,133 @@
+{{- if .Values.producer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer
+  namespace: {{ .Values.namespace.name }}
+spec:
+  replicas: {{ .Values.producer.replicas }}
+  selector:
+    matchLabels:
+      app: producer
+  template:
+    metadata:
+      labels:
+        app: producer
+    spec:
+      containers:
+      - name: producer
+        image: "{{ .Values.global.registry }}{{ .Values.producer.image }}:{{ .Values.producer.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        ports:
+        - containerPort: {{ .Values.producer.port }}
+          name: http
+        - containerPort: {{ .Values.producer.metricsPort }}
+          name: metrics
+        env:
+        - name: SERVER_PORT
+          value: "{{ .Values.producer.port }}"
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_BROKERS
+        - name: KAFKA_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_TOPIC
+        - name: KAFKA_RETRY_MAX
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_RETRY_MAX
+        - name: KAFKA_REQUIRED_ACKS
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_REQUIRED_ACKS
+        resources:
+{{ toYaml .Values.producer.resources | indent 10 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.producer.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.producer.port }}
+          initialDelaySeconds: 20
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: producer-service
+  namespace: {{ .Values.namespace.name }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.producer.metricsPort }}"
+spec:
+  selector:
+    app: producer
+  ports:
+  - port: 80
+    targetPort: {{ .Values.producer.port }}
+    name: http
+  - port: {{ .Values.producer.metricsPort }}
+    targetPort: {{ .Values.producer.metricsPort }}
+    name: metrics
+  type: ClusterIP
+{{- if .Values.producer.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: producer-ingress
+  namespace: {{ .Values.namespace.name }}
+  annotations:
+{{ toYaml .Values.producer.ingress.annotations | indent 4 }}
+spec:
+  rules:
+  - host: {{ .Values.producer.ingress.host }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: producer-service
+            port:
+              number: 80
+{{- end }}
+{{- if .Values.producer.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: producer-hpa
+  namespace: {{ .Values.namespace.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: producer
+  minReplicas: {{ .Values.producer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.producer.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.producer.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.producer.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+{{- end }}

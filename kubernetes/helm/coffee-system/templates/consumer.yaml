@@ -1,0 +1,97 @@
+{{- if .Values.consumer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+  namespace: {{ .Values.namespace.name }}
+spec:
+  replicas: {{ .Values.consumer.replicas }}
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      containers:
+      - name: consumer
+        image: "{{ .Values.global.registry }}{{ .Values.consumer.image }}:{{ .Values.consumer.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        ports:
+        - containerPort: {{ .Values.consumer.metricsPort }}
+          name: metrics
+        env:
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_BROKERS
+        - name: KAFKA_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_TOPIC
+        - name: KAFKA_PROCESSED_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_PROCESSED_TOPIC
+        - name: KAFKA_CONSUMER_GROUP
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_CONSUMER_GROUP
+        - name: KAFKA_WORKER_POOL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_WORKER_POOL_SIZE
+        resources:
+{{ toYaml .Values.consumer.resources | indent 10 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consumer-service
+  namespace: {{ .Values.namespace.name }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.consumer.metricsPort }}"
+spec:
+  selector:
+    app: consumer
+  ports:
+  - port: {{ .Values.consumer.metricsPort }}
+    targetPort: {{ .Values.consumer.metricsPort }}
+    name: metrics
+  type: ClusterIP
+{{- if .Values.consumer.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: consumer-hpa
+  namespace: {{ .Values.namespace.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: consumer
+  minReplicas: {{ .Values.consumer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.consumer.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.consumer.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.consumer.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+{{- end }}

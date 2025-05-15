@@ -1,0 +1,74 @@
+{{- if .Values.streams.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streams
+  namespace: {{ .Values.namespace.name }}
+spec:
+  replicas: {{ .Values.streams.replicas }}
+  selector:
+    matchLabels:
+      app: streams
+  template:
+    metadata:
+      labels:
+        app: streams
+    spec:
+      containers:
+      - name: streams
+        image: "{{ .Values.global.registry }}{{ .Values.streams.image }}:{{ .Values.streams.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        ports:
+        - containerPort: {{ .Values.streams.metricsPort }}
+          name: metrics
+        env:
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_BROKERS
+        - name: KAFKA_INPUT_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_TOPIC
+        - name: KAFKA_OUTPUT_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_PROCESSED_TOPIC
+        - name: KAFKA_APPLICATION_ID
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_APPLICATION_ID
+        - name: KAFKA_AUTO_OFFSET_RESET
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_AUTO_OFFSET_RESET
+        - name: KAFKA_PROCESSING_GUARANTEE
+          valueFrom:
+            configMapKeyRef:
+              name: coffee-config
+              key: KAFKA_PROCESSING_GUARANTEE
+        resources:
+{{ toYaml .Values.streams.resources | indent 10 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streams-service
+  namespace: {{ .Values.namespace.name }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.streams.metricsPort }}"
+spec:
+  selector:
+    app: streams
+  ports:
+  - port: {{ .Values.streams.metricsPort }}
+    targetPort: {{ .Values.streams.metricsPort }}
+    name: metrics
+  type: ClusterIP
+{{- end }}

@@ -1,0 +1,154 @@
+# Default values for coffee-system
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  registry: ""
+  imagePullPolicy: Always
+  environment: production
+
+# Namespace
+namespace:
+  name: coffee-system
+  create: true
+
+# Kafka settings
+kafka:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# Zookeeper settings
+zookeeper:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Producer settings
+producer:
+  enabled: true
+  replicas: 2
+  image: coffee-producer
+  tag: latest
+  port: 3000
+  metricsPort: 3001
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  ingress:
+    enabled: true
+    host: coffee-api.example.com
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+
+# Streams settings
+streams:
+  enabled: true
+  replicas: 1
+  image: coffee-streams
+  tag: latest
+  metricsPort: 9092
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+# Consumer settings
+consumer:
+  enabled: true
+  replicas: 2
+  image: coffee-consumer
+  tag: latest
+  metricsPort: 9091
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Config settings
+config:
+  kafka:
+    brokers: '["kafka-service:9092"]'
+    topic: coffee_orders
+    processedTopic: processed_orders
+    retryMax: "5"
+    requiredAcks: "all"
+    applicationId: coffee-streams-app
+    autoOffsetReset: earliest
+    processingGuarantee: at_least_once
+    consumerGroup: coffee-consumer-group
+    workerPoolSize: "3"
+
+# Monitoring settings
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  alertmanager:
+    enabled: true
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    slack:
+      enabled: true
+      webhookUrl: "https://hooks.slack.com/services/YOUR_SLACK_WEBHOOK_URL"
+      channel: "#monitoring"
+  grafana:
+    enabled: true
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+    adminUser: admin
+    adminPassword: admin
+    ingress:
+      enabled: true
+      host: grafana.example.com

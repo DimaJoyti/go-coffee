@@ -1,0 +1,267 @@
+{{- if .Values.monitoring.enabled }}
+{{- if .Values.monitoring.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: {{ .Values.namespace.name }}
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: {{ .Values.namespace.name }}
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'Coffee System'
+        orgId: 1
+        folder: 'Coffee System'
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: {{ .Values.namespace.name }}
+data:
+  coffee-system-overview.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": 1,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "datasource": null,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": 10,
+          "panels": [],
+          "title": "System Overview",
+          "type": "row"
+        },
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "text": "Down"
+                    },
+                    "1": {
+                      "text": "Up"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 1
+          },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "text": {},
+            "textMode": "auto"
+          },
+          "pluginVersion": "7.5.7",
+          "targets": [
+            {
+              "expr": "up{job=~\"producer|consumer|streams|kafka\"}",
+              "interval": "",
+              "legendFormat": "{{job}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Service Status",
+          "type": "stat"
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 27,
+      "style": "dark",
+      "tags": [],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Coffee System Overview",
+      "uid": "coffee-system-overview",
+      "version": 1
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: {{ .Values.namespace.name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ .Values.namespace.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          volumeMounts:
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards
+              mountPath: /var/lib/grafana/dashboards
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: {{ .Values.monitoring.grafana.adminUser }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.monitoring.grafana.adminPassword }}
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          resources:
+{{ toYaml .Values.monitoring.grafana.resources | indent 12 }}
+      volumes:
+        - name: grafana-datasources
+          configMap:
+            name: grafana-datasources
+        - name: grafana-dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: grafana-dashboards
+          configMap:
+            name: grafana-dashboards
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: grafana-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: {{ .Values.namespace.name }}
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+{{- if .Values.monitoring.grafana.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: {{ .Values.namespace.name }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: {{ .Values.monitoring.grafana.ingress.host }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+{{- end }}
+{{- end }}
+{{- end }}
