@@ -4,9 +4,32 @@ A simple coffee ordering system using Kafka for message queuing, implemented in 
 
 [Original Episode link](https://www.codeheim.io/courses/Episode-44-Mastering-Kafka-with-Golang-A-Beginners-Guide-6684b59a52e98b52484e560d)
 
-## Project Structure
+## New Project Structure
 
-The project consists of four main components:
+The project has been reorganized to improve code structure and reuse common components:
+
+### Shared Library (pkg)
+
+- `pkg/models`: Shared data models
+- `pkg/kafka`: Shared code for Kafka integration
+- `pkg/config`: Shared configuration code
+- `pkg/logger`: Shared logging code
+- `pkg/errors`: Shared error handling code
+
+### Services
+
+Each service has a standardized structure:
+
+- `cmd/`: Entry points for services
+- `internal/`: Internal service code
+  - `internal/handler`: HTTP/gRPC handlers
+  - `internal/service`: Business logic
+  - `internal/repository`: Data access
+- `config/`: Configuration files
+
+## System Components
+
+The system consists of four main components:
 
 1. **API Gateway**: gRPC gateway that provides a unified API for clients and communicates with the Producer service
 2. **Producer**: Service that receives coffee orders and sends them to Kafka (supports both HTTP and gRPC)
@@ -41,7 +64,7 @@ The project consists of four main components:
 ```bash
 cd producer
 go mod tidy
-go run main.go
+go run cmd/producer/main.go
 ```
 
 The producer will start an HTTP server on port 3000.
@@ -51,7 +74,7 @@ The producer will start an HTTP server on port 3000.
 ```bash
 cd streams
 go mod tidy
-go run main.go
+go run cmd/streams/main.go
 ```
 
 The streams processor will start processing messages from the "coffee_orders" Kafka topic and sending them to the "processed_orders" topic.
@@ -61,7 +84,7 @@ The streams processor will start processing messages from the "coffee_orders" Ka
 ```bash
 cd consumer
 go mod tidy
-go run main.go
+go run cmd/consumer/main.go
 ```
 
 The consumer will start listening for messages on both the "coffee_orders" and "processed_orders" Kafka topics.
@@ -71,7 +94,7 @@ The consumer will start listening for messages on both the "coffee_orders" and "
 ```bash
 cd api-gateway
 go mod tidy
-go run main.go
+go run cmd/api-gateway/main.go
 ```
 
 The API Gateway will start an HTTP server on port 8080 and connect to the Producer service via gRPC.
