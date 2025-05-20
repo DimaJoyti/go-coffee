@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supply-service
+  namespace: web3-wallet
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: supply-service
+  template:
+    metadata:
+      labels:
+        app: supply-service
+    spec:
+      containers:
+      - name: supply-service
+        image: ${REGISTRY}/web3-wallet-backend/supply-service:latest
+        ports:
+        - containerPort: 50055
+          name: grpc
+        env:
+        - name: CONFIG_FILE
+          value: /app/config/config.yaml
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "300m"
+        livenessProbe:
+          exec:
+            command:
+            - grpc_health_probe
+            - -addr=localhost:50055
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - grpc_health_probe
+            - -addr=localhost:50055
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: config-volume
+        configMap:
+          name: web3-wallet-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supply-service
+  namespace: web3-wallet
+spec:
+  selector:
+    app: supply-service
+  ports:
+  - port: 50055
+    targetPort: 50055
+    name: grpc
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: supply-service
+  namespace: web3-wallet
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: supply-service
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
