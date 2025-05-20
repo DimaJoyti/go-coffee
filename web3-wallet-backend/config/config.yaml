@@ -1,0 +1,123 @@
+# Web3 Wallet Backend Configuration
+
+# Server Configuration
+server:
+  port: 8080
+  host: "0.0.0.0"
+  timeout: 30s
+  read_timeout: 15s
+  write_timeout: 15s
+  max_header_bytes: 1048576 # 1MB
+
+# Database Configuration
+database:
+  driver: "postgres"
+  host: "localhost"
+  port: 5432
+  username: "postgres"
+  password: "postgres"
+  database: "web3_wallet"
+  ssl_mode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 25
+  conn_max_lifetime: "5m"
+
+# Redis Configuration
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+
+# Blockchain Configuration
+blockchain:
+  # Ethereum Configuration
+  ethereum:
+    network: "mainnet"
+    rpc_url: "https://mainnet.infura.io/v3/YOUR_INFURA_KEY"
+    ws_url: "wss://mainnet.infura.io/ws/v3/YOUR_INFURA_KEY"
+    chain_id: 1
+    gas_limit: 21000
+    gas_price: "auto"
+    confirmation_blocks: 12
+    
+  # Binance Smart Chain Configuration
+  bsc:
+    network: "mainnet"
+    rpc_url: "https://bsc-dataseed.binance.org/"
+    ws_url: "wss://bsc-ws-node.nariox.org:443"
+    chain_id: 56
+    gas_limit: 21000
+    gas_price: "auto"
+    confirmation_blocks: 15
+    
+  # Polygon Configuration
+  polygon:
+    network: "mainnet"
+    rpc_url: "https://polygon-rpc.com"
+    ws_url: "wss://polygon-ws.nariox.org:443"
+    chain_id: 137
+    gas_limit: 21000
+    gas_price: "auto"
+    confirmation_blocks: 64
+
+# Security Configuration
+security:
+  jwt:
+    secret: "your-secret-key-here"
+    expiration: "24h"
+    refresh_expiration: "168h"
+  encryption:
+    key_derivation: "pbkdf2"
+    iterations: 10000
+    salt_length: 16
+    key_length: 32
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    burst: 100
+
+# Logging Configuration
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  file_path: "logs/web3-wallet.log"
+  max_size: 100 # MB
+  max_age: 30 # days
+  max_backups: 10
+  compress: true
+
+# Monitoring Configuration
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+  health_check:
+    enabled: true
+    endpoint: "/health"
+  metrics:
+    enabled: true
+    endpoint: "/metrics"
+
+# Notification Configuration
+notification:
+  email:
+    enabled: true
+    smtp_host: "smtp.example.com"
+    smtp_port: 587
+    smtp_username: "your-email@example.com"
+    smtp_password: "your-password"
+    from_email: "no-reply@example.com"
+    from_name: "Web3 Wallet"
+  sms:
+    enabled: false
+    provider: "twilio"
+    account_sid: "your-account-sid"
+    auth_token: "your-auth-token"
+    from_number: "+1234567890"
+  push:
+    enabled: true
+    provider: "firebase"
+    credentials_file: "firebase-credentials.json"

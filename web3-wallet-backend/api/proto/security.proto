@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package security;
+
+option go_package = "github.com/yourusername/web3-wallet-backend/api/proto/security";
+
+// SecurityService provides security operations
+service SecurityService {
+  // GenerateKeyPair generates a new key pair
+  rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse) {}
+  
+  // EncryptPrivateKey encrypts a private key
+  rpc EncryptPrivateKey(EncryptPrivateKeyRequest) returns (EncryptPrivateKeyResponse) {}
+  
+  // DecryptPrivateKey decrypts a private key
+  rpc DecryptPrivateKey(DecryptPrivateKeyRequest) returns (DecryptPrivateKeyResponse) {}
+  
+  // GenerateJWT generates a JWT token
+  rpc GenerateJWT(GenerateJWTRequest) returns (GenerateJWTResponse) {}
+  
+  // VerifyJWT verifies a JWT token
+  rpc VerifyJWT(VerifyJWTRequest) returns (VerifyJWTResponse) {}
+  
+  // GenerateMnemonic generates a mnemonic phrase
+  rpc GenerateMnemonic(GenerateMnemonicRequest) returns (GenerateMnemonicResponse) {}
+  
+  // ValidateMnemonic validates a mnemonic phrase
+  rpc ValidateMnemonic(ValidateMnemonicRequest) returns (ValidateMnemonicResponse) {}
+  
+  // MnemonicToPrivateKey converts a mnemonic to a private key
+  rpc MnemonicToPrivateKey(MnemonicToPrivateKeyRequest) returns (MnemonicToPrivateKeyResponse) {}
+}
+
+// GenerateKeyPairRequest represents a request to generate a key pair
+message GenerateKeyPairRequest {
+  string chain = 1;
+}
+
+// GenerateKeyPairResponse represents a response to a generate key pair request
+message GenerateKeyPairResponse {
+  string private_key = 1;
+  string public_key = 2;
+  string address = 3;
+}
+
+// EncryptPrivateKeyRequest represents a request to encrypt a private key
+message EncryptPrivateKeyRequest {
+  string private_key = 1;
+  string passphrase = 2;
+}
+
+// EncryptPrivateKeyResponse represents a response to an encrypt private key request
+message EncryptPrivateKeyResponse {
+  string encrypted_key = 1;
+}
+
+// DecryptPrivateKeyRequest represents a request to decrypt a private key
+message DecryptPrivateKeyRequest {
+  string encrypted_key = 1;
+  string passphrase = 2;
+}
+
+// DecryptPrivateKeyResponse represents a response to a decrypt private key request
+message DecryptPrivateKeyResponse {
+  string private_key = 1;
+}
+
+// GenerateJWTRequest represents a request to generate a JWT token
+message GenerateJWTRequest {
+  string user_id = 1;
+  string email = 2;
+  string role = 3;
+  int64 expiration = 4;
+}
+
+// GenerateJWTResponse represents a response to a generate JWT token request
+message GenerateJWTResponse {
+  string token = 1;
+  string refresh_token = 2;
+  int64 expires_at = 3;
+}
+
+// VerifyJWTRequest represents a request to verify a JWT token
+message VerifyJWTRequest {
+  string token = 1;
+}
+
+// VerifyJWTResponse represents a response to a verify JWT token request
+message VerifyJWTResponse {
+  bool valid = 1;
+  string user_id = 2;
+  string email = 3;
+  string role = 4;
+  int64 expires_at = 5;
+}
+
+// GenerateMnemonicRequest represents a request to generate a mnemonic phrase
+message GenerateMnemonicRequest {
+  int32 strength = 1; // 128, 160, 192, 224, or 256 bits
+}
+
+// GenerateMnemonicResponse represents a response to a generate mnemonic phrase request
+message GenerateMnemonicResponse {
+  string mnemonic = 1;
+}
+
+// ValidateMnemonicRequest represents a request to validate a mnemonic phrase
+message ValidateMnemonicRequest {
+  string mnemonic = 1;
+}
+
+// ValidateMnemonicResponse represents a response to a validate mnemonic phrase request
+message ValidateMnemonicResponse {
+  bool valid = 1;
+}
+
+// MnemonicToPrivateKeyRequest represents a request to convert a mnemonic to a private key
+message MnemonicToPrivateKeyRequest {
+  string mnemonic = 1;
+  string path = 2; // Derivation path, e.g., "m/44'/60'/0'/0/0"
+}
+
+// MnemonicToPrivateKeyResponse represents a response to a convert mnemonic to private key request
+message MnemonicToPrivateKeyResponse {
+  string private_key = 1;
+  string public_key = 2;
+  string address = 3;
+}

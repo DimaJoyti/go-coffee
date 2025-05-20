@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web3-wallet-config
+  namespace: web3-wallet
+data:
+  # Server Configuration
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8080"
+  SERVER_TIMEOUT: "30s"
+  SERVER_READ_TIMEOUT: "15s"
+  SERVER_WRITE_TIMEOUT: "15s"
+  SERVER_MAX_HEADER_BYTES: "1048576"
+  
+  # Database Configuration
+  DB_DRIVER: "postgres"
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_USERNAME: "postgres"
+  DB_DATABASE: "web3_wallet"
+  DB_SSL_MODE: "disable"
+  DB_MAX_OPEN_CONNS: "25"
+  DB_MAX_IDLE_CONNS: "25"
+  DB_CONN_MAX_LIFETIME: "5m"
+  
+  # Redis Configuration
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_POOL_SIZE: "10"
+  
+  # Blockchain Configuration - Ethereum
+  ETH_NETWORK: "mainnet"
+  ETH_RPC_URL: "https://mainnet.infura.io/v3/YOUR_INFURA_KEY"
+  ETH_WS_URL: "wss://mainnet.infura.io/ws/v3/YOUR_INFURA_KEY"
+  ETH_CHAIN_ID: "1"
+  ETH_GAS_LIMIT: "21000"
+  ETH_GAS_PRICE: "auto"
+  ETH_CONFIRMATION_BLOCKS: "12"
+  
+  # Blockchain Configuration - BSC
+  BSC_NETWORK: "mainnet"
+  BSC_RPC_URL: "https://bsc-dataseed.binance.org/"
+  BSC_WS_URL: "wss://bsc-ws-node.nariox.org:443"
+  BSC_CHAIN_ID: "56"
+  BSC_GAS_LIMIT: "21000"
+  BSC_GAS_PRICE: "auto"
+  BSC_CONFIRMATION_BLOCKS: "15"
+  
+  # Blockchain Configuration - Polygon
+  POLYGON_NETWORK: "mainnet"
+  POLYGON_RPC_URL: "https://polygon-rpc.com"
+  POLYGON_WS_URL: "wss://polygon-ws.nariox.org:443"
+  POLYGON_CHAIN_ID: "137"
+  POLYGON_GAS_LIMIT: "21000"
+  POLYGON_GAS_PRICE: "auto"
+  POLYGON_CONFIRMATION_BLOCKS: "64"
+  
+  # Security Configuration
+  SECURITY_JWT_EXPIRATION: "24h"
+  SECURITY_JWT_REFRESH_EXPIRATION: "168h"
+  SECURITY_ENCRYPTION_KEY_DERIVATION: "pbkdf2"
+  SECURITY_ENCRYPTION_ITERATIONS: "10000"
+  SECURITY_ENCRYPTION_SALT_LENGTH: "16"
+  SECURITY_ENCRYPTION_KEY_LENGTH: "32"
+  SECURITY_RATE_LIMIT_ENABLED: "true"
+  SECURITY_RATE_LIMIT_REQUESTS_PER_MINUTE: "60"
+  SECURITY_RATE_LIMIT_BURST: "100"
+  
+  # Logging Configuration
+  LOGGING_LEVEL: "info"
+  LOGGING_FORMAT: "json"
+  LOGGING_OUTPUT: "stdout"
+  LOGGING_MAX_SIZE: "100"
+  LOGGING_MAX_AGE: "30"
+  LOGGING_MAX_BACKUPS: "10"
+  LOGGING_COMPRESS: "true"
+  
+  # Monitoring Configuration
+  MONITORING_PROMETHEUS_ENABLED: "true"
+  MONITORING_PROMETHEUS_PORT: "9090"
+  MONITORING_HEALTH_CHECK_ENABLED: "true"
+  MONITORING_HEALTH_CHECK_ENDPOINT: "/health"
+  MONITORING_METRICS_ENABLED: "true"
+  MONITORING_METRICS_ENDPOINT: "/metrics"

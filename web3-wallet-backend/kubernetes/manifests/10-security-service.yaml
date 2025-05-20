@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: security-service
+  namespace: web3-wallet
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: security-service
+  template:
+    metadata:
+      labels:
+        app: security-service
+    spec:
+      containers:
+      - name: security-service
+        image: yourusername/web3-wallet-security-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 50054
+          name: grpc
+        envFrom:
+        - configMapRef:
+            name: web3-wallet-config
+        - secretRef:
+            name: web3-wallet-secret
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - grpc_health_probe
+            - -addr=localhost:50054
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - grpc_health_probe
+            - -addr=localhost:50054
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-service
+  namespace: web3-wallet
+spec:
+  selector:
+    app: security-service
+  ports:
+  - port: 50054
+    targetPort: 50054
+    name: grpc
+  type: ClusterIP

@@ -1,0 +1,204 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: web3_wallet
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ./build/api-gateway/Dockerfile
+    container_name: api-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      CONFIG_FILE: /app/config/config.yaml
+    volumes:
+      - ./config:/app/config
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Wallet Service
+  wallet-service:
+    build:
+      context: .
+      dockerfile: ./build/wallet-service/Dockerfile
+    container_name: wallet-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "50051:50051"
+    environment:
+      CONFIG_FILE: /app/config/config.yaml
+    volumes:
+      - ./config:/app/config
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Transaction Service
+  transaction-service:
+    build:
+      context: .
+      dockerfile: ./build/transaction-service/Dockerfile
+    container_name: transaction-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "50052:50052"
+    environment:
+      CONFIG_FILE: /app/config/config.yaml
+    volumes:
+      - ./config:/app/config
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50052"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Smart Contract Service
+  smart-contract-service:
+    build:
+      context: .
+      dockerfile: ./build/smart-contract-service/Dockerfile
+    container_name: smart-contract-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "50053:50053"
+    environment:
+      CONFIG_FILE: /app/config/config.yaml
+    volumes:
+      - ./config:/app/config
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50053"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Security Service
+  security-service:
+    build:
+      context: .
+      dockerfile: ./build/security-service/Dockerfile
+    container_name: security-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "50054:50054"
+    environment:
+      CONFIG_FILE: /app/config/config.yaml
+    volumes:
+      - ./config:/app/config
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50054"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - web3-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - web3-network
+
+networks:
+  web3-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:

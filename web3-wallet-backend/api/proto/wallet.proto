@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package wallet;
+
+option go_package = "github.com/yourusername/web3-wallet-backend/api/proto/wallet";
+
+import "google/protobuf/timestamp.proto";
+
+// WalletService provides wallet management operations
+service WalletService {
+  // CreateWallet creates a new wallet
+  rpc CreateWallet(CreateWalletRequest) returns (CreateWalletResponse) {}
+  
+  // GetWallet retrieves a wallet by ID
+  rpc GetWallet(GetWalletRequest) returns (GetWalletResponse) {}
+  
+  // ListWallets lists all wallets for a user
+  rpc ListWallets(ListWalletsRequest) returns (ListWalletsResponse) {}
+  
+  // GetBalance retrieves the balance of a wallet
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse) {}
+  
+  // ImportWallet imports an existing wallet
+  rpc ImportWallet(ImportWalletRequest) returns (ImportWalletResponse) {}
+  
+  // ExportWallet exports a wallet (private key or keystore)
+  rpc ExportWallet(ExportWalletRequest) returns (ExportWalletResponse) {}
+  
+  // DeleteWallet deletes a wallet
+  rpc DeleteWallet(DeleteWalletRequest) returns (DeleteWalletResponse) {}
+}
+
+// Wallet represents a blockchain wallet
+message Wallet {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string address = 4;
+  string chain = 5;
+  string type = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// CreateWalletRequest represents a request to create a wallet
+message CreateWalletRequest {
+  string user_id = 1;
+  string name = 2;
+  string chain = 3;
+  string type = 4;
+}
+
+// CreateWalletResponse represents a response to a create wallet request
+message CreateWalletResponse {
+  Wallet wallet = 1;
+  string mnemonic = 2;
+  string private_key = 3;
+  string derivation_path = 4;
+}
+
+// GetWalletRequest represents a request to get a wallet
+message GetWalletRequest {
+  string id = 1;
+}
+
+// GetWalletResponse represents a response to a get wallet request
+message GetWalletResponse {
+  Wallet wallet = 1;
+}
+
+// ListWalletsRequest represents a request to list wallets
+message ListWalletsRequest {
+  string user_id = 1;
+  string chain = 2;
+  string type = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+// ListWalletsResponse represents a response to a list wallets request
+message ListWalletsResponse {
+  repeated Wallet wallets = 1;
+  int32 total = 2;
+}
+
+// GetBalanceRequest represents a request to get a wallet balance
+message GetBalanceRequest {
+  string wallet_id = 1;
+  string token_address = 2;
+}
+
+// GetBalanceResponse represents a response to a get balance request
+message GetBalanceResponse {
+  string balance = 1;
+  string symbol = 2;
+  int32 decimals = 3;
+  string token_address = 4;
+}
+
+// ImportWalletRequest represents a request to import a wallet
+message ImportWalletRequest {
+  string user_id = 1;
+  string name = 2;
+  string chain = 3;
+  string private_key = 4;
+}
+
+// ImportWalletResponse represents a response to an import wallet request
+message ImportWalletResponse {
+  Wallet wallet = 1;
+}
+
+// ExportWalletRequest represents a request to export a wallet
+message ExportWalletRequest {
+  string wallet_id = 1;
+  string passphrase = 2;
+}
+
+// ExportWalletResponse represents a response to an export wallet request
+message ExportWalletResponse {
+  string private_key = 1;
+  string keystore = 2;
+}
+
+// DeleteWalletRequest represents a request to delete a wallet
+message DeleteWalletRequest {
+  string wallet_id = 1;
+}
+
+// DeleteWalletResponse represents a response to a delete wallet request
+message DeleteWalletResponse {
+  bool success = 1;
+}

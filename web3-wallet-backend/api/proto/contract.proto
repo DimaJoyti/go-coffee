@@ -1,0 +1,207 @@
+syntax = "proto3";
+
+package contract;
+
+option go_package = "github.com/yourusername/web3-wallet-backend/api/proto/contract";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// SmartContractService provides smart contract operations
+service SmartContractService {
+  // DeployContract deploys a new smart contract
+  rpc DeployContract(DeployContractRequest) returns (DeployContractResponse) {}
+  
+  // ImportContract imports an existing contract
+  rpc ImportContract(ImportContractRequest) returns (ImportContractResponse) {}
+  
+  // GetContract retrieves a contract by ID
+  rpc GetContract(GetContractRequest) returns (GetContractResponse) {}
+  
+  // GetContractByAddress retrieves a contract by address
+  rpc GetContractByAddress(GetContractByAddressRequest) returns (GetContractByAddressResponse) {}
+  
+  // ListContracts lists all contracts for a user
+  rpc ListContracts(ListContractsRequest) returns (ListContractsResponse) {}
+  
+  // CallContract calls a contract method (read-only)
+  rpc CallContract(CallContractRequest) returns (CallContractResponse) {}
+  
+  // SendContractTransaction sends a contract transaction (state-changing)
+  rpc SendContractTransaction(SendContractTransactionRequest) returns (SendContractTransactionResponse) {}
+  
+  // GetContractEvents retrieves events emitted by a contract
+  rpc GetContractEvents(GetContractEventsRequest) returns (GetContractEventsResponse) {}
+  
+  // GetTokenInfo retrieves information about a token contract
+  rpc GetTokenInfo(GetTokenInfoRequest) returns (GetTokenInfoResponse) {}
+}
+
+// Contract represents a smart contract
+message Contract {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string address = 4;
+  string chain = 5;
+  string abi = 6;
+  string bytecode = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// DeployContractRequest represents a request to deploy a contract
+message DeployContractRequest {
+  string user_id = 1;
+  string wallet_id = 2;
+  string name = 3;
+  string chain = 4;
+  string type = 5;
+  string abi = 6;
+  string bytecode = 7;
+  repeated string arguments = 8;
+  uint64 gas = 9;
+  string gas_price = 10;
+  string passphrase = 11;
+}
+
+// DeployContractResponse represents a response to a deploy contract request
+message DeployContractResponse {
+  Contract contract = 1;
+  Transaction transaction = 2;
+}
+
+// Transaction represents a blockchain transaction (simplified for this service)
+message Transaction {
+  string id = 1;
+  string hash = 2;
+  string from = 3;
+  string to = 4;
+  string value = 5;
+  uint64 gas = 6;
+  string gas_price = 7;
+  string status = 8;
+}
+
+// ImportContractRequest represents a request to import a contract
+message ImportContractRequest {
+  string user_id = 1;
+  string name = 2;
+  string address = 3;
+  string chain = 4;
+  string type = 5;
+  string abi = 6;
+}
+
+// ImportContractResponse represents a response to an import contract request
+message ImportContractResponse {
+  Contract contract = 1;
+}
+
+// GetContractRequest represents a request to get a contract
+message GetContractRequest {
+  string id = 1;
+}
+
+// GetContractResponse represents a response to a get contract request
+message GetContractResponse {
+  Contract contract = 1;
+}
+
+// GetContractByAddressRequest represents a request to get a contract by address
+message GetContractByAddressRequest {
+  string address = 1;
+  string chain = 2;
+}
+
+// GetContractByAddressResponse represents a response to a get contract by address request
+message GetContractByAddressResponse {
+  Contract contract = 1;
+}
+
+// ListContractsRequest represents a request to list contracts
+message ListContractsRequest {
+  string user_id = 1;
+  string chain = 2;
+  string type = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+// ListContractsResponse represents a response to a list contracts request
+message ListContractsResponse {
+  repeated Contract contracts = 1;
+  int32 total = 2;
+}
+
+// CallContractRequest represents a request to call a contract method
+message CallContractRequest {
+  string contract_id = 1;
+  string method = 2;
+  repeated string arguments = 3;
+  string from = 4;
+}
+
+// CallContractResponse represents a response to a call contract method request
+message CallContractResponse {
+  google.protobuf.Value result = 1;
+}
+
+// SendContractTransactionRequest represents a request to send a contract transaction
+message SendContractTransactionRequest {
+  string contract_id = 1;
+  string wallet_id = 2;
+  string method = 3;
+  repeated string arguments = 4;
+  string value = 5;
+  uint64 gas = 6;
+  string gas_price = 7;
+  string passphrase = 8;
+}
+
+// SendContractTransactionResponse represents a response to a send contract transaction request
+message SendContractTransactionResponse {
+  Transaction transaction = 1;
+}
+
+// ContractEvent represents a contract event
+message ContractEvent {
+  string contract_id = 1;
+  string event = 2;
+  string transaction_id = 3;
+  uint64 block_number = 4;
+  uint32 log_index = 5;
+  google.protobuf.Struct data = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// GetContractEventsRequest represents a request to get contract events
+message GetContractEventsRequest {
+  string contract_id = 1;
+  string event = 2;
+  uint64 from_block = 3;
+  uint64 to_block = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+// GetContractEventsResponse represents a response to a get contract events request
+message GetContractEventsResponse {
+  repeated ContractEvent events = 1;
+  int32 total = 2;
+}
+
+// GetTokenInfoRequest represents a request to get token information
+message GetTokenInfoRequest {
+  string address = 1;
+  string chain = 2;
+}
+
+// GetTokenInfoResponse represents a response to a get token information request
+message GetTokenInfoResponse {
+  string name = 1;
+  string symbol = 2;
+  int32 decimals = 3;
+  string total_supply = 4;
+  string type = 5;
+}

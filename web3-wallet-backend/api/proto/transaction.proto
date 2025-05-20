@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package transaction;
+
+option go_package = "github.com/yourusername/web3-wallet-backend/api/proto/transaction";
+
+import "google/protobuf/timestamp.proto";
+
+// TransactionService provides transaction operations
+service TransactionService {
+  // CreateTransaction creates a new transaction
+  rpc CreateTransaction(CreateTransactionRequest) returns (CreateTransactionResponse) {}
+  
+  // GetTransaction retrieves a transaction by ID
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse) {}
+  
+  // GetTransactionByHash retrieves a transaction by hash
+  rpc GetTransactionByHash(GetTransactionByHashRequest) returns (GetTransactionByHashResponse) {}
+  
+  // ListTransactions lists all transactions for a wallet
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse) {}
+  
+  // GetTransactionStatus retrieves the status of a transaction
+  rpc GetTransactionStatus(GetTransactionStatusRequest) returns (GetTransactionStatusResponse) {}
+  
+  // EstimateGas estimates the gas required for a transaction
+  rpc EstimateGas(EstimateGasRequest) returns (EstimateGasResponse) {}
+  
+  // GetGasPrice retrieves the current gas price
+  rpc GetGasPrice(GetGasPriceRequest) returns (GetGasPriceResponse) {}
+  
+  // GetTransactionReceipt retrieves a transaction receipt
+  rpc GetTransactionReceipt(GetTransactionReceiptRequest) returns (GetTransactionReceiptResponse) {}
+}
+
+// Transaction represents a blockchain transaction
+message Transaction {
+  string id = 1;
+  string user_id = 2;
+  string wallet_id = 3;
+  string hash = 4;
+  string from = 5;
+  string to = 6;
+  string value = 7;
+  uint64 gas = 8;
+  string gas_price = 9;
+  uint64 nonce = 10;
+  string data = 11;
+  string chain = 12;
+  string status = 13;
+  uint64 block_number = 14;
+  string block_hash = 15;
+  uint64 confirmations = 16;
+  google.protobuf.Timestamp created_at = 17;
+  google.protobuf.Timestamp updated_at = 18;
+}
+
+// CreateTransactionRequest represents a request to create a transaction
+message CreateTransactionRequest {
+  string wallet_id = 1;
+  string to = 2;
+  string value = 3;
+  uint64 gas = 4;
+  string gas_price = 5;
+  string data = 6;
+  uint64 nonce = 7;
+  string passphrase = 8;
+}
+
+// CreateTransactionResponse represents a response to a create transaction request
+message CreateTransactionResponse {
+  Transaction transaction = 1;
+}
+
+// GetTransactionRequest represents a request to get a transaction
+message GetTransactionRequest {
+  string id = 1;
+}
+
+// GetTransactionResponse represents a response to a get transaction request
+message GetTransactionResponse {
+  Transaction transaction = 1;
+}
+
+// GetTransactionByHashRequest represents a request to get a transaction by hash
+message GetTransactionByHashRequest {
+  string hash = 1;
+  string chain = 2;
+}
+
+// GetTransactionByHashResponse represents a response to a get transaction by hash request
+message GetTransactionByHashResponse {
+  Transaction transaction = 1;
+}
+
+// ListTransactionsRequest represents a request to list transactions
+message ListTransactionsRequest {
+  string user_id = 1;
+  string wallet_id = 2;
+  string status = 3;
+  string chain = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+// ListTransactionsResponse represents a response to a list transactions request
+message ListTransactionsResponse {
+  repeated Transaction transactions = 1;
+  int32 total = 2;
+}
+
+// GetTransactionStatusRequest represents a request to get a transaction status
+message GetTransactionStatusRequest {
+  string id = 1;
+}
+
+// GetTransactionStatusResponse represents a response to a get transaction status request
+message GetTransactionStatusResponse {
+  string status = 1;
+  uint64 confirmations = 2;
+  uint64 block_number = 3;
+}
+
+// EstimateGasRequest represents a request to estimate gas
+message EstimateGasRequest {
+  string from = 1;
+  string to = 2;
+  string value = 3;
+  string data = 4;
+  string chain = 5;
+}
+
+// EstimateGasResponse represents a response to an estimate gas request
+message EstimateGasResponse {
+  uint64 gas = 1;
+}
+
+// GetGasPriceRequest represents a request to get gas price
+message GetGasPriceRequest {
+  string chain = 1;
+}
+
+// GetGasPriceResponse represents a response to a get gas price request
+message GetGasPriceResponse {
+  string gas_price = 1;
+  string slow = 2;
+  string average = 3;
+  string fast = 4;
+}
+
+// Log represents a transaction log
+message Log {
+  string address = 1;
+  repeated string topics = 2;
+  string data = 3;
+  uint64 block_number = 4;
+  string tx_hash = 5;
+  uint32 tx_index = 6;
+  string block_hash = 7;
+  uint32 index = 8;
+  bool removed = 9;
+}
+
+// GetTransactionReceiptRequest represents a request to get a transaction receipt
+message GetTransactionReceiptRequest {
+  string hash = 1;
+  string chain = 2;
+}
+
+// GetTransactionReceiptResponse represents a response to a get transaction receipt request
+message GetTransactionReceiptResponse {
+  string block_hash = 1;
+  uint64 block_number = 2;
+  string contract_address = 3;
+  uint64 cumulative_gas_used = 4;
+  string from = 5;
+  uint64 gas_used = 6;
+  bool status = 7;
+  string to = 8;
+  string transaction_hash = 9;
+  uint32 transaction_index = 10;
+  repeated Log logs = 11;
+}
