@@ -1,14 +1,104 @@
 # Web3 Wallet Backend Documentation
 
-Welcome to the Web3 Wallet Backend documentation. This directory contains comprehensive documentation for developers who want to use or contribute to the Web3 Wallet Backend system.
+## Overview
 
-## Table of Contents
+This documentation provides comprehensive information about the Web3 Wallet Backend system, a multi-region, high-performance platform designed to handle Web3 wallet operations with specialized services for shopper supply management, order processing, and order claiming.
 
-1. [API Documentation](api-documentation.md)
-2. [Developer Guide](developer-guide.md)
-3. [Architecture](architecture.md)
-4. [Deployment Guide](deployment-guide.md)
-5. [Security](security.md)
+## Documentation Structure
+
+### 📋 System Design
+- **[System Design](system-design.md)** - Comprehensive system architecture and design decisions
+- **[Architecture Decisions](architecture-decisions.md)** - Detailed ADRs explaining key architectural choices
+- **[Multi-Region Implementation](multi-region-implementation.md)** - Technical implementation details
+
+### 🚀 Deployment & Operations
+- **[Multi-Region Deployment Guide](multi-region-deployment-guide.md)** - Step-by-step deployment instructions
+- **[Performance Tuning Guide](performance-tuning-guide.md)** - Optimization recommendations
+- **[Implementation Summary](../IMPLEMENTATION-SUMMARY.md)** - High-level implementation overview
+
+### 🔌 API Documentation
+- **[API Design](api-design.md)** - REST and gRPC API specifications
+- **[Protocol Buffers](../api/proto/)** - gRPC service definitions
+
+### 🏗️ Infrastructure
+- **[Terraform Modules](../terraform/)** - Infrastructure as Code
+- **[Kubernetes Manifests](../kubernetes/)** - Container orchestration
+- **[Docker Images](../build/)** - Container definitions
+
+## Quick Start
+
+### Prerequisites
+
+- Google Cloud Platform account
+- Terraform 1.0+
+- kubectl
+- Helm 3+
+- Docker
+
+### Basic Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/web3-wallet-backend.git
+   cd web3-wallet-backend
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp terraform/multi-region/terraform.tfvars.example terraform/multi-region/terraform.tfvars
+   # Edit terraform.tfvars with your configuration
+   ```
+
+3. **Deploy infrastructure**
+   ```bash
+   cd terraform/multi-region
+   terraform init
+   terraform apply
+   ```
+
+4. **Deploy services**
+   ```bash
+   kubectl apply -f kubernetes/manifests/
+   ```
+
+## System Architecture
+
+### High-Level Overview
+
+The system is built as a distributed, multi-region architecture with the following key components:
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                        Global Layer                            │
+├─────────────────────────────────────────────────────────────────┤
+│  Global Load Balancer │ CDN │ DNS │ WAF │ DDoS Protection      │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                ┌───────────────┼───────────────┐
+                │               │               │
+        ┌───────▼──────┐ ┌──────▼──────┐ ┌─────▼──────┐
+        │   Region A   │ │   Region B  │ │  Region C  │
+        │ (us-central) │ │(europe-west)│ │(asia-east) │
+        └──────────────┘ └─────────────┘ └────────────┘
+```
+
+### Core Services
+
+1. **Supply Service** - Manages shopper supply data
+2. **Order Service** - Handles order processing and management
+3. **Claiming Service** - Manages order claiming operations
+4. **Wallet Service** - Existing Web3 wallet functionality
+
+### Technology Stack
+
+- **Container Orchestration**: Kubernetes (GKE)
+- **Service Communication**: gRPC
+- **Event Streaming**: Apache Kafka
+- **Caching**: Redis Cluster
+- **Database**: PostgreSQL
+- **Infrastructure**: Terraform
+- **Monitoring**: Prometheus + Grafana
+- **Logging**: ELK Stack
 
 ## API Documentation
 
