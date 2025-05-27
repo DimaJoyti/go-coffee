@@ -10,14 +10,16 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server      ServerConfig      `yaml:"server"`
-	Database    DatabaseConfig    `yaml:"database"`
-	Redis       RedisConfig       `yaml:"redis"`
-	Blockchain  BlockchainConfig  `yaml:"blockchain"`
-	Security    SecurityConfig    `yaml:"security"`
-	Logging     LoggingConfig     `yaml:"logging"`
-	Monitoring  MonitoringConfig  `yaml:"monitoring"`
+	Server       ServerConfig       `yaml:"server"`
+	Database     DatabaseConfig     `yaml:"database"`
+	Redis        RedisConfig        `yaml:"redis"`
+	Blockchain   BlockchainConfig   `yaml:"blockchain"`
+	Security     SecurityConfig     `yaml:"security"`
+	Logging      LoggingConfig      `yaml:"logging"`
+	Monitoring   MonitoringConfig   `yaml:"monitoring"`
 	Notification NotificationConfig `yaml:"notification"`
+	DeFi         DeFiConfig         `yaml:"defi"`
+	Services     ServicesConfig     `yaml:"services"`
 }
 
 // ServerConfig represents the HTTP server configuration
@@ -62,12 +64,12 @@ type BlockchainConfig struct {
 
 // BlockchainNetworkConfig represents the configuration for a blockchain network
 type BlockchainNetworkConfig struct {
-	Network           string `yaml:"network"`
-	RPCURL            string `yaml:"rpc_url"`
-	WSURL             string `yaml:"ws_url"`
-	ChainID           int    `yaml:"chain_id"`
-	GasLimit          uint64 `yaml:"gas_limit"`
-	GasPrice          string `yaml:"gas_price"`
+	Network            string `yaml:"network"`
+	RPCURL             string `yaml:"rpc_url"`
+	WSURL              string `yaml:"ws_url"`
+	ChainID            int    `yaml:"chain_id"`
+	GasLimit           uint64 `yaml:"gas_limit"`
+	GasPrice           string `yaml:"gas_price"`
 	ConfirmationBlocks int    `yaml:"confirmation_blocks"`
 }
 
@@ -171,6 +173,75 @@ type PushConfig struct {
 	CredentialsFile string `yaml:"credentials_file"`
 }
 
+// DeFiConfig represents the DeFi protocol configuration
+type DeFiConfig struct {
+	Uniswap   UniswapConfig   `yaml:"uniswap"`
+	Aave      AaveConfig      `yaml:"aave"`
+	Chainlink ChainlinkConfig `yaml:"chainlink"`
+	OneInch   OneInchConfig   `yaml:"oneinch"`
+	Coffee    CoffeeConfig    `yaml:"coffee"`
+}
+
+// UniswapConfig represents the Uniswap configuration
+type UniswapConfig struct {
+	Enabled         bool    `yaml:"enabled"`
+	FactoryAddress  string  `yaml:"factory_address"`
+	RouterAddress   string  `yaml:"router_address"`
+	QuoterAddress   string  `yaml:"quoter_address"`
+	PositionManager string  `yaml:"position_manager"`
+	DefaultSlippage float64 `yaml:"default_slippage"`
+	DefaultDeadline int     `yaml:"default_deadline"`
+}
+
+// AaveConfig represents the Aave configuration
+type AaveConfig struct {
+	Enabled             bool   `yaml:"enabled"`
+	PoolAddress         string `yaml:"pool_address"`
+	DataProviderAddress string `yaml:"data_provider_address"`
+	OracleAddress       string `yaml:"oracle_address"`
+	RewardsController   string `yaml:"rewards_controller"`
+}
+
+// ChainlinkConfig represents the Chainlink configuration
+type ChainlinkConfig struct {
+	Enabled    bool              `yaml:"enabled"`
+	PriceFeeds map[string]string `yaml:"price_feeds"`
+}
+
+// OneInchConfig represents the 1inch configuration
+type OneInchConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	APIKey  string `yaml:"api_key"`
+	BaseURL string `yaml:"base_url"`
+}
+
+// CoffeeConfig represents the Coffee Token configuration
+type CoffeeConfig struct {
+	Enabled         bool              `yaml:"enabled"`
+	TokenAddresses  map[string]string `yaml:"token_addresses"`
+	StakingContract string            `yaml:"staking_contract"`
+	RewardsAPY      float64           `yaml:"rewards_apy"`
+	MinStakeAmount  string            `yaml:"min_stake_amount"`
+}
+
+// ServicesConfig represents the services configuration
+type ServicesConfig struct {
+	APIGateway           ServiceConfig `yaml:"api_gateway"`
+	WalletService        ServiceConfig `yaml:"wallet_service"`
+	TransactionService   ServiceConfig `yaml:"transaction_service"`
+	SmartContractService ServiceConfig `yaml:"smart_contract_service"`
+	SecurityService      ServiceConfig `yaml:"security_service"`
+	DeFiService          ServiceConfig `yaml:"defi_service"`
+}
+
+// ServiceConfig represents the configuration for a service
+type ServiceConfig struct {
+	Host     string `yaml:"host"`
+	HTTPPort int    `yaml:"http_port"`
+	GRPCPort int    `yaml:"grpc_port"`
+	Enabled  bool   `yaml:"enabled"`
+}
+
 // LoadConfig loads the configuration from a file
 func LoadConfig(configPath string) (*Config, error) {
 	// Read the configuration file
@@ -186,4 +257,9 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// Load loads the configuration from a file (alias for LoadConfig)
+func Load(configPath string) (*Config, error) {
+	return LoadConfig(configPath)
 }

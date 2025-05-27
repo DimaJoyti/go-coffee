@@ -41,7 +41,7 @@ blockchain:
     gas_limit: 21000
     gas_price: "auto"
     confirmation_blocks: 12
-    
+
   # Binance Smart Chain Configuration
   bsc:
     network: "mainnet"
@@ -51,7 +51,7 @@ blockchain:
     gas_limit: 21000
     gas_price: "auto"
     confirmation_blocks: 15
-    
+
   # Polygon Configuration
   polygon:
     network: "mainnet"
@@ -121,3 +121,90 @@ notification:
     enabled: true
     provider: "firebase"
     credentials_file: "firebase-credentials.json"
+
+# DeFi Protocol Configuration
+defi:
+  # Uniswap Configuration
+  uniswap:
+    enabled: true
+    factory_address: "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+    router_address: "0xE592427A0AEce92De3Edee1F18E0157C05861564"
+    quoter_address: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"
+    position_manager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88"
+    default_slippage: 0.005  # 0.5%
+    default_deadline: 1800   # 30 minutes
+
+  # Aave Configuration
+  aave:
+    enabled: true
+    pool_address: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+    data_provider_address: "0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3"
+    oracle_address: "0x54586bE62E3c3580375aE3723C145253060Ca0C2"
+    rewards_controller: "0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb"
+
+  # Chainlink Configuration
+  chainlink:
+    enabled: true
+    price_feeds:
+      "ETH/USD": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"
+      "BTC/USD": "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c"
+      "USDC/USD": "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6"
+      "USDT/USD": "0x3E7d1eAB13ad0104d2750B8863b489D65364e32D"
+      "LINK/USD": "0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c"
+      "UNI/USD": "0x553303d460EE0afB37EdFf9bE42922D8FF63220e"
+      "AAVE/USD": "0x547a514d5e3769680Ce22B2361c10Ea13619e8a9"
+
+  # 1inch Configuration
+  oneinch:
+    enabled: true
+    api_key: "YOUR_1INCH_API_KEY"
+    base_url: "https://api.1inch.io/v5.0"
+
+  # Coffee Token Configuration
+  coffee:
+    enabled: true
+    token_addresses:
+      ethereum: "0x0000000000000000000000000000000000000000"  # To be updated after deployment
+      bsc: "0x0000000000000000000000000000000000000000"      # To be updated after deployment
+      polygon: "0x0000000000000000000000000000000000000000"   # To be updated after deployment
+    staking_contract: "0x0000000000000000000000000000000000000000"  # To be updated after deployment
+    rewards_apy: 0.12  # 12% APY
+    min_stake_amount: "100"  # 100 COFFEE tokens
+
+# Services Configuration
+services:
+  api_gateway:
+    host: "localhost"
+    http_port: 8080
+    grpc_port: 50050
+    enabled: true
+
+  wallet_service:
+    host: "localhost"
+    http_port: 8081
+    grpc_port: 50051
+    enabled: true
+
+  transaction_service:
+    host: "localhost"
+    http_port: 8082
+    grpc_port: 50052
+    enabled: true
+
+  smart_contract_service:
+    host: "localhost"
+    http_port: 8083
+    grpc_port: 50053
+    enabled: true
+
+  security_service:
+    host: "localhost"
+    http_port: 8084
+    grpc_port: 50054
+    enabled: true
+
+  defi_service:
+    host: "localhost"
+    http_port: 8085
+    grpc_port: 50055
+    enabled: true
