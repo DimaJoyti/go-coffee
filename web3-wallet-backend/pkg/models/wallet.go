@@ -22,6 +22,8 @@ type WalletType string
 const (
 	// WalletTypeHD represents a hierarchical deterministic wallet
 	WalletTypeHD WalletType = "hd"
+	// WalletTypeGenerated represents a generated wallet
+	WalletTypeGenerated WalletType = "generated"
 	// WalletTypeImported represents an imported wallet
 	WalletTypeImported WalletType = "imported"
 	// WalletTypeMultisig represents a multi-signature wallet
@@ -108,6 +110,15 @@ type GetBalanceResponse struct {
 	Symbol       string `json:"symbol"`
 	Decimals     int    `json:"decimals"`
 	TokenAddress string `json:"token_address,omitempty"`
+}
+
+// WalletBalanceResponse represents a comprehensive wallet balance response
+type WalletBalanceResponse struct {
+	WalletID    string            `json:"wallet_id"`
+	Address     string            `json:"address"`
+	Balances    map[string]string `json:"balances"`
+	TotalUSD    float64           `json:"total_usd"`
+	LastUpdated time.Time         `json:"last_updated"`
 }
 
 // ExportWalletRequest represents a request to export a wallet

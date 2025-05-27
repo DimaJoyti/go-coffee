@@ -20,6 +20,8 @@ type Config struct {
 	Notification NotificationConfig `yaml:"notification"`
 	DeFi         DeFiConfig         `yaml:"defi"`
 	Services     ServicesConfig     `yaml:"services"`
+	Telegram     TelegramConfig     `yaml:"telegram"`
+	AI           AIConfig           `yaml:"ai"`
 }
 
 // ServerConfig represents the HTTP server configuration
@@ -245,6 +247,7 @@ type ServicesConfig struct {
 	SmartContractService ServiceConfig `yaml:"smart_contract_service"`
 	SecurityService      ServiceConfig `yaml:"security_service"`
 	DeFiService          ServiceConfig `yaml:"defi_service"`
+	TelegramBot          ServiceConfig `yaml:"telegram_bot"`
 }
 
 // ServiceConfig represents the configuration for a service
@@ -275,4 +278,87 @@ func LoadConfig(configPath string) (*Config, error) {
 // Load loads the configuration from a file (alias for LoadConfig)
 func Load(configPath string) (*Config, error) {
 	return LoadConfig(configPath)
+}
+
+// TelegramConfig represents the Telegram bot configuration
+type TelegramConfig struct {
+	Enabled        bool                    `yaml:"enabled"`
+	BotToken       string                  `yaml:"bot_token"`
+	WebhookURL     string                  `yaml:"webhook_url"`
+	WebhookPort    int                     `yaml:"webhook_port"`
+	WebhookPath    string                  `yaml:"webhook_path"`
+	Debug          bool                    `yaml:"debug"`
+	Timeout        int                     `yaml:"timeout"`
+	MaxConnections int                     `yaml:"max_connections"`
+	AllowedUpdates []string                `yaml:"allowed_updates"`
+	Commands       []TelegramCommandConfig `yaml:"commands"`
+}
+
+// TelegramCommandConfig represents a Telegram bot command configuration
+type TelegramCommandConfig struct {
+	Command     string `yaml:"command"`
+	Description string `yaml:"description"`
+}
+
+// AIConfig represents the AI services configuration
+type AIConfig struct {
+	Enabled   bool            `yaml:"enabled"`
+	LangChain LangChainConfig `yaml:"langchain"`
+	Gemini    GeminiConfig    `yaml:"gemini"`
+	Ollama    OllamaConfig    `yaml:"ollama"`
+	Service   AIServiceConfig `yaml:"service"`
+}
+
+// LangChainConfig represents the LangChain configuration
+type LangChainConfig struct {
+	Enabled     bool    `yaml:"enabled"`
+	Model       string  `yaml:"model"`
+	Temperature float64 `yaml:"temperature"`
+	MaxTokens   int     `yaml:"max_tokens"`
+	Timeout     int     `yaml:"timeout"`
+}
+
+// GeminiConfig represents the Google Gemini configuration
+type GeminiConfig struct {
+	Enabled        bool                 `yaml:"enabled"`
+	APIKey         string               `yaml:"api_key"`
+	Model          string               `yaml:"model"`
+	Temperature    float64              `yaml:"temperature"`
+	MaxTokens      int                  `yaml:"max_tokens"`
+	Timeout        int                  `yaml:"timeout"`
+	SafetySettings GeminiSafetySettings `yaml:"safety_settings"`
+}
+
+// GeminiSafetySettings represents Gemini safety settings
+type GeminiSafetySettings struct {
+	Harassment       string `yaml:"harassment"`
+	HateSpeech       string `yaml:"hate_speech"`
+	SexuallyExplicit string `yaml:"sexually_explicit"`
+	DangerousContent string `yaml:"dangerous_content"`
+}
+
+// OllamaConfig represents the Ollama configuration
+type OllamaConfig struct {
+	Enabled     bool    `yaml:"enabled"`
+	Host        string  `yaml:"host"`
+	Port        int     `yaml:"port"`
+	Model       string  `yaml:"model"`
+	Temperature float64 `yaml:"temperature"`
+	Timeout     int     `yaml:"timeout"`
+	KeepAlive   string  `yaml:"keep_alive"`
+}
+
+// AIServiceConfig represents the AI service configuration
+type AIServiceConfig struct {
+	DefaultProvider  string            `yaml:"default_provider"`
+	FallbackProvider string            `yaml:"fallback_provider"`
+	CacheEnabled     bool              `yaml:"cache_enabled"`
+	CacheTTL         string            `yaml:"cache_ttl"`
+	RateLimit        AIRateLimitConfig `yaml:"rate_limit"`
+}
+
+// AIRateLimitConfig represents AI rate limiting configuration
+type AIRateLimitConfig struct {
+	RequestsPerMinute int `yaml:"requests_per_minute"`
+	Burst             int `yaml:"burst"`
 }
