@@ -10,125 +10,69 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yourusername/coffee-order-system/pkg/config"
-	"github.com/yourusername/coffee-order-system/pkg/kafka"
-	"github.com/yourusername/coffee-order-system/pkg/logger"
-
-	"kafka_producer/internal/handler"
-	"kafka_producer/internal/service"
-	"kafka_producer/internal/repository"
+	"kafka_producer/config"
+	"kafka_producer/handler"
+	"kafka_producer/kafka"
+	"kafka_producer/store"
 )
 
 func main() {
-	// Ініціалізація логера
-	logConfig := logger.DefaultConfig()
-	log := logger.NewLogger(logConfig)
-	log.Info("Starting producer service...")
+	log.Println("Starting Coffee Producer Service...")
 
-	// Завантаження конфігурації
-	cfg, err := loadConfig()
+	// Load configuration
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatal("Failed to load configuration: %v", err)
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Створення Kafka producer
-	kafkaProducer, err := createKafkaProducer(cfg)
+	// Create Kafka producer
+	kafkaProducer, err := kafka.NewProducer(cfg)
 	if err != nil {
-		log.Fatal("Failed to create Kafka producer: %v", err)
+		log.Fatalf("Failed to create Kafka producer: %v", err)
 	}
 	defer kafkaProducer.Close()
 
-	// Створення сховища замовлень
-	orderRepo := repository.NewOrderRepository()
+	// Create order store
+	orderStore := store.NewInMemoryOrderStore()
 
-	// Створення сервісу
-	orderService := service.NewOrderService(kafkaProducer, orderRepo)
+	// Create HTTP handlers
+	h := handler.NewHandler(kafkaProducer, cfg, orderStore)
 
-	// Створення HTTP обробників
-	h := handler.NewHandler(orderService, log)
+	// Setup HTTP routes
+	mux := http.NewServeMux()
+	mux.HandleFunc("/order", h.PlaceOrder)
+	mux.HandleFunc("/order/", h.GetOrder)
+	mux.HandleFunc("/orders", h.ListOrders)
+	mux.HandleFunc("/health", h.HealthCheck)
 
-	// Створення HTTP сервера
+	// Create HTTP server
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler: createHTTPHandler(h),
+		Handler: mux,
 	}
 
-	// Запуск HTTP сервера в горутині
+	// Start HTTP server in goroutine
 	go func() {
-		log.Info("Starting HTTP server on port %d", cfg.Server.Port)
+		log.Printf("Starting HTTP server on port %d", cfg.Server.Port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Failed to start HTTP server: %v", err)
+			log.Fatalf("Failed to start HTTP server: %v", err)
 		}
 	}()
 
-	// Запуск gRPC сервера в горутині
-	go func() {
-		log.Info("Starting gRPC server on port %d", cfg.GRPC.Port)
-		if err := startGRPCServer(orderService, cfg.GRPC.Port); err != nil {
-			log.Fatal("Failed to start gRPC server: %v", err)
-		}
-	}()
-
-	// Очікування сигналу завершення
+	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Info("Shutting down servers...")
+	log.Println("Shutting down server...")
 
-	// Створення контексту з таймаутом для graceful shutdown
+	// Create context with timeout for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Зупинка HTTP сервера
+	// Shutdown HTTP server
 	if err := server.Shutdown(ctx); err != nil {
-		log.Error("HTTP server shutdown error: %v", err)
+		log.Printf("HTTP server shutdown error: %v", err)
 	}
 
-	// Зупинка gRPC сервера (реалізація в startGRPCServer)
-
-	log.Info("Servers stopped")
-}
-
-// loadConfig завантажує конфігурацію
-func loadConfig() (*Config, error) {
-	// Реалізація завантаження конфігурації
-	// ...
-	return &Config{}, nil
-}
-
-// createKafkaProducer створює Kafka producer
-func createKafkaProducer(cfg *Config) (kafka.Producer, error) {
-	// Реалізація створення Kafka producer
-	// ...
-	return nil, nil
-}
-
-// createHTTPHandler створює HTTP обробник з middleware
-func createHTTPHandler(h *handler.Handler) http.Handler {
-	// Реалізація створення HTTP обробника з middleware
-	// ...
-	return nil
-}
-
-// startGRPCServer запускає gRPC сервер
-func startGRPCServer(orderService *service.OrderService, port int) error {
-	// Реалізація запуску gRPC сервера
-	// ...
-	return nil
-}
-
-// Config представляє конфігурацію сервісу
-type Config struct {
-	Server struct {
-		Port int
-	}
-	GRPC struct {
-		Port int
-	}
-	Kafka struct {
-		Brokers      []string
-		Topic        string
-		RetryMax     int
-		RequiredAcks string
-	}
+	log.Println("Server stopped")
 }
