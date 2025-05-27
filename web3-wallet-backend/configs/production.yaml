@@ -1,0 +1,358 @@
+# Production Configuration for Web3 Wallet Backend
+# DeFi Algorithmic Trading Strategies
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+  max_header_bytes: 1048576
+  graceful_shutdown_timeout: 30s
+
+# Database Configuration
+database:
+  host: "${DB_HOST}"
+  port: 5432
+  name: "${DB_NAME}"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  ssl_mode: "require"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 300s
+  conn_max_idle_time: 60s
+
+# Redis Configuration
+redis:
+  host: "${REDIS_HOST}"
+  port: 6379
+  password: "${REDIS_PASSWORD}"
+  db: 0
+  pool_size: 20
+  min_idle_conns: 5
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  pool_timeout: 4s
+  idle_timeout: 300s
+  idle_check_frequency: 60s
+
+# Kafka Configuration
+kafka:
+  brokers:
+    - "${KAFKA_BROKER_1}"
+    - "${KAFKA_BROKER_2}"
+    - "${KAFKA_BROKER_3}"
+  security_protocol: "SASL_SSL"
+  sasl_mechanism: "PLAIN"
+  sasl_username: "${KAFKA_USERNAME}"
+  sasl_password: "${KAFKA_PASSWORD}"
+  consumer_group: "defi-trading-group"
+  auto_offset_reset: "earliest"
+  enable_auto_commit: false
+  session_timeout: 30s
+  heartbeat_interval: 3s
+
+# DeFi Configuration
+defi:
+  # Arbitrage Detection
+  arbitrage:
+    enabled: true
+    scan_interval: 30s
+    min_profit_margin: 0.005  # 0.5%
+    max_gas_price: 100        # 100 gwei
+    max_slippage: 0.03        # 3%
+    supported_chains:
+      - ethereum
+      - bsc
+      - polygon
+      - arbitrum
+    supported_protocols:
+      - uniswap-v3
+      - pancakeswap
+      - quickswap
+      - 1inch
+
+  # Yield Farming
+  yield_farming:
+    enabled: true
+    scan_interval: 300s       # 5 minutes
+    min_apy: 0.05            # 5%
+    max_risk_level: "medium"
+    auto_compound: true
+    compound_threshold: 100   # $100
+    supported_protocols:
+      - uniswap-v3
+      - aave
+      - compound
+      - curve
+
+  # On-chain Analytics
+  onchain_analytics:
+    enabled: true
+    scan_interval: 120s       # 2 minutes
+    block_range: 100
+    whale_threshold: 1000000  # $1M
+    volume_spike_threshold: 5.0  # 5x normal volume
+    supported_chains:
+      - ethereum
+      - bsc
+      - polygon
+
+  # Trading Bots
+  trading_bots:
+    enabled: true
+    max_concurrent_bots: 10
+    default_execution_delay: 5s
+    max_position_size: 50000  # $50k
+    default_stop_loss: 0.05   # 5%
+    default_take_profit: 0.15 # 15%
+    risk_management:
+      max_daily_loss: 1000    # $1k
+      max_drawdown: 0.20      # 20%
+
+  # External APIs
+  one_inch:
+    api_key: "${ONE_INCH_API_KEY}"
+    base_url: "https://api.1inch.io/v5.0"
+    rate_limit: 100           # requests per minute
+    timeout: 10s
+
+  uniswap:
+    subgraph_url: "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3"
+    rate_limit: 1000          # requests per minute
+    timeout: 5s
+
+  aave:
+    subgraph_url: "https://api.thegraph.com/subgraphs/name/aave/protocol-v3"
+    rate_limit: 500           # requests per minute
+    timeout: 5s
+
+# Blockchain Configuration
+blockchain:
+  ethereum:
+    rpc_url: "${ETHEREUM_RPC_URL}"
+    ws_url: "${ETHEREUM_WS_URL}"
+    chain_id: 1
+    gas_limit: 500000
+    gas_price_multiplier: 1.1
+    confirmation_blocks: 12
+
+  bsc:
+    rpc_url: "${BSC_RPC_URL}"
+    ws_url: "${BSC_WS_URL}"
+    chain_id: 56
+    gas_limit: 500000
+    gas_price_multiplier: 1.1
+    confirmation_blocks: 3
+
+  polygon:
+    rpc_url: "${POLYGON_RPC_URL}"
+    ws_url: "${POLYGON_WS_URL}"
+    chain_id: 137
+    gas_limit: 500000
+    gas_price_multiplier: 1.1
+    confirmation_blocks: 20
+
+# Security Configuration
+security:
+  # Risk Thresholds
+  risk_thresholds:
+    max_transaction_amount: 100000    # $100k
+    max_slippage: 0.05               # 5%
+    max_gas_price: 100               # 100 gwei
+    max_daily_volume: 1000000        # $1M
+    min_liquidity: 10000             # $10k
+    max_price_impact: 0.03           # 3%
+
+  # Rate Limiting
+  rate_limiting:
+    enabled: true
+    requests_per_second: 100
+    burst_size: 200
+    cleanup_interval: 60s
+
+  # Circuit Breaker
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    timeout: 300s                    # 5 minutes
+    max_requests: 100
+
+  # Audit Rules
+  audit_rules:
+    high_transaction_amount:
+      enabled: true
+      severity: "high"
+      action: "alert"
+    
+    high_slippage:
+      enabled: true
+      severity: "medium"
+      action: "alert"
+    
+    low_liquidity:
+      enabled: true
+      severity: "high"
+      action: "block"
+    
+    suspicious_contract:
+      enabled: true
+      severity: "critical"
+      action: "reject"
+
+# Performance Configuration
+performance:
+  # Connection Pools
+  max_connections: 100
+  connection_timeout: 30s
+  idle_timeout: 300s
+  max_retries: 3
+  retry_delay: 1s
+
+  # Caching
+  cache_size: 10000
+  cache_ttl: 300s               # 5 minutes
+  cache_cleanup_interval: 60s
+
+  # Metrics Collection
+  metrics_interval: 30s
+  latency_buckets:
+    - 0.001  # 1ms
+    - 0.005  # 5ms
+    - 0.01   # 10ms
+    - 0.025  # 25ms
+    - 0.05   # 50ms
+    - 0.1    # 100ms
+    - 0.25   # 250ms
+    - 0.5    # 500ms
+    - 1.0    # 1s
+    - 2.5    # 2.5s
+    - 5.0    # 5s
+
+# Monitoring Configuration
+monitoring:
+  # Prometheus Metrics
+  prometheus:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+    
+  # Health Checks
+  health_checks:
+    enabled: true
+    port: 8081
+    path: "/health"
+    interval: 30s
+    timeout: 10s
+    
+  # Distributed Tracing
+  tracing:
+    enabled: true
+    service_name: "defi-trading-backend"
+    jaeger_endpoint: "${JAEGER_ENDPOINT}"
+    sampling_rate: 0.1          # 10%
+
+  # Logging
+  logging:
+    level: "info"
+    format: "json"
+    output: "stdout"
+    max_size: 100               # MB
+    max_backups: 5
+    max_age: 30                 # days
+    compress: true
+
+# Alerting Configuration
+alerting:
+  # Email Alerts
+  email:
+    enabled: true
+    smtp_host: "${SMTP_HOST}"
+    smtp_port: 587
+    username: "${SMTP_USERNAME}"
+    password: "${SMTP_PASSWORD}"
+    from: "alerts@defi-trading.com"
+    recipients:
+      - "admin@defi-trading.com"
+      - "security@defi-trading.com"
+
+  # Slack Alerts
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#defi-alerts"
+    username: "DeFi Trading Bot"
+
+  # PagerDuty
+  pagerduty:
+    enabled: true
+    integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+    severity_mapping:
+      critical: "critical"
+      high: "error"
+      medium: "warning"
+      low: "info"
+
+# Deployment Configuration
+deployment:
+  environment: "production"
+  region: "us-east-1"
+  availability_zones:
+    - "us-east-1a"
+    - "us-east-1b"
+    - "us-east-1c"
+  
+  # Auto Scaling
+  auto_scaling:
+    enabled: true
+    min_instances: 3
+    max_instances: 20
+    target_cpu_utilization: 70
+    scale_up_cooldown: 300s
+    scale_down_cooldown: 600s
+
+  # Load Balancer
+  load_balancer:
+    type: "application"
+    health_check_path: "/health"
+    health_check_interval: 30s
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"          # Daily at 2 AM
+  retention_days: 30
+  storage:
+    type: "s3"
+    bucket: "${BACKUP_S3_BUCKET}"
+    region: "us-east-1"
+    encryption: true
+
+# Feature Flags
+feature_flags:
+  arbitrage_trading: true
+  yield_farming: true
+  grid_trading: true
+  dca_strategy: true
+  portfolio_rebalancing: true
+  mev_protection: true
+  flash_loan_arbitrage: false    # Disabled in production initially
+  cross_chain_arbitrage: false   # Disabled in production initially
+
+# Compliance Configuration
+compliance:
+  kyc_required: true
+  aml_checks: true
+  transaction_limits:
+    daily_limit: 100000          # $100k
+    monthly_limit: 1000000       # $1M
+  reporting:
+    enabled: true
+    frequency: "daily"
+    recipients:
+      - "compliance@defi-trading.com"

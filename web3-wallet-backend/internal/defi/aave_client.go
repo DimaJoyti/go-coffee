@@ -2,31 +2,29 @@ package defi
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/shopspring/decimal"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/shopspring/decimal"
 )
 
 // Aave V3 contract addresses on Ethereum mainnet
 const (
-	AaveV3PoolAddress           = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
-	AaveV3PoolDataProvider      = "0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3"
-	AaveV3PriceOracle          = "0x54586bE62E3c3580375aE3723C145253060Ca0C2"
-	AaveV3RewardsController    = "0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb"
+	AaveV3PoolAddress       = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+	AaveV3PoolDataProvider  = "0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3"
+	AaveV3PriceOracle       = "0x54586bE62E3c3580375aE3723C145253060Ca0C2"
+	AaveV3RewardsController = "0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb"
 )
 
 // AaveClient handles interactions with Aave protocol
 type AaveClient struct {
 	client *blockchain.EthereumClient
 	logger *logger.Logger
-	
+
 	// Contract ABIs
 	poolABI         abi.ABI
 	dataProviderABI abi.ABI
@@ -49,9 +47,9 @@ func NewAaveClient(client *blockchain.EthereumClient, logger *logger.Logger) *Aa
 
 // LendTokens lends tokens to Aave
 func (ac *AaveClient) LendTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
-	ac.logger.Info("Lending tokens to Aave", 
-		"userID", userID, 
-		"token", tokenAddress, 
+	ac.logger.Info("Lending tokens to Aave",
+		"userID", userID,
+		"token", tokenAddress,
 		"amount", amount)
 
 	// Convert amount to big.Int (assuming 18 decimals)
@@ -70,9 +68,9 @@ func (ac *AaveClient) LendTokens(ctx context.Context, userID, tokenAddress strin
 
 // BorrowTokens borrows tokens from Aave
 func (ac *AaveClient) BorrowTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
-	ac.logger.Info("Borrowing tokens from Aave", 
-		"userID", userID, 
-		"token", tokenAddress, 
+	ac.logger.Info("Borrowing tokens from Aave",
+		"userID", userID,
+		"token", tokenAddress,
 		"amount", amount)
 
 	// Convert amount to big.Int (assuming 18 decimals)
@@ -91,9 +89,9 @@ func (ac *AaveClient) BorrowTokens(ctx context.Context, userID, tokenAddress str
 
 // RepayTokens repays borrowed tokens to Aave
 func (ac *AaveClient) RepayTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
-	ac.logger.Info("Repaying tokens to Aave", 
-		"userID", userID, 
-		"token", tokenAddress, 
+	ac.logger.Info("Repaying tokens to Aave",
+		"userID", userID,
+		"token", tokenAddress,
 		"amount", amount)
 
 	// Convert amount to big.Int (assuming 18 decimals)
@@ -112,9 +110,9 @@ func (ac *AaveClient) RepayTokens(ctx context.Context, userID, tokenAddress stri
 
 // WithdrawTokens withdraws lent tokens from Aave
 func (ac *AaveClient) WithdrawTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
-	ac.logger.Info("Withdrawing tokens from Aave", 
-		"userID", userID, 
-		"token", tokenAddress, 
+	ac.logger.Info("Withdrawing tokens from Aave",
+		"userID", userID,
+		"token", tokenAddress,
 		"amount", amount)
 
 	// Convert amount to big.Int (assuming 18 decimals)
@@ -138,11 +136,11 @@ func (ac *AaveClient) GetUserAccountData(ctx context.Context, userAddress string
 	// For now, return mock data
 	accountData := &AaveAccountData{
 		TotalCollateralETH:          decimal.NewFromFloat(10.5),
-		TotalDebtETH:               decimal.NewFromFloat(5.2),
-		AvailableBorrowsETH:        decimal.NewFromFloat(3.8),
+		TotalDebtETH:                decimal.NewFromFloat(5.2),
+		AvailableBorrowsETH:         decimal.NewFromFloat(3.8),
 		CurrentLiquidationThreshold: decimal.NewFromFloat(0.85),
-		LTV:                        decimal.NewFromFloat(0.75),
-		HealthFactor:               decimal.NewFromFloat(1.8),
+		LTV:                         decimal.NewFromFloat(0.75),
+		HealthFactor:                decimal.NewFromFloat(1.8),
 	}
 
 	return accountData, nil
@@ -155,10 +153,10 @@ func (ac *AaveClient) GetReserveData(ctx context.Context, tokenAddress string) (
 	// In a real implementation, you would call getReserveData() on Aave pool
 	// For now, return mock data
 	reserveData := &AaveReserveData{
-		LiquidityRate:    decimal.NewFromFloat(0.025), // 2.5% APY
-		VariableBorrowRate: decimal.NewFromFloat(0.045), // 4.5% APY
-		StableBorrowRate:   decimal.NewFromFloat(0.055), // 5.5% APY
-		LiquidityIndex:     decimal.NewFromFloat(1.025),
+		LiquidityRate:       decimal.NewFromFloat(0.025), // 2.5% APY
+		VariableBorrowRate:  decimal.NewFromFloat(0.045), // 4.5% APY
+		StableBorrowRate:    decimal.NewFromFloat(0.055), // 5.5% APY
+		LiquidityIndex:      decimal.NewFromFloat(1.025),
 		VariableBorrowIndex: decimal.NewFromFloat(1.045),
 		LastUpdateTimestamp: time.Now().Unix(),
 	}
@@ -168,21 +166,21 @@ func (ac *AaveClient) GetReserveData(ctx context.Context, tokenAddress string) (
 
 // GetUserReserveData retrieves user's reserve data for a specific token
 func (ac *AaveClient) GetUserReserveData(ctx context.Context, userAddress, tokenAddress string) (*AaveUserReserveData, error) {
-	ac.logger.Info("Getting user reserve data from Aave", 
-		"userAddress", userAddress, 
+	ac.logger.Info("Getting user reserve data from Aave",
+		"userAddress", userAddress,
 		"tokenAddress", tokenAddress)
 
 	// In a real implementation, you would call getUserReserveData() on data provider
 	// For now, return mock data
 	userReserveData := &AaveUserReserveData{
-		CurrentATokenBalance:    decimal.NewFromFloat(5.5),
-		CurrentStableDebt:      decimal.NewFromFloat(0),
-		CurrentVariableDebt:    decimal.NewFromFloat(2.1),
-		PrincipalStableDebt:    decimal.NewFromFloat(0),
-		ScaledVariableDebt:     decimal.NewFromFloat(2.0),
-		StableBorrowRate:       decimal.NewFromFloat(0.055),
-		LiquidityRate:          decimal.NewFromFloat(0.025),
-		StableRateLastUpdated:  time.Now().Unix(),
+		CurrentATokenBalance:     decimal.NewFromFloat(5.5),
+		CurrentStableDebt:        decimal.NewFromFloat(0),
+		CurrentVariableDebt:      decimal.NewFromFloat(2.1),
+		PrincipalStableDebt:      decimal.NewFromFloat(0),
+		ScaledVariableDebt:       decimal.NewFromFloat(2.0),
+		StableBorrowRate:         decimal.NewFromFloat(0.055),
+		LiquidityRate:            decimal.NewFromFloat(0.025),
+		StableRateLastUpdated:    time.Now().Unix(),
 		UsageAsCollateralEnabled: true,
 	}
 
@@ -203,8 +201,8 @@ func (ac *AaveClient) GetLendingAPY(ctx context.Context, tokenAddress string) (d
 
 // GetBorrowingAPY retrieves the current borrowing APY for a token
 func (ac *AaveClient) GetBorrowingAPY(ctx context.Context, tokenAddress string, stable bool) (decimal.Decimal, error) {
-	ac.logger.Info("Getting borrowing APY from Aave", 
-		"tokenAddress", tokenAddress, 
+	ac.logger.Info("Getting borrowing APY from Aave",
+		"tokenAddress", tokenAddress,
 		"stable", stable)
 
 	reserveData, err := ac.GetReserveData(ctx, tokenAddress)
@@ -220,8 +218,8 @@ func (ac *AaveClient) GetBorrowingAPY(ctx context.Context, tokenAddress string, 
 
 // EnableCollateral enables a token as collateral
 func (ac *AaveClient) EnableCollateral(ctx context.Context, userID, tokenAddress string) error {
-	ac.logger.Info("Enabling collateral in Aave", 
-		"userID", userID, 
+	ac.logger.Info("Enabling collateral in Aave",
+		"userID", userID,
 		"tokenAddress", tokenAddress)
 
 	// In a real implementation, you would call setUserUseReserveAsCollateral()
@@ -231,8 +229,8 @@ func (ac *AaveClient) EnableCollateral(ctx context.Context, userID, tokenAddress
 
 // DisableCollateral disables a token as collateral
 func (ac *AaveClient) DisableCollateral(ctx context.Context, userID, tokenAddress string) error {
-	ac.logger.Info("Disabling collateral in Aave", 
-		"userID", userID, 
+	ac.logger.Info("Disabling collateral in Aave",
+		"userID", userID,
 		"tokenAddress", tokenAddress)
 
 	// In a real implementation, you would call setUserUseReserveAsCollateral()
@@ -275,11 +273,11 @@ func (ac *AaveClient) loadABIs() {
 // AaveAccountData represents user's account data in Aave
 type AaveAccountData struct {
 	TotalCollateralETH          decimal.Decimal `json:"total_collateral_eth"`
-	TotalDebtETH               decimal.Decimal `json:"total_debt_eth"`
-	AvailableBorrowsETH        decimal.Decimal `json:"available_borrows_eth"`
+	TotalDebtETH                decimal.Decimal `json:"total_debt_eth"`
+	AvailableBorrowsETH         decimal.Decimal `json:"available_borrows_eth"`
 	CurrentLiquidationThreshold decimal.Decimal `json:"current_liquidation_threshold"`
-	LTV                        decimal.Decimal `json:"ltv"`
-	HealthFactor               decimal.Decimal `json:"health_factor"`
+	LTV                         decimal.Decimal `json:"ltv"`
+	HealthFactor                decimal.Decimal `json:"health_factor"`
 }
 
 // AaveReserveData represents reserve data in Aave
@@ -295,12 +293,12 @@ type AaveReserveData struct {
 // AaveUserReserveData represents user's reserve data in Aave
 type AaveUserReserveData struct {
 	CurrentATokenBalance     decimal.Decimal `json:"current_atoken_balance"`
-	CurrentStableDebt       decimal.Decimal `json:"current_stable_debt"`
-	CurrentVariableDebt     decimal.Decimal `json:"current_variable_debt"`
-	PrincipalStableDebt     decimal.Decimal `json:"principal_stable_debt"`
-	ScaledVariableDebt      decimal.Decimal `json:"scaled_variable_debt"`
-	StableBorrowRate        decimal.Decimal `json:"stable_borrow_rate"`
-	LiquidityRate           decimal.Decimal `json:"liquidity_rate"`
-	StableRateLastUpdated   int64           `json:"stable_rate_last_updated"`
-	UsageAsCollateralEnabled bool           `json:"usage_as_collateral_enabled"`
+	CurrentStableDebt        decimal.Decimal `json:"current_stable_debt"`
+	CurrentVariableDebt      decimal.Decimal `json:"current_variable_debt"`
+	PrincipalStableDebt      decimal.Decimal `json:"principal_stable_debt"`
+	ScaledVariableDebt       decimal.Decimal `json:"scaled_variable_debt"`
+	StableBorrowRate         decimal.Decimal `json:"stable_borrow_rate"`
+	LiquidityRate            decimal.Decimal `json:"liquidity_rate"`
+	StableRateLastUpdated    int64           `json:"stable_rate_last_updated"`
+	UsageAsCollateralEnabled bool            `json:"usage_as_collateral_enabled"`
 }

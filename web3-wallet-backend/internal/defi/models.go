@@ -412,3 +412,6 @@ type OnChainMetrics struct {
 	Volatility      decimal.Decimal `json:"volatility"`
 	Timestamp       time.Time       `json:"timestamp"`
 }
+
+// Additional types needed by service.go (only those not defined elsewhere)
+// Note: Most types are already defined in other files to avoid duplication
