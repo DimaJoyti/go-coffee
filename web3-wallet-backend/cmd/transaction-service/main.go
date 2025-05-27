@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/yourusername/web3-wallet-backend/pkg/config"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"google.golang.org/grpc"
 )
 

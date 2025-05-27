@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/web3-wallet-backend/internal/common"
-	"github.com/yourusername/web3-wallet-backend/pkg/config"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 )
 
 func main() {

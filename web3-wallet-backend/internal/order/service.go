@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yourusername/web3-wallet-backend/pkg/kafka"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
-	"github.com/yourusername/web3-wallet-backend/pkg/redis"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/kafka"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 )
 
 // Service represents the order service

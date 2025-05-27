@@ -12,11 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
-	"github.com/yourusername/web3-wallet-backend/internal/wallet"
-	"github.com/yourusername/web3-wallet-backend/pkg/blockchain"
-	cryptoUtil "github.com/yourusername/web3-wallet-backend/pkg/crypto"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
-	"github.com/yourusername/web3-wallet-backend/pkg/models"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/wallet"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
+	cryptoUtil "github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/crypto"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
 )
 
 // Service provides transaction operations

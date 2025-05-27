@@ -3,8 +3,8 @@ package config
 import (
 	"time"
 
-	"github.com/yourusername/web3-wallet-backend/pkg/kafka"
-	"github.com/yourusername/web3-wallet-backend/pkg/redis"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/kafka"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 )
 
 // Region represents a region configuration

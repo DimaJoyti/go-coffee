@@ -3,7 +3,7 @@ package logger
 import (
 	"os"
 
-	"github.com/yourusername/web3-wallet-backend/pkg/config"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"

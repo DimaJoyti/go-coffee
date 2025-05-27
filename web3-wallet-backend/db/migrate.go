@@ -9,7 +9,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/yourusername/web3-wallet-backend/pkg/config"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 )
 
 func main() {

@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/yourusername/web3-wallet-backend/pkg/config"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 )
 
 // EthereumClient represents an Ethereum blockchain client

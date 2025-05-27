@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/yourusername/web3-wallet-backend/pkg/crypto"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
-	"github.com/yourusername/web3-wallet-backend/pkg/models"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/crypto"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
 )
 
 // Service provides security operations

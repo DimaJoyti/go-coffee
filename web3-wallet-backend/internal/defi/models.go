@@ -1,7 +1,6 @@
 package defi
 
 import (
-	"math/big"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -11,14 +10,14 @@ import (
 type ProtocolType string
 
 const (
-	ProtocolTypeUniswap   ProtocolType = "uniswap"
+	ProtocolTypeUniswap     ProtocolType = "uniswap"
 	ProtocolTypePancakeSwap ProtocolType = "pancakeswap"
-	ProtocolTypeQuickSwap ProtocolType = "quickswap"
-	ProtocolTypeAave      ProtocolType = "aave"
-	ProtocolTypeCompound  ProtocolType = "compound"
-	ProtocolTypeChainlink ProtocolType = "chainlink"
-	ProtocolType1inch     ProtocolType = "1inch"
-	ProtocolTypeSynthetix ProtocolType = "synthetix"
+	ProtocolTypeQuickSwap   ProtocolType = "quickswap"
+	ProtocolTypeAave        ProtocolType = "aave"
+	ProtocolTypeCompound    ProtocolType = "compound"
+	ProtocolTypeChainlink   ProtocolType = "chainlink"
+	ProtocolType1inch       ProtocolType = "1inch"
+	ProtocolTypeSynthetix   ProtocolType = "synthetix"
 )
 
 // Chain represents supported blockchain networks
@@ -45,38 +44,38 @@ type Token struct {
 
 // LiquidityPool represents a liquidity pool
 type LiquidityPool struct {
-	ID           string          `json:"id"`
-	Protocol     ProtocolType    `json:"protocol"`
-	Chain        Chain           `json:"chain"`
-	Token0       Token           `json:"token0"`
-	Token1       Token           `json:"token1"`
-	Reserve0     decimal.Decimal `json:"reserve0"`
-	Reserve1     decimal.Decimal `json:"reserve1"`
-	TotalSupply  decimal.Decimal `json:"total_supply"`
-	Fee          decimal.Decimal `json:"fee"`
-	APY          decimal.Decimal `json:"apy"`
-	TVL          decimal.Decimal `json:"tvl"`
-	Address      string          `json:"address"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	ID          string          `json:"id"`
+	Protocol    ProtocolType    `json:"protocol"`
+	Chain       Chain           `json:"chain"`
+	Token0      Token           `json:"token0"`
+	Token1      Token           `json:"token1"`
+	Reserve0    decimal.Decimal `json:"reserve0"`
+	Reserve1    decimal.Decimal `json:"reserve1"`
+	TotalSupply decimal.Decimal `json:"total_supply"`
+	Fee         decimal.Decimal `json:"fee"`
+	APY         decimal.Decimal `json:"apy"`
+	TVL         decimal.Decimal `json:"tvl"`
+	Address     string          `json:"address"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
 // SwapQuote represents a token swap quote
 type SwapQuote struct {
-	ID               string          `json:"id"`
-	Protocol         ProtocolType    `json:"protocol"`
-	Chain            Chain           `json:"chain"`
-	TokenIn          Token           `json:"token_in"`
-	TokenOut         Token           `json:"token_out"`
-	AmountIn         decimal.Decimal `json:"amount_in"`
-	AmountOut        decimal.Decimal `json:"amount_out"`
-	MinAmountOut     decimal.Decimal `json:"min_amount_out"`
-	PriceImpact      decimal.Decimal `json:"price_impact"`
-	Fee              decimal.Decimal `json:"fee"`
-	GasEstimate      uint64          `json:"gas_estimate"`
-	Route            []string        `json:"route"`
-	ExpiresAt        time.Time       `json:"expires_at"`
-	CreatedAt        time.Time       `json:"created_at"`
+	ID           string          `json:"id"`
+	Protocol     ProtocolType    `json:"protocol"`
+	Chain        Chain           `json:"chain"`
+	TokenIn      Token           `json:"token_in"`
+	TokenOut     Token           `json:"token_out"`
+	AmountIn     decimal.Decimal `json:"amount_in"`
+	AmountOut    decimal.Decimal `json:"amount_out"`
+	MinAmountOut decimal.Decimal `json:"min_amount_out"`
+	PriceImpact  decimal.Decimal `json:"price_impact"`
+	Fee          decimal.Decimal `json:"fee"`
+	GasEstimate  uint64          `json:"gas_estimate"`
+	Route        []string        `json:"route"`
+	ExpiresAt    time.Time       `json:"expires_at"`
+	CreatedAt    time.Time       `json:"created_at"`
 }
 
 // YieldFarm represents a yield farming opportunity
@@ -98,18 +97,18 @@ type YieldFarm struct {
 
 // LendingPosition represents a lending/borrowing position
 type LendingPosition struct {
-	ID              string          `json:"id"`
-	UserID          string          `json:"user_id"`
-	Protocol        ProtocolType    `json:"protocol"`
-	Chain           Chain           `json:"chain"`
-	Token           Token           `json:"token"`
-	Amount          decimal.Decimal `json:"amount"`
-	Type            string          `json:"type"` // "lending" or "borrowing"
-	APY             decimal.Decimal `json:"apy"`
-	CollateralRatio decimal.Decimal `json:"collateral_ratio,omitempty"`
+	ID               string          `json:"id"`
+	UserID           string          `json:"user_id"`
+	Protocol         ProtocolType    `json:"protocol"`
+	Chain            Chain           `json:"chain"`
+	Token            Token           `json:"token"`
+	Amount           decimal.Decimal `json:"amount"`
+	Type             string          `json:"type"` // "lending" or "borrowing"
+	APY              decimal.Decimal `json:"apy"`
+	CollateralRatio  decimal.Decimal `json:"collateral_ratio,omitempty"`
 	LiquidationPrice decimal.Decimal `json:"liquidation_price,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
 }
 
 // StakingPosition represents a staking position
@@ -138,14 +137,14 @@ type PriceOracle struct {
 
 // FlashLoan represents a flash loan opportunity
 type FlashLoan struct {
-	ID          string          `json:"id"`
-	Protocol    ProtocolType    `json:"protocol"`
-	Chain       Chain           `json:"chain"`
-	Token       Token           `json:"token"`
-	Amount      decimal.Decimal `json:"amount"`
-	Fee         decimal.Decimal `json:"fee"`
-	Available   bool            `json:"available"`
-	MaxAmount   decimal.Decimal `json:"max_amount"`
+	ID        string          `json:"id"`
+	Protocol  ProtocolType    `json:"protocol"`
+	Chain     Chain           `json:"chain"`
+	Token     Token           `json:"token"`
+	Amount    decimal.Decimal `json:"amount"`
+	Fee       decimal.Decimal `json:"fee"`
+	Available bool            `json:"available"`
+	MaxAmount decimal.Decimal `json:"max_amount"`
 }
 
 // ArbitrageOpportunity represents an arbitrage opportunity
@@ -166,14 +165,14 @@ type ArbitrageOpportunity struct {
 
 // CoffeeToken represents the COFFEE utility token
 type CoffeeToken struct {
-	Address      string          `json:"address"`
-	Chain        Chain           `json:"chain"`
-	TotalSupply  decimal.Decimal `json:"total_supply"`
+	Address           string          `json:"address"`
+	Chain             Chain           `json:"chain"`
+	TotalSupply       decimal.Decimal `json:"total_supply"`
 	CirculatingSupply decimal.Decimal `json:"circulating_supply"`
-	Price        decimal.Decimal `json:"price"`
-	MarketCap    decimal.Decimal `json:"market_cap"`
-	StakingAPY   decimal.Decimal `json:"staking_apy"`
-	RewardsPool  decimal.Decimal `json:"rewards_pool"`
+	Price             decimal.Decimal `json:"price"`
+	MarketCap         decimal.Decimal `json:"market_cap"`
+	StakingAPY        decimal.Decimal `json:"staking_apy"`
+	RewardsPool       decimal.Decimal `json:"rewards_pool"`
 }
 
 // CoffeeStaking represents coffee token staking
@@ -233,13 +232,13 @@ type ExecuteSwapResponse struct {
 
 // GetLiquidityPoolsRequest represents a request to get liquidity pools
 type GetLiquidityPoolsRequest struct {
-	Chain    Chain        `json:"chain"`
-	Protocol ProtocolType `json:"protocol"`
-	Token0   string       `json:"token0"`
-	Token1   string       `json:"token1"`
+	Chain    Chain           `json:"chain"`
+	Protocol ProtocolType    `json:"protocol"`
+	Token0   string          `json:"token0"`
+	Token1   string          `json:"token1"`
 	MinTVL   decimal.Decimal `json:"min_tvl"`
-	Limit    int          `json:"limit"`
-	Offset   int          `json:"offset"`
+	Limit    int             `json:"limit"`
+	Offset   int             `json:"offset"`
 }
 
 // GetLiquidityPoolsResponse represents a response with liquidity pools
@@ -250,14 +249,14 @@ type GetLiquidityPoolsResponse struct {
 
 // AddLiquidityRequest represents a request to add liquidity
 type AddLiquidityRequest struct {
-	UserID      string          `json:"user_id" validate:"required"`
-	WalletID    string          `json:"wallet_id" validate:"required"`
-	PoolID      string          `json:"pool_id" validate:"required"`
-	Amount0     decimal.Decimal `json:"amount0" validate:"required"`
-	Amount1     decimal.Decimal `json:"amount1" validate:"required"`
-	MinAmount0  decimal.Decimal `json:"min_amount0"`
-	MinAmount1  decimal.Decimal `json:"min_amount1"`
-	Passphrase  string          `json:"passphrase" validate:"required"`
+	UserID     string          `json:"user_id" validate:"required"`
+	WalletID   string          `json:"wallet_id" validate:"required"`
+	PoolID     string          `json:"pool_id" validate:"required"`
+	Amount0    decimal.Decimal `json:"amount0" validate:"required"`
+	Amount1    decimal.Decimal `json:"amount1" validate:"required"`
+	MinAmount0 decimal.Decimal `json:"min_amount0"`
+	MinAmount1 decimal.Decimal `json:"min_amount1"`
+	Passphrase string          `json:"passphrase" validate:"required"`
 }
 
 // AddLiquidityResponse represents a response after adding liquidity
@@ -265,4 +264,151 @@ type AddLiquidityResponse struct {
 	TransactionHash string          `json:"transaction_hash"`
 	LPTokens        decimal.Decimal `json:"lp_tokens"`
 	Status          string          `json:"status"`
+}
+
+// Trading Strategy Models
+
+// TradingStrategy represents a trading strategy
+type TradingStrategy struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Type        TradingStrategyType    `json:"type"`
+	Status      TradingStrategyStatus  `json:"status"`
+	Config      map[string]interface{} `json:"config"`
+	Performance TradingPerformance     `json:"performance"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+// TradingStrategyType represents the type of trading strategy
+type TradingStrategyType string
+
+const (
+	StrategyTypeArbitrage    TradingStrategyType = "arbitrage"
+	StrategyTypeYieldFarming TradingStrategyType = "yield_farming"
+	StrategyTypeDCA          TradingStrategyType = "dca"
+	StrategyTypeGridTrading  TradingStrategyType = "grid_trading"
+	StrategyTypeRebalancing  TradingStrategyType = "rebalancing"
+	StrategyTypeMarketMaking TradingStrategyType = "market_making"
+)
+
+// TradingStrategyStatus represents the status of a trading strategy
+type TradingStrategyStatus string
+
+const (
+	StrategyStatusActive   TradingStrategyStatus = "active"
+	StrategyStatusPaused   TradingStrategyStatus = "paused"
+	StrategyStatusStopped  TradingStrategyStatus = "stopped"
+	StrategyStatusBacktest TradingStrategyStatus = "backtest"
+)
+
+// TradingPerformance represents trading strategy performance metrics
+type TradingPerformance struct {
+	TotalTrades    int             `json:"total_trades"`
+	WinningTrades  int             `json:"winning_trades"`
+	LosingTrades   int             `json:"losing_trades"`
+	WinRate        decimal.Decimal `json:"win_rate"`
+	TotalProfit    decimal.Decimal `json:"total_profit"`
+	TotalLoss      decimal.Decimal `json:"total_loss"`
+	NetProfit      decimal.Decimal `json:"net_profit"`
+	ROI            decimal.Decimal `json:"roi"`
+	Sharpe         decimal.Decimal `json:"sharpe"`
+	MaxDrawdown    decimal.Decimal `json:"max_drawdown"`
+	AvgTradeProfit decimal.Decimal `json:"avg_trade_profit"`
+	LastUpdated    time.Time       `json:"last_updated"`
+}
+
+// ArbitrageDetection represents an enhanced arbitrage opportunity
+type ArbitrageDetection struct {
+	ID             string            `json:"id"`
+	Token          Token             `json:"token"`
+	SourceExchange Exchange          `json:"source_exchange"`
+	TargetExchange Exchange          `json:"target_exchange"`
+	SourcePrice    decimal.Decimal   `json:"source_price"`
+	TargetPrice    decimal.Decimal   `json:"target_price"`
+	ProfitMargin   decimal.Decimal   `json:"profit_margin"`
+	Volume         decimal.Decimal   `json:"volume"`
+	GasCost        decimal.Decimal   `json:"gas_cost"`
+	NetProfit      decimal.Decimal   `json:"net_profit"`
+	Confidence     decimal.Decimal   `json:"confidence"`
+	Risk           RiskLevel         `json:"risk"`
+	ExecutionTime  time.Duration     `json:"execution_time"`
+	ExpiresAt      time.Time         `json:"expires_at"`
+	Status         OpportunityStatus `json:"status"`
+	CreatedAt      time.Time         `json:"created_at"`
+}
+
+// Exchange represents a DEX or CEX
+type Exchange struct {
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Type     ExchangeType    `json:"type"`
+	Chain    Chain           `json:"chain"`
+	Protocol ProtocolType    `json:"protocol"`
+	Address  string          `json:"address"`
+	Fee      decimal.Decimal `json:"fee"`
+	Active   bool            `json:"active"`
+}
+
+// ExchangeType represents the type of exchange
+type ExchangeType string
+
+const (
+	ExchangeTypeDEX ExchangeType = "dex"
+	ExchangeTypeCEX ExchangeType = "cex"
+)
+
+// RiskLevel represents risk assessment
+type RiskLevel string
+
+const (
+	RiskLevelLow    RiskLevel = "low"
+	RiskLevelMedium RiskLevel = "medium"
+	RiskLevelHigh   RiskLevel = "high"
+)
+
+// OpportunityStatus represents the status of an opportunity
+type OpportunityStatus string
+
+const (
+	OpportunityStatusDetected  OpportunityStatus = "detected"
+	OpportunityStatusExecuting OpportunityStatus = "executing"
+	OpportunityStatusExecuted  OpportunityStatus = "executed"
+	OpportunityStatusExpired   OpportunityStatus = "expired"
+	OpportunityStatusFailed    OpportunityStatus = "failed"
+)
+
+// YieldFarmingOpportunity represents an enhanced yield farming opportunity
+type YieldFarmingOpportunity struct {
+	ID              string          `json:"id"`
+	Protocol        ProtocolType    `json:"protocol"`
+	Chain           Chain           `json:"chain"`
+	Pool            LiquidityPool   `json:"pool"`
+	Strategy        string          `json:"strategy"`
+	APY             decimal.Decimal `json:"apy"`
+	APR             decimal.Decimal `json:"apr"`
+	TVL             decimal.Decimal `json:"tvl"`
+	MinDeposit      decimal.Decimal `json:"min_deposit"`
+	MaxDeposit      decimal.Decimal `json:"max_deposit"`
+	LockPeriod      time.Duration   `json:"lock_period"`
+	RewardTokens    []Token         `json:"reward_tokens"`
+	Risk            RiskLevel       `json:"risk"`
+	ImpermanentLoss decimal.Decimal `json:"impermanent_loss"`
+	Active          bool            `json:"active"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
+// OnChainMetrics represents on-chain analytics data
+type OnChainMetrics struct {
+	Token           Token           `json:"token"`
+	Chain           Chain           `json:"chain"`
+	Price           decimal.Decimal `json:"price"`
+	Volume24h       decimal.Decimal `json:"volume_24h"`
+	Liquidity       decimal.Decimal `json:"liquidity"`
+	MarketCap       decimal.Decimal `json:"market_cap"`
+	Holders         int64           `json:"holders"`
+	Transactions24h int64           `json:"transactions_24h"`
+	Volatility      decimal.Decimal `json:"volatility"`
+	Timestamp       time.Time       `json:"timestamp"`
 }

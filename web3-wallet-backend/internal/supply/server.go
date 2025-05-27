@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/yourusername/web3-wallet-backend/api/proto/supply"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
+	pb "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/supply"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 )
 
 // Server represents the gRPC server for the supply service

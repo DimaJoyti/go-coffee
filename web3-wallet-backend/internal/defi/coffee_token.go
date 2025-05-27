@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/yourusername/web3-wallet-backend/pkg/blockchain"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 )
 
 // Coffee Token contract addresses (to be deployed)

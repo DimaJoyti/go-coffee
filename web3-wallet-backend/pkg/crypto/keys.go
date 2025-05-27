@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -177,7 +178,7 @@ func (km *KeyManager) MnemonicToPrivateKey(mnemonic string, path string) (string
 	}
 
 	// Derive private key
-	privateKey, err := derivePrivateKey(seed, derivationPath)
+	privateKey, err := km.derivePrivateKey(seed, derivationPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to derive private key: %w", err)
 	}
@@ -201,6 +202,23 @@ func (km *KeyManager) getAccount(address string) (accounts.Account, error) {
 	}
 
 	return accounts.Account{}, fmt.Errorf("account not found: %s", address)
+}
+
+// derivePrivateKey derives a private key from seed and derivation path
+func (km *KeyManager) derivePrivateKey(seed []byte, derivationPath accounts.DerivationPath) (*ecdsa.PrivateKey, error) {
+	// Simplified implementation - in production, use proper HD wallet derivation
+	// For now, just generate a key from the seed
+
+	// Use seed to generate a deterministic private key
+	hash := sha256.Sum256(seed)
+
+	// Generate private key from hash
+	privateKey, err := crypto.ToECDSA(hash[:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to create private key: %w", err)
+	}
+
+	return privateKey, nil
 }
 
 // EncryptData encrypts data with a key

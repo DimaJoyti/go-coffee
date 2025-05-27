@@ -3,15 +3,14 @@ package defi
 import (
 	"context"
 	"fmt"
-	"math/big"
+	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/shopspring/decimal"
-	"github.com/yourusername/web3-wallet-backend/pkg/blockchain"
-	"github.com/yourusername/web3-wallet-backend/pkg/config"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
-	"github.com/yourusername/web3-wallet-backend/pkg/redis"
 )
 
 // Service provides DeFi protocol operations
@@ -22,12 +21,21 @@ type Service struct {
 	cache         redis.Client
 	logger        *logger.Logger
 	config        config.DeFiConfig
-	
+
 	// Protocol clients
 	uniswapClient   *UniswapClient
 	aaveClient      *AaveClient
 	chainlinkClient *ChainlinkClient
 	oneInchClient   *OneInchClient
+
+	// Trading components
+	arbitrageDetector *ArbitrageDetector
+	yieldAggregator   *YieldAggregator
+	onchainAnalyzer   *OnChainAnalyzer
+	tradingBots       map[string]*TradingBot
+
+	// State
+	mutex sync.RWMutex
 }
 
 // NewService creates a new DeFi service
@@ -46,6 +54,7 @@ func NewService(
 		cache:         cache,
 		logger:        logger.Named("defi"),
 		config:        config,
+		tradingBots:   make(map[string]*TradingBot),
 	}
 
 	// Initialize protocol clients
@@ -53,6 +62,29 @@ func NewService(
 	service.aaveClient = NewAaveClient(ethClient, logger)
 	service.chainlinkClient = NewChainlinkClient(ethClient, logger)
 	service.oneInchClient = NewOneInchClient(config.OneInch.APIKey, logger)
+
+	// Initialize trading components
+	service.arbitrageDetector = NewArbitrageDetector(
+		logger,
+		cache,
+		service.uniswapClient,
+		service.oneInchClient,
+	)
+
+	service.yieldAggregator = NewYieldAggregator(
+		logger,
+		cache,
+		service.uniswapClient,
+		service.aaveClient,
+	)
+
+	service.onchainAnalyzer = NewOnChainAnalyzer(
+		logger,
+		cache,
+		ethClient,
+		bscClient,
+		polygonClient,
+	)
 
 	return service
 }
@@ -102,9 +134,9 @@ func (s *Service) GetTokenPrice(ctx context.Context, req *GetTokenPriceRequest) 
 
 // GetSwapQuote gets a quote for token swap
 func (s *Service) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*GetSwapQuoteResponse, error) {
-	s.logger.Info("Getting swap quote", 
-		"tokenIn", req.TokenIn, 
-		"tokenOut", req.TokenOut, 
+	s.logger.Info("Getting swap quote",
+		"tokenIn", req.TokenIn,
+		"tokenOut", req.TokenOut,
 		"amountIn", req.AmountIn,
 		"chain", req.Chain)
 
@@ -346,4 +378,199 @@ func (s *Service) addPancakeSwapLiquidity(ctx context.Context, pool *LiquidityPo
 func (s *Service) addQuickSwapLiquidity(ctx context.Context, pool *LiquidityPool, req *AddLiquidityRequest) (string, decimal.Decimal, error) {
 	// Implementation for QuickSwap liquidity
 	return "", decimal.Zero, fmt.Errorf("not implemented")
+}
+
+// Start starts all trading components
+func (s *Service) Start(ctx context.Context) error {
+	s.logger.Info("Starting DeFi service with trading components")
+
+	// Start arbitrage detector
+	if err := s.arbitrageDetector.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start arbitrage detector: %w", err)
+	}
+
+	// Start yield aggregator
+	if err := s.yieldAggregator.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start yield aggregator: %w", err)
+	}
+
+	// Start on-chain analyzer
+	if err := s.onchainAnalyzer.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start on-chain analyzer: %w", err)
+	}
+
+	s.logger.Info("All trading components started successfully")
+	return nil
+}
+
+// Stop stops all trading components
+func (s *Service) Stop() {
+	s.logger.Info("Stopping DeFi service")
+
+	// Stop arbitrage detector
+	s.arbitrageDetector.Stop()
+
+	// Stop yield aggregator
+	s.yieldAggregator.Stop()
+
+	// Stop on-chain analyzer
+	s.onchainAnalyzer.Stop()
+
+	// Stop all trading bots
+	s.mutex.Lock()
+	for _, bot := range s.tradingBots {
+		bot.Stop()
+	}
+	s.mutex.Unlock()
+
+	s.logger.Info("DeFi service stopped")
+}
+
+// Arbitrage Methods
+
+// GetArbitrageOpportunities returns current arbitrage opportunities
+func (s *Service) GetArbitrageOpportunities(ctx context.Context) ([]*ArbitrageDetection, error) {
+	return s.arbitrageDetector.GetOpportunities(ctx)
+}
+
+// DetectArbitrageForToken detects arbitrage opportunities for a specific token
+func (s *Service) DetectArbitrageForToken(ctx context.Context, token Token) ([]*ArbitrageDetection, error) {
+	return s.arbitrageDetector.DetectArbitrageForToken(ctx, token)
+}
+
+// Yield Farming Methods
+
+// GetBestYieldOpportunities returns the best yield farming opportunities
+func (s *Service) GetBestYieldOpportunities(ctx context.Context, limit int) ([]*YieldFarmingOpportunity, error) {
+	return s.yieldAggregator.GetBestOpportunities(ctx, limit)
+}
+
+// GetOptimalYieldStrategy returns the optimal yield strategy for given parameters
+func (s *Service) GetOptimalYieldStrategy(ctx context.Context, req *OptimalStrategyRequest) (*YieldStrategy, error) {
+	return s.yieldAggregator.GetOptimalStrategy(ctx, req)
+}
+
+// On-Chain Analysis Methods
+
+// GetOnChainMetrics returns on-chain metrics for a token
+func (s *Service) GetOnChainMetrics(ctx context.Context, tokenAddress string) (*OnChainMetrics, error) {
+	return s.onchainAnalyzer.GetMetrics(ctx, tokenAddress)
+}
+
+// GetMarketSignals returns current market signals
+func (s *Service) GetMarketSignals(ctx context.Context) ([]*MarketSignal, error) {
+	return s.onchainAnalyzer.GetMarketSignals(ctx)
+}
+
+// GetWhaleActivity returns recent whale activity
+func (s *Service) GetWhaleActivity(ctx context.Context) ([]*WhaleWatch, error) {
+	return s.onchainAnalyzer.GetWhaleActivity(ctx)
+}
+
+// GetTokenAnalysis returns comprehensive analysis for a token
+func (s *Service) GetTokenAnalysis(ctx context.Context, tokenAddress string) (*TokenAnalysis, error) {
+	return s.onchainAnalyzer.GetTokenAnalysis(ctx, tokenAddress)
+}
+
+// Trading Bot Methods
+
+// CreateTradingBot creates a new trading bot
+func (s *Service) CreateTradingBot(ctx context.Context, name string, strategy TradingStrategyType, config TradingBotConfig) (*TradingBot, error) {
+	s.logger.Info("Creating trading bot", "name", name, "strategy", strategy)
+
+	bot := NewTradingBot(
+		name,
+		strategy,
+		config,
+		s.logger,
+		s.cache,
+		s.arbitrageDetector,
+		s.yieldAggregator,
+		s.uniswapClient,
+		s.oneInchClient,
+		s.aaveClient,
+	)
+
+	s.mutex.Lock()
+	s.tradingBots[bot.ID] = bot
+	s.mutex.Unlock()
+
+	return bot, nil
+}
+
+// GetTradingBot returns a trading bot by ID
+func (s *Service) GetTradingBot(ctx context.Context, botID string) (*TradingBot, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	bot, exists := s.tradingBots[botID]
+	if !exists {
+		return nil, fmt.Errorf("trading bot not found: %s", botID)
+	}
+
+	return bot, nil
+}
+
+// GetAllTradingBots returns all trading bots
+func (s *Service) GetAllTradingBots(ctx context.Context) ([]*TradingBot, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	bots := make([]*TradingBot, 0, len(s.tradingBots))
+	for _, bot := range s.tradingBots {
+		bots = append(bots, bot)
+	}
+
+	return bots, nil
+}
+
+// StartTradingBot starts a trading bot
+func (s *Service) StartTradingBot(ctx context.Context, botID string) error {
+	bot, err := s.GetTradingBot(ctx, botID)
+	if err != nil {
+		return err
+	}
+
+	return bot.Start(ctx)
+}
+
+// StopTradingBot stops a trading bot
+func (s *Service) StopTradingBot(ctx context.Context, botID string) error {
+	bot, err := s.GetTradingBot(ctx, botID)
+	if err != nil {
+		return err
+	}
+
+	return bot.Stop()
+}
+
+// DeleteTradingBot deletes a trading bot
+func (s *Service) DeleteTradingBot(ctx context.Context, botID string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	bot, exists := s.tradingBots[botID]
+	if !exists {
+		return fmt.Errorf("trading bot not found: %s", botID)
+	}
+
+	// Stop the bot first
+	bot.Stop()
+
+	// Remove from map
+	delete(s.tradingBots, botID)
+
+	s.logger.Info("Trading bot deleted", "botID", botID)
+	return nil
+}
+
+// GetTradingBotPerformance returns performance metrics for a trading bot
+func (s *Service) GetTradingBotPerformance(ctx context.Context, botID string) (*TradingPerformance, error) {
+	bot, err := s.GetTradingBot(ctx, botID)
+	if err != nil {
+		return nil, err
+	}
+
+	performance := bot.GetPerformance()
+	return &performance, nil
 }

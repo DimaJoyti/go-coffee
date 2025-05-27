@@ -16,12 +16,12 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	pb "github.com/yourusername/web3-wallet-backend/api/proto/supply"
-	"github.com/yourusername/web3-wallet-backend/internal/supply"
-	"github.com/yourusername/web3-wallet-backend/pkg/config"
-	"github.com/yourusername/web3-wallet-backend/pkg/kafka"
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
-	"github.com/yourusername/web3-wallet-backend/pkg/redis"
+	pb "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/supply"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/supply"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/kafka"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 )
 
 func main() {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/yourusername/web3-wallet-backend/pkg/logger"
-	"github.com/yourusername/web3-wallet-backend/pkg/models"
-	pb "github.com/yourusername/web3-wallet-backend/api/proto/wallet"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	pb "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/wallet"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
