@@ -266,7 +266,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.16.1
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -279,10 +279,20 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
+      - name: Install Gosec
+        run: |
+          curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.18.2
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
       - name: Run Gosec Security Scanner
-        uses: securecodewarrior/github-action-gosec@master
+        run: |
+          gosec -fmt sarif -out gosec-results.sarif ./...
+
+      - name: Upload Gosec results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
-          args: './...'
+          sarif_file: gosec-results.sarif
 
   code-quality:
     runs-on: ubuntu-latest
@@ -295,31 +305,76 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Run golangci-lint
+      - name: Run golangci-lint for Web3 Wallet Backend
         uses: golangci/golangci-lint-action@v4
         with:
           version: latest
           working-directory: web3-wallet-backend
 
-      - name: Run gofmt check
-        run: |
-          cd web3-wallet-backend
-          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-            echo "The following files are not formatted:"
-            gofmt -s -l .
-            exit 1
-          fi
+      - name: Run golangci-lint for Producer
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          working-directory: producer
 
-      - name: Run go vet
-        run: |
-          cd web3-wallet-backend
-          go vet ./...
+      - name: Run golangci-lint for Consumer
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          working-directory: consumer
 
-      - name: Check go mod tidy
+      - name: Run golangci-lint for Streams
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          working-directory: streams
+
+      - name: Run golangci-lint for Accounts Service
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          working-directory: accounts-service
+
+      - name: Run gofmt check for all services
         run: |
-          cd web3-wallet-backend
-          go mod tidy
-          git diff --exit-code go.mod go.sum
+          for dir in web3-wallet-backend producer consumer streams accounts-service; do
+            if [ -d "$dir" ]; then
+              echo "Checking gofmt for $dir"
+              cd "$dir"
+              if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+                echo "The following files in $dir are not formatted:"
+                gofmt -s -l .
+                exit 1
+              fi
+              cd ..
+            fi
+          done
+
+      - name: Run go vet for all services
+        run: |
+          for dir in web3-wallet-backend producer consumer streams accounts-service; do
+            if [ -d "$dir" ]; then
+              echo "Running go vet for $dir"
+              cd "$dir"
+              go vet ./...
+              cd ..
+            fi
+          done
+
+      - name: Check go mod tidy for all services
+        run: |
+          for dir in web3-wallet-backend producer consumer streams accounts-service; do
+            if [ -d "$dir" ]; then
+              echo "Checking go mod tidy for $dir"
+              cd "$dir"
+              go mod tidy
+              if ! git diff --exit-code go.mod go.sum; then
+                echo "go.mod or go.sum is not tidy in $dir"
+                exit 1
+              fi
+              cd ..
+            fi
+          done
 
   integration-tests:
     runs-on: ubuntu-latest

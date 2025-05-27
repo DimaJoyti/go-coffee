@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/telegram"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/wallet"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
@@ -60,6 +61,22 @@ func main() {
 	if err != nil {
 		logger.Fatal(fmt.Sprintf("Failed to initialize Telegram bot: %v", err))
 	}
+
+	// Start health check server
+	go func() {
+		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+		})
+		http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Ready"))
+		})
+		log.Println("Health check server starting on :8087")
+		if err := http.ListenAndServe(":8087", nil); err != nil {
+			log.Printf("Health check server error: %v", err)
+		}
+	}()
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

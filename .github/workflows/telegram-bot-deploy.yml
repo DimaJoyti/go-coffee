@@ -31,7 +31,7 @@ jobs:
   deploy-telegram-bot:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -72,15 +72,15 @@ jobs:
         if: github.event.inputs.environment == 'staging'
         run: |
           echo "Deploying to staging environment..."
-          
+
           # Set environment variables
           export TELEGRAM_BOT_TOKEN="${{ github.event.inputs.telegram_token || secrets.TELEGRAM_BOT_TOKEN_STAGING }}"
           export GEMINI_API_KEY="${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY_STAGING }}"
           export IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
-          
+
           # Create deployment configuration
           cd web3-wallet-backend/deployments/telegram-bot
-          
+
           # Update docker-compose for staging
           cat > docker-compose.staging.yml <<EOF
           version: '3.8'
@@ -99,14 +99,14 @@ jobs:
                 - postgres
               networks:
                 - web3-coffee-network
-            
+
             redis:
               image: redis:7-alpine
               ports:
                 - "6379:6379"
               networks:
                 - web3-coffee-network
-            
+
             postgres:
               image: postgres:15-alpine
               environment:
@@ -117,24 +117,24 @@ jobs:
                 - "5432:5432"
               networks:
                 - web3-coffee-network
-          
+
           networks:
             web3-coffee-network:
               driver: bridge
           EOF
-          
+
           echo "Staging deployment configuration created"
 
       - name: Deploy to production
         if: github.event.inputs.environment == 'production'
         run: |
           echo "Deploying to production environment..."
-          
+
           # Set environment variables
           export TELEGRAM_BOT_TOKEN="${{ github.event.inputs.telegram_token || secrets.TELEGRAM_BOT_TOKEN_PRODUCTION }}"
           export GEMINI_API_KEY="${{ github.event.inputs.gemini_api_key || secrets.GEMINI_API_KEY_PRODUCTION }}"
           export IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
-          
+
           # Create Kubernetes deployment
           cat > telegram-bot-deployment.yaml <<EOF
           apiVersion: apps/v1
@@ -214,7 +214,7 @@ jobs:
               targetPort: 8087
               name: http
           EOF
-          
+
           echo "Production Kubernetes manifests created"
 
       - name: Notify deployment status
