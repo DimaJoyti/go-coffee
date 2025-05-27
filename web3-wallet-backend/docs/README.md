@@ -18,6 +18,8 @@ This documentation provides comprehensive information about the Web3 Wallet Back
 
 ### 🔌 API Documentation
 - **[API Design](api-design.md)** - REST and gRPC API specifications
+- **[Coffee Crypto API](coffee-crypto-api.md)** - Coffee purchase with cryptocurrency APIs
+- **[Coffee Purchase Flow](coffee-purchase-flow.md)** - Complete end-to-end purchase flow
 - **[Protocol Buffers](../api/proto/)** - gRPC service definitions
 
 ### 🏗️ Infrastructure
@@ -84,10 +86,15 @@ The system is built as a distributed, multi-region architecture with the followi
 
 ### Core Services
 
-1. **Supply Service** - Manages shopper supply data
-2. **Order Service** - Handles order processing and management
-3. **Claiming Service** - Manages order claiming operations
-4. **Wallet Service** - Existing Web3 wallet functionality
+1. **Coffee Shop Service** - Manages coffee shop locations and information
+2. **Product Catalog Service** - Handles coffee menu items and pricing
+3. **Supply Service** - Manages coffee inventory and supply data
+4. **Order Service** - Processes coffee orders and customizations
+5. **Payment Service** - Handles cryptocurrency payments (BTC, ETH, USDC, USDT)
+6. **Claiming Service** - Manages order pickup and delivery coordination
+7. **Wallet Service** - Web3 wallet functionality and blockchain integration
+8. **Notification Service** - Real-time order status and payment notifications
+9. **Price Service** - Real-time cryptocurrency price feeds and conversion
 
 ### Technology Stack
 
@@ -153,3 +160,122 @@ The [Security](security.md) document provides detailed information about the sec
 - Secure Communication
 - Audit Logging
 - Compliance Considerations
+
+## API Examples
+
+### Coffee Shop Discovery
+
+```bash
+# Find nearby coffee shops
+curl "https://api.cryptocoffee.com/api/v1/coffee-shops?lat=40.7128&lng=-74.0060&radius=5000" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get shop menu
+curl https://api.cryptocoffee.com/api/v1/coffee-shops/{shop_id}/menu \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Coffee Order with Crypto Payment
+
+```bash
+# Create coffee order
+curl -X POST https://api.cryptocoffee.com/api/v1/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shop_id": "uuid",
+    "order_type": "pickup",
+    "pickup_time": "2024-01-01T15:30:00Z",
+    "payment_currency": "ETH",
+    "items": [
+      {
+        "product_id": "uuid",
+        "quantity": 2,
+        "customizations": {
+          "size": "Large",
+          "milk": "Oat Milk"
+        }
+      }
+    ]
+  }'
+
+# Check payment status
+curl https://api.cryptocoffee.com/api/v1/payments/{payment_id} \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Order Pickup
+
+```bash
+# Generate pickup code
+curl -X POST https://api.cryptocoffee.com/api/v1/orders/{order_id}/claim \
+  -H "Authorization: Bearer $TOKEN"
+
+# Verify pickup code (shop endpoint)
+curl -X POST https://api.cryptocoffee.com/api/v1/claims/verify \
+  -H "Authorization: Bearer $SHOP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"claim_code": "ABC123", "shop_id": "uuid"}'
+```
+
+### Cryptocurrency Prices
+
+```bash
+# Get current crypto prices
+curl "https://api.cryptocoffee.com/api/v1/crypto/prices?currencies=BTC,ETH,USDC,USDT" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Development
+
+### Local Development
+
+1. **Install dependencies**
+   ```bash
+   go mod tidy
+   ```
+
+2. **Start local services**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Run services**
+   ```bash
+   go run cmd/coffee-shop-service/main.go
+   go run cmd/order-service/main.go
+   go run cmd/payment-service/main.go
+   go run cmd/claiming-service/main.go
+   ```
+
+### Testing
+
+```bash
+# Run unit tests
+go test ./...
+
+# Run integration tests
+go test -tags=integration ./...
+
+# Run load tests
+k6 run tests/load/coffee-order-flow.js
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+### Development Guidelines
+
+- Follow Go best practices
+- Write comprehensive tests
+- Update documentation
+- Use conventional commits
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.

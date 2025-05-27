@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Web3 Wallet Backend exposes RESTful APIs and gRPC services for managing supplies, orders, and claims. This document outlines the API design, endpoints, and data models.
+The Web3 Wallet Backend exposes RESTful APIs and gRPC services for a comprehensive coffee purchasing platform with cryptocurrency payments. The system supports Bitcoin, Ethereum, and major altcoins for seamless coffee ordering, payment processing, and order management. This document outlines the API design, endpoints, and data models for the complete coffee commerce ecosystem.
 
 ## API Architecture
 

@@ -2,29 +2,60 @@
 
 ## Overview
 
-This implementation provides a multi-region, high-performance backend system for a Web3 wallet, with a focus on shopper supply management, order processing, and order claiming. The system is designed to be highly available, scalable, and resilient to failures.
+This implementation provides a multi-region, high-performance backend system for a Web3 wallet with a comprehensive coffee purchasing platform using cryptocurrency payments. The system enables users to discover coffee shops, browse menus, place orders, and pay with Bitcoin, Ethereum, and major altcoins. The platform is designed to be highly available, scalable, and resilient to failures while providing a seamless coffee commerce experience.
 
 ## Key Components
 
 ### Core Services
 
-1. **Supply Service**
-   - Manages shopper supply data
-   - Provides CRUD operations for supplies
-   - Caches supply data in Redis
+1. **Coffee Shop Service**
+   - Manages coffee shop locations and information
+   - Handles shop availability and operating hours
+   - Provides location-based shop discovery
+   - Publishes shop events to Kafka
+
+2. **Product Catalog Service**
+   - Manages coffee menu items and pricing
+   - Handles product descriptions, images, and customizations
+   - Provides real-time pricing with cryptocurrency conversion
+   - Publishes product events to Kafka
+
+3. **Supply Service**
+   - Manages coffee inventory and supply data
+   - Tracks stock levels across multiple locations
+   - Provides low-stock alerts and reorder notifications
    - Publishes supply events to Kafka
 
-2. **Order Service**
-   - Manages order data and order items
-   - Provides CRUD operations for orders
-   - Caches order data in Redis
+4. **Order Service**
+   - Processes coffee orders with customizations
+   - Manages order lifecycle (pending → confirmed → preparing → ready → completed)
+   - Handles order modifications and cancellations
    - Publishes order events to Kafka
 
-3. **Claiming Service**
-   - Manages order claiming
-   - Ensures orders can only be claimed once
-   - Caches claim data in Redis
+5. **Payment Service**
+   - Processes cryptocurrency payments (BTC, ETH, USDC, USDT)
+   - Generates unique payment addresses for each transaction
+   - Monitors blockchain for payment confirmations
+   - Handles payment timeouts and refunds
+   - Publishes payment events to Kafka
+
+6. **Claiming Service**
+   - Manages order pickup and delivery coordination
+   - Generates unique claim codes and QR codes
+   - Ensures secure order verification at pickup
    - Publishes claim events to Kafka
+
+7. **Notification Service**
+   - Sends real-time order status updates
+   - Handles payment confirmation notifications
+   - Manages push notifications and email alerts
+   - Publishes notification events to Kafka
+
+8. **Price Service**
+   - Provides real-time cryptocurrency price feeds
+   - Handles currency conversion and exchange rates
+   - Caches price data for performance
+   - Publishes price update events to Kafka
 
 ### Infrastructure Components
 
