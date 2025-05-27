@@ -60,6 +60,7 @@ type BlockchainConfig struct {
 	Ethereum BlockchainNetworkConfig `yaml:"ethereum"`
 	BSC      BlockchainNetworkConfig `yaml:"bsc"`
 	Polygon  BlockchainNetworkConfig `yaml:"polygon"`
+	Solana   SolanaNetworkConfig     `yaml:"solana"`
 }
 
 // BlockchainNetworkConfig represents the configuration for a blockchain network
@@ -70,6 +71,18 @@ type BlockchainNetworkConfig struct {
 	ChainID            int    `yaml:"chain_id"`
 	GasLimit           uint64 `yaml:"gas_limit"`
 	GasPrice           string `yaml:"gas_price"`
+	ConfirmationBlocks int    `yaml:"confirmation_blocks"`
+}
+
+// SolanaNetworkConfig represents the configuration for Solana network
+type SolanaNetworkConfig struct {
+	Network            string `yaml:"network"`
+	RPCURL             string `yaml:"rpc_url"`
+	WSURL              string `yaml:"ws_url"`
+	Cluster            string `yaml:"cluster"`
+	Commitment         string `yaml:"commitment"`
+	Timeout            string `yaml:"timeout"`
+	MaxRetries         int    `yaml:"max_retries"`
 	ConfirmationBlocks int    `yaml:"confirmation_blocks"`
 }
 

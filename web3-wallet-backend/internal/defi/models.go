@@ -29,6 +29,7 @@ const (
 	ChainPolygon  Chain = "polygon"
 	ChainArbitrum Chain = "arbitrum"
 	ChainOptimism Chain = "optimism"
+	ChainSolana   Chain = "solana"
 )
 
 // Token represents an ERC-20 token

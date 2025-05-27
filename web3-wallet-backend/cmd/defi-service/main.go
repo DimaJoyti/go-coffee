@@ -56,18 +56,37 @@ func main() {
 	}
 	defer polygonClient.Close()
 
+	// Initialize Solana client
+	solanaClient, err := blockchain.NewSolanaClient(cfg.Blockchain.Solana, logger)
+	if err != nil {
+		logger.Fatal("Failed to create Solana client", "error", err)
+	}
+	defer solanaClient.Close()
+
+	// Initialize Solana DeFi clients
+	raydiumClient, err := defi.NewRaydiumClient(cfg.Blockchain.Solana.RPCURL, logger)
+	if err != nil {
+		logger.Fatal("Failed to create Raydium client", "error", err)
+	}
+	defer raydiumClient.Close()
+
+	jupiterClient := defi.NewJupiterClient(logger)
+
 	// Initialize DeFi service
 	defiService := defi.NewService(
 		ethClient,
 		bscClient,
 		polygonClient,
+		solanaClient,
+		raydiumClient,
+		jupiterClient,
 		redisClient,
 		logger,
 		cfg.DeFi,
 	)
 
 	// Initialize gRPC handler
-	handler := defi.NewGRPCHandler(defiService, logger)
+	// handler := defi.NewGRPCHandler(defiService, logger)
 
 	// Create gRPC server
 	grpcServer := grpc.NewServer()

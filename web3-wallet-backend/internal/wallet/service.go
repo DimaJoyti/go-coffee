@@ -8,23 +8,23 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/google/uuid"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/crypto"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	"github.com/google/uuid"
 )
 
 // Service provides wallet operations
 type Service struct {
-	repo           Repository
-	ethClient      *blockchain.EthereumClient
-	bscClient      *blockchain.EthereumClient
-	polygonClient  *blockchain.EthereumClient
-	keyManager     *crypto.KeyManager
-	logger         *logger.Logger
-	keystorePath   string
+	repo          Repository
+	ethClient     *blockchain.EthereumClient
+	bscClient     *blockchain.EthereumClient
+	polygonClient *blockchain.EthereumClient
+	solanaClient  *blockchain.SolanaClient
+	keyManager    *crypto.KeyManager
+	logger        *logger.Logger
+	keystorePath  string
 }
 
 // NewService creates a new wallet service
@@ -33,6 +33,7 @@ func NewService(
 	ethClient *blockchain.EthereumClient,
 	bscClient *blockchain.EthereumClient,
 	polygonClient *blockchain.EthereumClient,
+	solanaClient *blockchain.SolanaClient,
 	keyManager *crypto.KeyManager,
 	logger *logger.Logger,
 	keystorePath string,
@@ -42,6 +43,7 @@ func NewService(
 		ethClient:     ethClient,
 		bscClient:     bscClient,
 		polygonClient: polygonClient,
+		solanaClient:  solanaClient,
 		keyManager:    keyManager,
 		logger:        logger.Named("wallet-service"),
 		keystorePath:  keystorePath,
@@ -52,15 +54,33 @@ func NewService(
 func (s *Service) CreateWallet(ctx context.Context, req *models.CreateWalletRequest) (*models.CreateWalletResponse, error) {
 	s.logger.Info(fmt.Sprintf("Creating wallet for user %s on chain %s", req.UserID, req.Chain))
 
-	// Generate key pair
-	privateKey, publicKey, address, err := s.keyManager.GenerateKeyPair()
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to generate key pair: %v", err))
-		return nil, fmt.Errorf("failed to generate key pair: %w", err)
+	// Generate key pair based on chain
+	var privateKey, publicKey, address string
+	var mnemonic string
+	var derivationPath string
+	var err error
+
+	switch req.Chain {
+	case models.ChainSolana:
+		// Generate Solana key pair
+		privateKey, publicKey, address, err = s.keyManager.GenerateSolanaKeyPair()
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to generate Solana key pair: %v", err))
+			return nil, fmt.Errorf("failed to generate Solana key pair: %w", err)
+		}
+		derivationPath = "m/44'/501'/0'/0'" // Solana derivation path
+	default:
+		// Generate EVM key pair
+		privateKey, publicKey, address, err = s.keyManager.GenerateKeyPair()
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to generate key pair: %v", err))
+			return nil, fmt.Errorf("failed to generate key pair: %w", err)
+		}
+		derivationPath = "m/44'/60'/0'/0/0" // Ethereum derivation path
 	}
 
 	// Generate mnemonic
-	mnemonic, err := s.keyManager.GenerateMnemonic()
+	mnemonic, err = s.keyManager.GenerateMnemonic()
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to generate mnemonic: %v", err))
 		return nil, fmt.Errorf("failed to generate mnemonic: %w", err)
@@ -104,7 +124,7 @@ func (s *Service) CreateWallet(ctx context.Context, req *models.CreateWalletRequ
 		Wallet:         *wallet,
 		Mnemonic:       mnemonic,
 		PrivateKey:     privateKey,
-		DerivationPath: "m/44'/60'/0'/0/0", // Default Ethereum derivation path
+		DerivationPath: derivationPath,
 	}, nil
 }
 
@@ -166,69 +186,38 @@ func (s *Service) GetBalance(ctx context.Context, req *models.GetBalanceRequest)
 		return nil, fmt.Errorf("failed to get wallet: %w", err)
 	}
 
-	// Get blockchain client based on chain
-	var client *blockchain.EthereumClient
-	var symbol string
-	var decimals int
-
+	// Handle different chains
 	switch models.Chain(wallet.Chain) {
-	case models.ChainEthereum:
-		client = s.ethClient
-		symbol = "ETH"
-		decimals = 18
-	case models.ChainBSC:
-		client = s.bscClient
-		symbol = "BNB"
-		decimals = 18
-	case models.ChainPolygon:
-		client = s.polygonClient
-		symbol = "MATIC"
-		decimals = 18
+	case models.ChainSolana:
+		return s.getSolanaBalance(ctx, wallet, req)
 	default:
-		s.logger.Error(fmt.Sprintf("Unsupported chain: %s", wallet.Chain))
-		return nil, fmt.Errorf("unsupported chain: %s", wallet.Chain)
+		return s.getEVMBalance(ctx, wallet, req)
 	}
-
-	// Get balance
-	var balance *big.Int
-	var balanceErr error
-
-	if req.TokenAddress == "" {
-		// Get native token balance
-		balance, balanceErr = client.GetBalance(ctx, wallet.Address)
-	} else {
-		// Get ERC-20 token balance
-		// TODO: Implement ERC-20 token balance retrieval
-		balance = big.NewInt(0)
-		symbol = "TOKEN"
-		decimals = 18
-	}
-
-	if balanceErr != nil {
-		s.logger.Error(fmt.Sprintf("Failed to get balance: %v", balanceErr))
-		return nil, fmt.Errorf("failed to get balance: %w", balanceErr)
-	}
-
-	s.logger.Info(fmt.Sprintf("Balance retrieved successfully for wallet %s: %s", wallet.ID, balance.String()))
-
-	// Return response
-	return &models.GetBalanceResponse{
-		Balance:      balance.String(),
-		Symbol:       symbol,
-		Decimals:     decimals,
-		TokenAddress: req.TokenAddress,
-	}, nil
 }
 
 // ImportWallet imports an existing wallet
 func (s *Service) ImportWallet(ctx context.Context, req *models.ImportWalletRequest) (*models.ImportWalletResponse, error) {
 	s.logger.Info(fmt.Sprintf("Importing wallet for user %s on chain %s", req.UserID, req.Chain))
 
-	// Import private key
-	address, err := s.keyManager.ImportPrivateKey(req.PrivateKey, "temporary-passphrase")
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to import private key: %v", err))
-		return nil, fmt.Errorf("failed to import private key: %w", err)
+	// Import private key based on chain
+	var address string
+	var err error
+
+	switch req.Chain {
+	case models.ChainSolana:
+		// Import Solana private key
+		address, err = s.keyManager.ImportSolanaPrivateKey(req.PrivateKey)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to import Solana private key: %v", err))
+			return nil, fmt.Errorf("failed to import Solana private key: %w", err)
+		}
+	default:
+		// Import EVM private key
+		address, err = s.keyManager.ImportPrivateKey(req.PrivateKey, "temporary-passphrase")
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to import private key: %v", err))
+			return nil, fmt.Errorf("failed to import private key: %w", err)
+		}
 	}
 
 	// Create wallet
@@ -344,4 +333,102 @@ func (s *Service) getBlockchainClient(chain models.Chain) (*blockchain.EthereumC
 	default:
 		return nil, fmt.Errorf("unsupported chain: %s", chain)
 	}
+}
+
+// getSolanaBalance retrieves balance for Solana wallets
+func (s *Service) getSolanaBalance(ctx context.Context, wallet *models.Wallet, req *models.GetBalanceRequest) (*models.GetBalanceResponse, error) {
+	if s.solanaClient == nil {
+		return nil, fmt.Errorf("solana client not available")
+	}
+
+	var symbol string
+	var decimals int
+	var balanceStr string
+
+	if req.TokenAddress == "" {
+		// Get SOL balance
+		balance, err := s.solanaClient.GetBalance(ctx, wallet.Address)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to get SOL balance: %v", err))
+			return nil, fmt.Errorf("failed to get SOL balance: %w", err)
+		}
+		balanceStr = balance.String()
+		symbol = "SOL"
+		decimals = 9
+	} else {
+		// Get SPL token balance
+		balance, tokenDecimals, err := s.solanaClient.GetTokenBalance(ctx, wallet.Address, req.TokenAddress)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to get token balance: %v", err))
+			return nil, fmt.Errorf("failed to get token balance: %w", err)
+		}
+		balanceStr = balance.String()
+		symbol = "TOKEN"
+		decimals = int(tokenDecimals)
+	}
+
+	s.logger.Info(fmt.Sprintf("Solana balance retrieved successfully for wallet %s: %s", wallet.ID, balanceStr))
+
+	return &models.GetBalanceResponse{
+		Balance:      balanceStr,
+		Symbol:       symbol,
+		Decimals:     decimals,
+		TokenAddress: req.TokenAddress,
+	}, nil
+}
+
+// getEVMBalance retrieves balance for EVM-compatible chains (Ethereum, BSC, Polygon)
+func (s *Service) getEVMBalance(ctx context.Context, wallet *models.Wallet, req *models.GetBalanceRequest) (*models.GetBalanceResponse, error) {
+	// Get blockchain client based on chain
+	var client *blockchain.EthereumClient
+	var symbol string
+	var decimals int
+
+	switch models.Chain(wallet.Chain) {
+	case models.ChainEthereum:
+		client = s.ethClient
+		symbol = "ETH"
+		decimals = 18
+	case models.ChainBSC:
+		client = s.bscClient
+		symbol = "BNB"
+		decimals = 18
+	case models.ChainPolygon:
+		client = s.polygonClient
+		symbol = "MATIC"
+		decimals = 18
+	default:
+		s.logger.Error(fmt.Sprintf("Unsupported EVM chain: %s", wallet.Chain))
+		return nil, fmt.Errorf("unsupported EVM chain: %s", wallet.Chain)
+	}
+
+	// Get balance
+	var balance *big.Int
+	var balanceErr error
+
+	if req.TokenAddress == "" {
+		// Get native token balance
+		balance, balanceErr = client.GetBalance(ctx, wallet.Address)
+	} else {
+		// Get ERC-20 token balance
+		// TODO: Implement ERC-20 token balance retrieval
+		balance = big.NewInt(0)
+		symbol = "TOKEN"
+		decimals = 18
+	}
+
+	if balanceErr != nil {
+		s.logger.Error(fmt.Sprintf("Failed to get balance: %v", balanceErr))
+		return nil, fmt.Errorf("failed to get balance: %w", balanceErr)
+	}
+
+	s.logger.Info(fmt.Sprintf("EVM balance retrieved successfully for wallet %s: %s", wallet.ID, balance.String()))
+
+	// Return response
+	return &models.GetBalanceResponse{
+		Balance:      balance.String(),
+		Symbol:       symbol,
+		Decimals:     decimals,
+		TokenAddress: req.TokenAddress,
+	}, nil
 }

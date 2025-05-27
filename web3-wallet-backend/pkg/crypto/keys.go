@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/gagliardetto/solana-go"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -301,4 +303,79 @@ func GenerateRandomHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// GenerateSolanaKeyPair generates a new Solana private/public key pair
+func (km *KeyManager) GenerateSolanaKeyPair() (privateKey, publicKey, address string, err error) {
+	// Generate Solana keypair
+	account := solana.NewWallet()
+
+	// Get private key in base58
+	privateKey = account.PrivateKey.String()
+
+	// Get public key in base58
+	publicKey = account.PublicKey().String()
+
+	// Address is the same as public key in Solana
+	address = account.PublicKey().String()
+
+	return privateKey, publicKey, address, nil
+}
+
+// ImportSolanaPrivateKey imports a Solana private key
+func (km *KeyManager) ImportSolanaPrivateKey(privateKeyBase58 string) (string, error) {
+	// Parse private key
+	privateKey, err := solana.PrivateKeyFromBase58(privateKeyBase58)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse Solana private key: %w", err)
+	}
+
+	// Get public key (address)
+	address := privateKey.PublicKey().String()
+
+	return address, nil
+}
+
+// GenerateSolanaKeyPairFromSeed generates a Solana key pair from seed
+func (km *KeyManager) GenerateSolanaKeyPairFromSeed(seed []byte) (privateKey, publicKey, address string, err error) {
+	// Use first 32 bytes of seed for ed25519 private key
+	if len(seed) < 32 {
+		return "", "", "", errors.New("seed must be at least 32 bytes")
+	}
+
+	// Create ed25519 private key from seed
+	ed25519PrivateKey := ed25519.NewKeyFromSeed(seed[:32])
+
+	// Convert to Solana private key
+	solanaPrivateKey := solana.PrivateKey(ed25519PrivateKey)
+
+	// Get private key in base58
+	privateKey = solanaPrivateKey.String()
+
+	// Get public key in base58
+	publicKey = solanaPrivateKey.PublicKey().String()
+
+	// Address is the same as public key in Solana
+	address = solanaPrivateKey.PublicKey().String()
+
+	return privateKey, publicKey, address, nil
+}
+
+// SolanaMnemonicToPrivateKey converts a mnemonic to a Solana private key
+func (km *KeyManager) SolanaMnemonicToPrivateKey(mnemonic string, path string) (string, error) {
+	// Validate mnemonic
+	if !bip39.IsMnemonicValid(mnemonic) {
+		return "", errors.New("invalid mnemonic")
+	}
+
+	// Generate seed
+	seed := bip39.NewSeed(mnemonic, "")
+
+	// Generate Solana key pair from seed
+	privateKey, _, _, err := km.GenerateSolanaKeyPairFromSeed(seed)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate Solana key pair from seed: %w", err)
+	}
+
+	return privateKey, nil
 }

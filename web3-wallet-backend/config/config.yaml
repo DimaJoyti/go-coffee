@@ -62,6 +62,17 @@ blockchain:
     gas_price: "auto"
     confirmation_blocks: 64
 
+  # Solana Configuration
+  solana:
+    network: "mainnet-beta"
+    rpc_url: "https://api.mainnet-beta.solana.com"
+    ws_url: "wss://api.mainnet-beta.solana.com"
+    cluster: "mainnet-beta"
+    commitment: "confirmed"
+    timeout: "30s"
+    max_retries: 3
+    confirmation_blocks: 32
+
 # Security Configuration
 security:
   jwt:

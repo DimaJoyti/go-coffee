@@ -38,21 +38,23 @@ const (
 	ChainBSC Chain = "bsc"
 	// ChainPolygon represents the Polygon network
 	ChainPolygon Chain = "polygon"
+	// ChainSolana represents the Solana network
+	ChainSolana Chain = "solana"
 )
 
 // CreateWalletRequest represents a request to create a wallet
 type CreateWalletRequest struct {
-	UserID string    `json:"user_id" validate:"required"`
-	Name   string    `json:"name" validate:"required"`
-	Chain  Chain     `json:"chain" validate:"required,oneof=ethereum bsc polygon"`
+	UserID string     `json:"user_id" validate:"required"`
+	Name   string     `json:"name" validate:"required"`
+	Chain  Chain      `json:"chain" validate:"required,oneof=ethereum bsc polygon solana"`
 	Type   WalletType `json:"type" validate:"required,oneof=hd imported multisig"`
 }
 
 // CreateWalletResponse represents a response to a create wallet request
 type CreateWalletResponse struct {
-	Wallet       Wallet `json:"wallet"`
-	Mnemonic     string `json:"mnemonic,omitempty"`
-	PrivateKey   string `json:"private_key,omitempty"`
+	Wallet         Wallet `json:"wallet"`
+	Mnemonic       string `json:"mnemonic,omitempty"`
+	PrivateKey     string `json:"private_key,omitempty"`
 	DerivationPath string `json:"derivation_path,omitempty"`
 }
 
@@ -60,7 +62,7 @@ type CreateWalletResponse struct {
 type ImportWalletRequest struct {
 	UserID     string `json:"user_id" validate:"required"`
 	Name       string `json:"name" validate:"required"`
-	Chain      Chain  `json:"chain" validate:"required,oneof=ethereum bsc polygon"`
+	Chain      Chain  `json:"chain" validate:"required,oneof=ethereum bsc polygon solana"`
 	PrivateKey string `json:"private_key" validate:"required"`
 }
 
@@ -81,11 +83,11 @@ type GetWalletResponse struct {
 
 // ListWalletsRequest represents a request to list wallets
 type ListWalletsRequest struct {
-	UserID string `json:"user_id" validate:"required"`
-	Chain  Chain  `json:"chain"`
+	UserID string     `json:"user_id" validate:"required"`
+	Chain  Chain      `json:"chain"`
 	Type   WalletType `json:"type"`
-	Limit  int    `json:"limit" validate:"min=1,max=100"`
-	Offset int    `json:"offset" validate:"min=0"`
+	Limit  int        `json:"limit" validate:"min=1,max=100"`
+	Offset int        `json:"offset" validate:"min=0"`
 }
 
 // ListWalletsResponse represents a response to a list wallets request
@@ -96,15 +98,15 @@ type ListWalletsResponse struct {
 
 // GetBalanceRequest represents a request to get a wallet balance
 type GetBalanceRequest struct {
-	WalletID string `json:"wallet_id" validate:"required"`
+	WalletID     string `json:"wallet_id" validate:"required"`
 	TokenAddress string `json:"token_address"`
 }
 
 // GetBalanceResponse represents a response to a get balance request
 type GetBalanceResponse struct {
-	Balance     string `json:"balance"`
-	Symbol      string `json:"symbol"`
-	Decimals    int    `json:"decimals"`
+	Balance      string `json:"balance"`
+	Symbol       string `json:"symbol"`
+	Decimals     int    `json:"decimals"`
 	TokenAddress string `json:"token_address,omitempty"`
 }
 

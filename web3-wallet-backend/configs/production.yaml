@@ -156,6 +156,15 @@ blockchain:
     gas_price_multiplier: 1.1
     confirmation_blocks: 20
 
+  solana:
+    rpc_url: "${SOLANA_RPC_URL}"
+    ws_url: "${SOLANA_WS_URL}"
+    cluster: "${SOLANA_CLUSTER}"
+    commitment: "confirmed"
+    timeout: "30s"
+    max_retries: 3
+    confirmation_blocks: 32
+
 # Security Configuration
 security:
   # Risk Thresholds
@@ -187,17 +196,17 @@ security:
       enabled: true
       severity: "high"
       action: "alert"
-    
+
     high_slippage:
       enabled: true
       severity: "medium"
       action: "alert"
-    
+
     low_liquidity:
       enabled: true
       severity: "high"
       action: "block"
-    
+
     suspicious_contract:
       enabled: true
       severity: "critical"
@@ -239,7 +248,7 @@ monitoring:
     enabled: true
     port: 9090
     path: "/metrics"
-    
+
   # Health Checks
   health_checks:
     enabled: true
@@ -247,7 +256,7 @@ monitoring:
     path: "/health"
     interval: 30s
     timeout: 10s
-    
+
   # Distributed Tracing
   tracing:
     enabled: true
@@ -304,7 +313,7 @@ deployment:
     - "us-east-1a"
     - "us-east-1b"
     - "us-east-1c"
-  
+
   # Auto Scaling
   auto_scaling:
     enabled: true

@@ -18,6 +18,7 @@ type Service struct {
 	ethClient     *blockchain.EthereumClient
 	bscClient     *blockchain.EthereumClient
 	polygonClient *blockchain.EthereumClient
+	solanaClient  *blockchain.SolanaClient
 	cache         redis.Client
 	logger        *logger.Logger
 	config        config.DeFiConfig
@@ -27,6 +28,10 @@ type Service struct {
 	aaveClient      *AaveClient
 	chainlinkClient *ChainlinkClient
 	oneInchClient   *OneInchClient
+
+	// Solana DeFi clients
+	raydiumClient *RaydiumClient
+	jupiterClient *JupiterClient
 
 	// Trading components
 	arbitrageDetector *ArbitrageDetector
@@ -43,6 +48,9 @@ func NewService(
 	ethClient *blockchain.EthereumClient,
 	bscClient *blockchain.EthereumClient,
 	polygonClient *blockchain.EthereumClient,
+	solanaClient *blockchain.SolanaClient,
+	raydiumClient *RaydiumClient,
+	jupiterClient *JupiterClient,
 	cache redis.Client,
 	logger *logger.Logger,
 	config config.DeFiConfig,
@@ -51,6 +59,9 @@ func NewService(
 		ethClient:     ethClient,
 		bscClient:     bscClient,
 		polygonClient: polygonClient,
+		solanaClient:  solanaClient,
+		raydiumClient: raydiumClient,
+		jupiterClient: jupiterClient,
 		cache:         cache,
 		logger:        logger.Named("defi"),
 		config:        config,
@@ -158,6 +169,9 @@ func (s *Service) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*
 	case ChainPolygon:
 		// Use QuickSwap for Polygon
 		quote, err = s.getQuickSwapQuote(ctx, req)
+	case ChainSolana:
+		// Use Jupiter for Solana
+		quote, err = s.getSolanaSwapQuote(ctx, req)
 	default:
 		return nil, fmt.Errorf("unsupported chain: %s", req.Chain)
 	}
@@ -378,6 +392,55 @@ func (s *Service) addPancakeSwapLiquidity(ctx context.Context, pool *LiquidityPo
 func (s *Service) addQuickSwapLiquidity(ctx context.Context, pool *LiquidityPool, req *AddLiquidityRequest) (string, decimal.Decimal, error) {
 	// Implementation for QuickSwap liquidity
 	return "", decimal.Zero, fmt.Errorf("not implemented")
+}
+
+// getSolanaSwapQuote gets a swap quote for Solana tokens using Jupiter
+func (s *Service) getSolanaSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*SwapQuote, error) {
+	if s.jupiterClient == nil {
+		return nil, fmt.Errorf("jupiter client not available")
+	}
+
+	// Get quote from Jupiter
+	route, err := s.jupiterClient.GetQuote(ctx, req.TokenIn, req.TokenOut, req.AmountIn, 100) // 1% slippage
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Jupiter quote: %w", err)
+	}
+
+	// Convert Jupiter route to SwapQuote
+	outputAmount, err := decimal.NewFromString(route.OutAmount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse output amount: %w", err)
+	}
+
+	priceImpact, err := decimal.NewFromString(route.PriceImpactPct)
+	if err != nil {
+		priceImpact = decimal.Zero
+	}
+
+	quote := &SwapQuote{
+		ID:       fmt.Sprintf("jupiter_%d", time.Now().Unix()),
+		Protocol: "jupiter",
+		Chain:    ChainSolana,
+		TokenIn: Token{
+			Address: req.TokenIn,
+			Chain:   ChainSolana,
+		},
+		TokenOut: Token{
+			Address: req.TokenOut,
+			Chain:   ChainSolana,
+		},
+		AmountIn:     req.AmountIn,
+		AmountOut:    outputAmount.Div(decimal.NewFromInt(1000000000)),                                 // Convert from lamports
+		MinAmountOut: outputAmount.Div(decimal.NewFromInt(1000000000)).Mul(decimal.NewFromFloat(0.99)), // 1% slippage
+		PriceImpact:  priceImpact,
+		Fee:          decimal.NewFromFloat(0.0025), // Jupiter fee
+		GasEstimate:  0,                            // Solana doesn't use gas
+		Route:        []string{req.TokenIn, req.TokenOut},
+		ExpiresAt:    time.Now().Add(30 * time.Second),
+		CreatedAt:    time.Now(),
+	}
+
+	return quote, nil
 }
 
 // Start starts all trading components

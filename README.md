@@ -2,8 +2,6 @@
 
 A simple coffee ordering system using Kafka for message queuing, implemented in Go.
 
-[Original Episode link](https://www.codeheim.io/courses/Episode-44-Mastering-Kafka-with-Golang-A-Beginners-Guide-6684b59a52e98b52484e560d)
-
 ## New Project Structure
 
 The project has been reorganized to improve code structure and reuse common components:
