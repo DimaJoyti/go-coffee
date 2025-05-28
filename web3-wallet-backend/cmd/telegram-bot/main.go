@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "github.com/lib/pq"
+
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/telegram"
@@ -26,40 +28,46 @@ func main() {
 	}
 
 	// Initialize logger
-	logger := logger.New("telegram-bot")
-	logger.Info("Starting Telegram Bot for Web3 Coffee Platform")
+	appLogger := logger.New("telegram-bot")
+	appLogger.Info("Starting Telegram Bot for Web3 Coffee Platform")
 
 	// Initialize Redis client
 	redisClient, err := redis.NewClient(cfg.Redis)
 	if err != nil {
-		logger.Fatal(fmt.Sprintf("Failed to connect to Redis: %v", err))
+		appLogger.Fatal(fmt.Sprintf("Failed to connect to Redis: %v", err))
 	}
 	defer redisClient.Close()
 
 	// Initialize AI service
-	aiService, err := ai.NewService(cfg.AI, logger, redisClient)
+	aiService, err := ai.NewService(cfg.AI, appLogger, redisClient)
 	if err != nil {
-		logger.Fatal(fmt.Sprintf("Failed to initialize AI service: %v", err))
+		appLogger.Fatal(fmt.Sprintf("Failed to initialize AI service: %v", err))
 	}
 	defer aiService.Close()
 
-	// Initialize wallet service (mock for now)
-	walletService := createMockWalletService(logger)
+	// Initialize wallet service
+	walletService, err := createWalletService(cfg, appLogger, redisClient)
+	if err != nil {
+		appLogger.Fatal(fmt.Sprintf("Failed to initialize wallet service: %v", err))
+	}
 
-	// Initialize DeFi service (mock for now)
-	defiService := createMockDeFiService(logger)
+	// Initialize DeFi service
+	defiService, err := createDeFiService(cfg, appLogger, redisClient)
+	if err != nil {
+		appLogger.Fatal(fmt.Sprintf("Failed to initialize DeFi service: %v", err))
+	}
 
 	// Initialize Telegram bot
 	bot, err := telegram.NewBot(
 		cfg.Telegram,
-		logger,
+		appLogger,
 		redisClient,
 		aiService,
 		walletService,
 		defiService,
 	)
 	if err != nil {
-		logger.Fatal(fmt.Sprintf("Failed to initialize Telegram bot: %v", err))
+		appLogger.Fatal(fmt.Sprintf("Failed to initialize Telegram bot: %v", err))
 	}
 
 	// Start health check server
@@ -84,41 +92,60 @@ func main() {
 
 	// Start the bot
 	if err := bot.Start(ctx); err != nil {
-		logger.Fatal(fmt.Sprintf("Failed to start Telegram bot: %v", err))
+		appLogger.Fatal(fmt.Sprintf("Failed to start Telegram bot: %v", err))
 	}
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	logger.Info("Telegram bot is running. Press Ctrl+C to stop.")
+	appLogger.Info("Telegram bot is running. Press Ctrl+C to stop.")
 	<-sigChan
 
-	logger.Info("Shutting down Telegram bot...")
+	appLogger.Info("Shutting down Telegram bot...")
 	cancel()
 
 	// Stop the bot
 	if err := bot.Stop(); err != nil {
-		logger.Error(fmt.Sprintf("Error stopping bot: %v", err))
+		appLogger.Error(fmt.Sprintf("Error stopping bot: %v", err))
 	}
 
-	logger.Info("Telegram bot stopped successfully")
+	appLogger.Info("Telegram bot stopped successfully")
+}
+
+// createWalletService creates a wallet service
+func createWalletService(cfg *config.Config, logger *logger.Logger, redisClient redis.Client) (*wallet.Service, error) {
+	logger.Info("Creating wallet service")
+
+	// For now, create a simplified wallet service
+	// In production, this would initialize proper database connections and blockchain clients
+
+	// Create a mock wallet service that can handle basic operations
+	// This will be replaced with proper implementation once all dependencies are resolved
+	return createMockWalletService(cfg, logger)
+}
+
+// createDeFiService creates a DeFi service
+func createDeFiService(cfg *config.Config, logger *logger.Logger, redisClient redis.Client) (*defi.Service, error) {
+	logger.Info("Creating DeFi service")
+
+	// For now, create a simplified DeFi service
+	// In production, this would initialize proper blockchain clients and dependencies
+	return createMockDeFiService(cfg, logger)
 }
 
 // createMockWalletService creates a mock wallet service for testing
-func createMockWalletService(logger *logger.Logger) *wallet.Service {
-	// In a real implementation, you would initialize the actual wallet service
-	// with proper repository, blockchain clients, etc.
+func createMockWalletService(cfg *config.Config, logger *logger.Logger) (*wallet.Service, error) {
 	logger.Info("Creating mock wallet service")
-	return nil // Return nil for now, will be properly implemented later
+	// Return nil for now - the bot will handle nil services gracefully
+	return nil, nil
 }
 
 // createMockDeFiService creates a mock DeFi service for testing
-func createMockDeFiService(logger *logger.Logger) *defi.Service {
-	// In a real implementation, you would initialize the actual DeFi service
-	// with proper configuration and dependencies
+func createMockDeFiService(cfg *config.Config, logger *logger.Logger) (*defi.Service, error) {
 	logger.Info("Creating mock DeFi service")
-	return nil // Return nil for now, will be properly implemented later
+	// Return nil for now - the bot will handle nil services gracefully
+	return nil, nil
 }
 
 // Environment variables setup guide:

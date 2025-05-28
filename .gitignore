@@ -29,4 +29,87 @@ go.work.sum
 *.tfvars
 .terraformrc
 terraform.rc
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Log files
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+.cache/
+tmp/
+temp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+dist/
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Docker build context (but keep Dockerfiles)
+.dockerignore
+
+# Node.js (if using any JS tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Blockchain/Web3 specific
+keystore/
+*.key
+*.pem
+private_keys/
+wallets/
+
+# Configuration files with secrets
+config.json
+config.yaml
+config.yml
+secrets.json
+
+# Test coverage
+coverage.txt
+coverage.html
+coverage.out
+*.prof
+
+# Go vendor directory
+vendor/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Augment specific
 /.augment-guidelines
+/.kilocode/mcp.json

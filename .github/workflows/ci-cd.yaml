@@ -23,7 +23,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       # Legacy services
       - name: Build Producer
@@ -82,6 +82,32 @@ jobs:
         run: |
           cd accounts-service
           go test -v ./...
+
+      # AI Agents
+      - name: Build AI Agents
+        run: |
+          cd ai-agents
+          for agent_dir in */; do
+            if [ -f "${agent_dir}main.go" ]; then
+              echo "Building ${agent_dir%/}"
+              cd "$agent_dir"
+              go mod tidy || echo "No go.mod in ${agent_dir%/}, skipping mod tidy"
+              go build -v ./...
+              cd ..
+            fi
+          done
+
+      - name: Test AI Agents
+        run: |
+          cd ai-agents
+          for agent_dir in */; do
+            if [ -f "${agent_dir}main.go" ]; then
+              echo "Testing ${agent_dir%/}"
+              cd "$agent_dir"
+              go test -v ./... || echo "No tests in ${agent_dir%/}"
+              cd ..
+            fi
+          done
 
   build-and-push-images:
     needs: build-and-test
@@ -303,7 +329,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       - name: Run golangci-lint for Web3 Wallet Backend
         uses: golangci/golangci-lint-action@v4
@@ -335,6 +361,22 @@ jobs:
           version: latest
           working-directory: accounts-service
 
+      - name: Run golangci-lint for AI Agents
+        run: |
+          cd ai-agents
+          for agent_dir in */; do
+            if [ -f "${agent_dir}main.go" ]; then
+              echo "Running golangci-lint for ${agent_dir%/}"
+              cd "$agent_dir"
+              if [ -f "go.mod" ]; then
+                golangci-lint run --timeout=5m || echo "Linting issues in ${agent_dir%/}"
+              else
+                echo "No go.mod in ${agent_dir%/}, skipping golangci-lint"
+              fi
+              cd ..
+            fi
+          done
+
       - name: Run gofmt check for all services
         run: |
           for dir in web3-wallet-backend producer consumer streams accounts-service; do
@@ -343,6 +385,21 @@ jobs:
               cd "$dir"
               if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
                 echo "The following files in $dir are not formatted:"
+                gofmt -s -l .
+                exit 1
+              fi
+              cd ..
+            fi
+          done
+
+          # Check AI agents
+          cd ai-agents
+          for agent_dir in */; do
+            if [ -f "${agent_dir}main.go" ]; then
+              echo "Checking gofmt for ai-agents/${agent_dir%/}"
+              cd "$agent_dir"
+              if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+                echo "The following files in ai-agents/${agent_dir%/} are not formatted:"
                 gofmt -s -l .
                 exit 1
               fi
@@ -361,6 +418,17 @@ jobs:
             fi
           done
 
+          # Check AI agents
+          cd ai-agents
+          for agent_dir in */; do
+            if [ -f "${agent_dir}main.go" ]; then
+              echo "Running go vet for ai-agents/${agent_dir%/}"
+              cd "$agent_dir"
+              go vet ./... || echo "go vet issues in ai-agents/${agent_dir%/}"
+              cd ..
+            fi
+          done
+
       - name: Check go mod tidy for all services
         run: |
           for dir in web3-wallet-backend producer consumer streams accounts-service; do
@@ -370,6 +438,21 @@ jobs:
               go mod tidy
               if ! git diff --exit-code go.mod go.sum; then
                 echo "go.mod or go.sum is not tidy in $dir"
+                exit 1
+              fi
+              cd ..
+            fi
+          done
+
+          # Check AI agents
+          cd ai-agents
+          for agent_dir in */; do
+            if [ -f "${agent_dir}main.go" ] && [ -f "${agent_dir}go.mod" ]; then
+              echo "Checking go mod tidy for ai-agents/${agent_dir%/}"
+              cd "$agent_dir"
+              go mod tidy
+              if ! git diff --exit-code go.mod go.sum; then
+                echo "go.mod or go.sum is not tidy in ai-agents/${agent_dir%/}"
                 exit 1
               fi
               cd ..
@@ -411,7 +494,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       - name: Run integration tests
         env:

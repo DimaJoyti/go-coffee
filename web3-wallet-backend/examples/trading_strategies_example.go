@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/shopspring/decimal"
 )
 
@@ -19,21 +17,16 @@ func main() {
 	ctx := context.Background()
 
 	// Ініціалізація компонентів
-	logger := logger.New("trading-example")
-	cache := redis.NewClient("localhost:6379", "", 0)
+	appLogger := logger.New("trading-example")
+
+	// Create mock cache (simplified for example)
+	cache := &mockRedisClient{}
 
 	// Створення blockchain клієнтів (mock для прикладу)
-	ethClient, _ := blockchain.NewEthereumClient(blockchain.Config{
-		RPC: "https://mainnet.infura.io/v3/your-key",
-	}, logger)
-
-	bscClient, _ := blockchain.NewEthereumClient(blockchain.Config{
-		RPC: "https://bsc-dataseed.binance.org/",
-	}, logger)
-
-	polygonClient, _ := blockchain.NewEthereumClient(blockchain.Config{
-		RPC: "https://polygon-rpc.com/",
-	}, logger)
+	ethClient := &mockEthereumClient{}
+	bscClient := &mockEthereumClient{}
+	polygonClient := &mockEthereumClient{}
+	solanaClient := &mockSolanaClient{}
 
 	// Конфігурація DeFi
 	defiConfig := config.DeFiConfig{
@@ -47,8 +40,11 @@ func main() {
 		ethClient,
 		bscClient,
 		polygonClient,
+		solanaClient,
+		nil, // raydiumClient
+		nil, // jupiterClient
 		cache,
-		logger,
+		appLogger,
 		defiConfig,
 	)
 
@@ -375,3 +371,14 @@ func demonstrateTradingBots(ctx context.Context, service *defi.Service) {
 
 	fmt.Println("\n✅ Демонстрація торгових стратегій завершена!")
 }
+
+// Mock types for compilation
+type mockRedisClient struct{}
+
+func (m *mockRedisClient) Get(key string) (string, error)                        { return "", nil }
+func (m *mockRedisClient) Set(key, value string, expiration time.Duration) error { return nil }
+func (m *mockRedisClient) Del(keys ...string) error                              { return nil }
+func (m *mockRedisClient) Close() error                                          { return nil }
+
+type mockEthereumClient struct{}
+type mockSolanaClient struct{}

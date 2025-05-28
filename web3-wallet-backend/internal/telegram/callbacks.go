@@ -48,6 +48,16 @@ func (b *Bot) handleCallbackQuery(ctx context.Context, callback *tgbotapi.Callba
 		b.handleModifyOrderCallback(ctx, callback, session)
 	case strings.HasPrefix(data, "pay_"):
 		b.handlePaymentCallback(ctx, callback, session, data)
+	case data == "confirm_payment":
+		b.handlePaymentConfirmation(ctx, callback, session)
+	case data == "cancel_payment":
+		b.handleCancelPaymentCallback(ctx, callback, session)
+	case data == "check_payment_status":
+		b.handlePaymentStatusCheck(ctx, callback, session)
+	case data == "copy_address":
+		b.handleCopyAddressCallback(ctx, callback, session)
+	case data == "show_payment_address":
+		b.handleShowPaymentAddressCallback(ctx, callback, session)
 	case data == "refresh_balance":
 		b.handleRefreshBalanceCallback(ctx, callback, session)
 	case data == "transaction_history":
@@ -317,46 +327,30 @@ func (b *Bot) handleModifyOrderCallback(ctx context.Context, callback *tgbotapi.
 func (b *Bot) handlePaymentCallback(ctx context.Context, callback *tgbotapi.CallbackQuery, session *UserSession, data string) {
 	currency := strings.TrimPrefix(data, "pay_")
 
-	paymentText := fmt.Sprintf(`💳 *Оплата %s*
+	// Get pending order
+	pendingOrder, exists := session.Context["pending_order"]
+	if !exists {
+		answerCallback := tgbotapi.NewCallbackWithAlert(callback.ID, "❌ Замовлення не знайдено")
+		b.api.Request(answerCallback)
+		return
+	}
 
-Генерую адресу для оплати...
+	// Extract amount from order (simplified)
+	amount := 5.50 // Default amount, in real implementation get from order
+	if order, ok := pendingOrder.(*ai.ParsedCoffeeOrder); ok {
+		amount = order.EstimatedPriceUSD
+	}
 
-⏳ Будь ласка, зачекайте...`, strings.ToUpper(currency))
+	// Process payment request
+	err := b.processPaymentRequest(ctx, session, currency, amount)
+	if err != nil {
+		b.logger.Error(fmt.Sprintf("Payment processing failed: %v", err))
+		answerCallback := tgbotapi.NewCallbackWithAlert(callback.ID, "❌ Помилка обробки платежу")
+		b.api.Request(answerCallback)
+		return
+	}
 
-	// Edit the original message
-	editMsg := tgbotapi.NewEditMessageText(session.ChatID, callback.Message.MessageID, paymentText)
-	editMsg.ParseMode = tgbotapi.ModeMarkdown
-	b.api.Send(editMsg)
-
-	// Here you would integrate with DeFi service to generate payment address
-	// For now, simulate payment processing
-	time.Sleep(2 * time.Second)
-
-	finalText := fmt.Sprintf(`✅ *Платіж успішно оброблено!*
-
-Ваше замовлення прийнято та буде готове через 5-10 хвилин.
-
-*Деталі транзакції:*
-• Валюта: %s
-• Статус: Підтверджено
-• ID замовлення: #%d
-
-Дякуємо за замовлення! ☕️`, strings.ToUpper(currency), session.UserID)
-
-	session.State = StateIdle
-	delete(session.Context, "pending_order")
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📦 Мої замовлення", "my_orders"),
-			tgbotapi.NewInlineKeyboardButtonData("☕️ Нове замовлення", "start_order"),
-		),
-	)
-
-	editMsg2 := tgbotapi.NewEditMessageText(session.ChatID, callback.Message.MessageID, finalText)
-	editMsg2.ParseMode = tgbotapi.ModeMarkdown
-	editMsg2.ReplyMarkup = &keyboard
-	b.api.Send(editMsg2)
+	session.State = StateProcessingPayment
 }
 
 // handleRefreshBalanceCallback refreshes wallet balance
@@ -554,5 +548,83 @@ func (b *Bot) handleUnknownCallback(ctx context.Context, callback *tgbotapi.Call
 
 	// Answer with error message
 	answerCallback := tgbotapi.NewCallbackWithAlert(callback.ID, "❌ Невідома команда")
+	b.api.Request(answerCallback)
+}
+
+// handleCancelPaymentCallback handles payment cancellation
+func (b *Bot) handleCancelPaymentCallback(ctx context.Context, callback *tgbotapi.CallbackQuery, session *UserSession) {
+	session.State = StateIdle
+	delete(session.Context, "payment_request")
+	delete(session.Context, "payment_info")
+
+	cancelText := `❌ *Платіж скасовано*
+
+Не проблема! Ви можете оплатити замовлення пізніше.
+
+Що бажаєте зробити далі?`
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("☕️ Нове замовлення", "start_order"),
+			tgbotapi.NewInlineKeyboardButtonData("📋 Переглянути меню", "show_menu"),
+		),
+	)
+
+	editMsg := tgbotapi.NewEditMessageText(session.ChatID, callback.Message.MessageID, cancelText)
+	editMsg.ParseMode = tgbotapi.ModeMarkdown
+	editMsg.ReplyMarkup = &keyboard
+	b.api.Send(editMsg)
+}
+
+// handleCopyAddressCallback handles address copying
+func (b *Bot) handleCopyAddressCallback(ctx context.Context, callback *tgbotapi.CallbackQuery, session *UserSession) {
+	paymentInfo, exists := session.Context["payment_info"].(*CryptoPaymentInfo)
+	if !exists {
+		answerCallback := tgbotapi.NewCallbackWithAlert(callback.ID, "❌ Платіжна інформація не знайдена")
+		b.api.Request(answerCallback)
+		return
+	}
+
+	// Show address for easy copying
+	addressText := fmt.Sprintf(`📋 *Адреса для копіювання*
+
+*%s адреса:*
+`+"`%s`"+`
+
+Натисніть на адресу щоб скопіювати її.
+
+*Важливо:* Відправте точно %s %s на цю адресу.`,
+		paymentInfo.Currency,
+		paymentInfo.Address,
+		paymentInfo.TotalRequired,
+		paymentInfo.Currency,
+	)
+
+	answerCallback := tgbotapi.NewCallbackWithAlert(callback.ID, "📋 Адреса показана нижче для копіювання")
+	b.api.Request(answerCallback)
+
+	b.sendMessage(session.ChatID, addressText)
+}
+
+// handleShowPaymentAddressCallback shows payment address again
+func (b *Bot) handleShowPaymentAddressCallback(ctx context.Context, callback *tgbotapi.CallbackQuery, session *UserSession) {
+	paymentInfo, exists := session.Context["payment_info"].(*CryptoPaymentInfo)
+	if !exists {
+		answerCallback := tgbotapi.NewCallbackWithAlert(callback.ID, "❌ Платіжна інформація не знайдена")
+		b.api.Request(answerCallback)
+		return
+	}
+
+	paymentReq, exists := session.Context["payment_request"].(*PaymentRequest)
+	if !exists {
+		answerCallback := tgbotapi.NewCallbackWithAlert(callback.ID, "❌ Платіжна інформація не знайдена")
+		b.api.Request(answerCallback)
+		return
+	}
+
+	// Resend payment instructions
+	b.sendPaymentInstructions(session.ChatID, paymentInfo, paymentReq)
+
+	answerCallback := tgbotapi.NewCallback(callback.ID, "💳 Платіжні інструкції відправлені")
 	b.api.Request(answerCallback)
 }
