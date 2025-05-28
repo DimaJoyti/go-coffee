@@ -1,0 +1,261 @@
+# Content Analysis System Makefile
+# This Makefile provides convenient commands for managing the content analysis system
+
+.PHONY: help build start stop restart logs clean test lint format deps check-env setup-env
+
+# Default target
+help: ## Show this help message
+	@echo "Content Analysis System - Available Commands:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# Environment setup
+check-env: ## Check if required environment variables are set
+	@echo "Checking environment variables..."
+	@test -n "$(REDDIT_CLIENT_ID)" || (echo "❌ REDDIT_CLIENT_ID is not set" && exit 1)
+	@test -n "$(REDDIT_CLIENT_SECRET)" || (echo "❌ REDDIT_CLIENT_SECRET is not set" && exit 1)
+	@test -n "$(GEMINI_API_KEY)" || (echo "❌ GEMINI_API_KEY is not set" && exit 1)
+	@echo "✅ All required environment variables are set"
+
+setup-env: ## Create .env file from template
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo "📝 Created .env file from template"; \
+		echo "Please edit .env file with your API keys and configuration"; \
+	else \
+		echo "⚠️  .env file already exists"; \
+	fi
+
+# Build commands
+build: ## Build all Docker images
+	@echo "🔨 Building Docker images..."
+	docker-compose -f docker-compose.content-analysis.yml build
+
+build-service: ## Build only the content analysis service
+	@echo "🔨 Building content analysis service..."
+	docker-compose -f docker-compose.content-analysis.yml build content-analysis-service
+
+build-agent: ## Build only the content analysis agent
+	@echo "🔨 Building content analysis agent..."
+	docker-compose -f docker-compose.content-analysis.yml build content-analysis-agent
+
+# Start/Stop commands
+start: check-env ## Start all services
+	@echo "🚀 Starting Content Analysis System..."
+	docker-compose -f docker-compose.content-analysis.yml up -d
+	@echo "✅ System started successfully"
+	@echo ""
+	@echo "📊 Access points:"
+	@echo "  - Content Analysis API: http://localhost:8085"
+	@echo "  - Kafka UI: http://localhost:8086"
+	@echo "  - Grafana: http://localhost:3000 (admin/admin)"
+	@echo "  - Prometheus: http://localhost:9090"
+
+start-dev: ## Start services in development mode (with logs)
+	@echo "🚀 Starting Content Analysis System in development mode..."
+	docker-compose -f docker-compose.content-analysis.yml up
+
+stop: ## Stop all services
+	@echo "🛑 Stopping Content Analysis System..."
+	docker-compose -f docker-compose.content-analysis.yml down
+
+restart: stop start ## Restart all services
+
+# Infrastructure commands
+start-infra: ## Start only infrastructure services (Redis, Kafka, PostgreSQL)
+	@echo "🏗️  Starting infrastructure services..."
+	docker-compose -f docker-compose.content-analysis.yml up -d redis kafka postgres zookeeper qdrant
+
+stop-infra: ## Stop only infrastructure services
+	@echo "🛑 Stopping infrastructure services..."
+	docker-compose -f docker-compose.content-analysis.yml stop redis kafka postgres zookeeper qdrant
+
+# Logs commands
+logs: ## Show logs from all services
+	docker-compose -f docker-compose.content-analysis.yml logs
+
+logs-follow: ## Follow logs from all services
+	docker-compose -f docker-compose.content-analysis.yml logs -f
+
+logs-service: ## Show logs from content analysis service
+	docker-compose -f docker-compose.content-analysis.yml logs content-analysis-service
+
+logs-agent: ## Show logs from content analysis agent
+	docker-compose -f docker-compose.content-analysis.yml logs content-analysis-agent
+
+logs-kafka: ## Show logs from Kafka
+	docker-compose -f docker-compose.content-analysis.yml logs kafka
+
+logs-redis: ## Show logs from Redis
+	docker-compose -f docker-compose.content-analysis.yml logs redis
+
+# Status commands
+status: ## Show status of all services
+	@echo "📊 Service Status:"
+	@docker-compose -f docker-compose.content-analysis.yml ps
+
+health: ## Check health of all services
+	@echo "🏥 Health Check:"
+	@echo "Content Analysis Service:"
+	@curl -s http://localhost:8085/health | jq . || echo "❌ Service not responding"
+	@echo ""
+	@echo "Kafka UI:"
+	@curl -s -o /dev/null -w "%{http_code}" http://localhost:8086 && echo "✅ Kafka UI is running" || echo "❌ Kafka UI not responding"
+	@echo ""
+	@echo "Grafana:"
+	@curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 && echo "✅ Grafana is running" || echo "❌ Grafana not responding"
+
+# Database commands
+db-init: ## Initialize database schema
+	@echo "🗄️  Initializing database..."
+	docker-compose -f docker-compose.content-analysis.yml exec postgres psql -U postgres -d go_coffee -f /docker-entrypoint-initdb.d/init-db.sql
+
+db-reset: ## Reset database (WARNING: This will delete all data)
+	@echo "⚠️  This will delete all data. Are you sure? [y/N]" && read ans && [ $${ans:-N} = y ]
+	@echo "🗄️  Resetting database..."
+	docker-compose -f docker-compose.content-analysis.yml exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS go_coffee;"
+	docker-compose -f docker-compose.content-analysis.yml exec postgres psql -U postgres -c "CREATE DATABASE go_coffee;"
+	$(MAKE) db-init
+
+db-backup: ## Backup database
+	@echo "💾 Creating database backup..."
+	@mkdir -p backups
+	docker-compose -f docker-compose.content-analysis.yml exec postgres pg_dump -U postgres go_coffee > backups/go_coffee_$(shell date +%Y%m%d_%H%M%S).sql
+	@echo "✅ Backup created in backups/ directory"
+
+db-shell: ## Open database shell
+	docker-compose -f docker-compose.content-analysis.yml exec postgres psql -U postgres -d go_coffee
+
+# Development commands
+dev-setup: setup-env deps build start-infra ## Complete development setup
+	@echo "🎯 Development environment setup complete!"
+	@echo "Run 'make start' to start all services"
+
+deps: ## Install Go dependencies
+	@echo "📦 Installing Go dependencies..."
+	go mod download
+	go mod tidy
+
+test: ## Run tests
+	@echo "🧪 Running tests..."
+	go test -v ./...
+
+test-coverage: ## Run tests with coverage
+	@echo "🧪 Running tests with coverage..."
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "📊 Coverage report generated: coverage.html"
+
+lint: ## Run linter
+	@echo "🔍 Running linter..."
+	golangci-lint run
+
+format: ## Format code
+	@echo "🎨 Formatting code..."
+	go fmt ./...
+	goimports -w .
+
+# Monitoring commands
+monitor: ## Open monitoring dashboard
+	@echo "📊 Opening monitoring dashboard..."
+	@open http://localhost:3000 || xdg-open http://localhost:3000 || echo "Please open http://localhost:3000 in your browser"
+
+kafka-ui: ## Open Kafka UI
+	@echo "📊 Opening Kafka UI..."
+	@open http://localhost:8086 || xdg-open http://localhost:8086 || echo "Please open http://localhost:8086 in your browser"
+
+# API testing commands
+test-api: ## Test API endpoints
+	@echo "🧪 Testing API endpoints..."
+	@echo "Health check:"
+	@curl -s http://localhost:8085/health | jq .
+	@echo ""
+	@echo "Status check:"
+	@curl -s http://localhost:8085/status | jq .
+
+test-reddit-analysis: ## Test Reddit post analysis
+	@echo "🧪 Testing Reddit post analysis..."
+	@curl -X POST http://localhost:8085/api/v1/reddit/analyze/post \
+		-H "Content-Type: application/json" \
+		-d '{"id":"test_post","title":"Test Post","content":"This is a test post about machine learning","subreddit":"MachineLearning","author":"test_user","score":100}' | jq .
+
+test-classification: ## Test content classification
+	@echo "🧪 Testing content classification..."
+	@curl -X POST http://localhost:8085/api/v1/analysis/classify \
+		-H "Content-Type: application/json" \
+		-d '{"text":"This is an article about artificial intelligence and machine learning"}' | jq .
+
+# Cleanup commands
+clean: ## Clean up Docker resources
+	@echo "🧹 Cleaning up Docker resources..."
+	docker-compose -f docker-compose.content-analysis.yml down -v
+	docker system prune -f
+
+clean-all: ## Clean up everything (images, volumes, networks)
+	@echo "🧹 Cleaning up all Docker resources..."
+	docker-compose -f docker-compose.content-analysis.yml down -v --rmi all
+	docker system prune -a -f
+
+# Data management commands
+export-data: ## Export processed data
+	@echo "📤 Exporting processed data..."
+	@mkdir -p exports
+	docker-compose -f docker-compose.content-analysis.yml exec postgres psql -U postgres -d go_coffee -c "\copy reddit.posts TO '/tmp/posts.csv' CSV HEADER;"
+	docker-compose -f docker-compose.content-analysis.yml exec postgres psql -U postgres -d go_coffee -c "\copy content_analysis.classifications TO '/tmp/classifications.csv' CSV HEADER;"
+	docker cp content-analysis-postgres:/tmp/posts.csv exports/
+	docker cp content-analysis-postgres:/tmp/classifications.csv exports/
+	@echo "✅ Data exported to exports/ directory"
+
+import-sample-data: ## Import sample data for testing
+	@echo "📥 Importing sample data..."
+	docker-compose -f docker-compose.content-analysis.yml exec postgres psql -U postgres -d go_coffee -f /docker-entrypoint-initdb.d/sample-data.sql
+
+# Performance commands
+benchmark: ## Run performance benchmarks
+	@echo "⚡ Running performance benchmarks..."
+	@echo "This would run performance tests against the API"
+	# Add actual benchmark commands here
+
+load-test: ## Run load tests
+	@echo "🔥 Running load tests..."
+	@echo "This would run load tests against the system"
+	# Add actual load testing commands here
+
+# Security commands
+security-scan: ## Run security scan
+	@echo "🔒 Running security scan..."
+	@echo "This would run security scans on the codebase"
+	# Add actual security scanning commands here
+
+# Documentation commands
+docs: ## Generate documentation
+	@echo "📚 Generating documentation..."
+	@echo "Documentation is available in docs/ directory"
+
+docs-serve: ## Serve documentation locally
+	@echo "📚 Serving documentation..."
+	@echo "This would serve documentation locally"
+	# Add documentation server command here
+
+# Quick commands
+quick-start: build start ## Quick start (build and start)
+quick-test: start-infra test ## Quick test (start infrastructure and run tests)
+quick-clean: stop clean ## Quick clean (stop and clean)
+
+# Production commands
+prod-deploy: ## Deploy to production (placeholder)
+	@echo "🚀 Production deployment..."
+	@echo "This would deploy to production environment"
+	# Add actual production deployment commands here
+
+prod-backup: ## Create production backup (placeholder)
+	@echo "💾 Creating production backup..."
+	@echo "This would create a production backup"
+	# Add actual production backup commands here
+
+# Version info
+version: ## Show version information
+	@echo "Content Analysis System v1.0.0"
+	@echo "Go version: $(shell go version)"
+	@echo "Docker version: $(shell docker --version)"
+	@echo "Docker Compose version: $(shell docker-compose --version)"

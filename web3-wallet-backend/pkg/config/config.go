@@ -307,6 +307,8 @@ type AIConfig struct {
 	Gemini    GeminiConfig    `yaml:"gemini"`
 	Ollama    OllamaConfig    `yaml:"ollama"`
 	Service   AIServiceConfig `yaml:"service"`
+	Reddit    RedditConfig    `yaml:"reddit"`
+	RAG       RAGConfig       `yaml:"rag"`
 }
 
 // LangChainConfig represents the LangChain configuration
@@ -361,4 +363,77 @@ type AIServiceConfig struct {
 type AIRateLimitConfig struct {
 	RequestsPerMinute int `yaml:"requests_per_minute"`
 	Burst             int `yaml:"burst"`
+}
+
+// RedditConfig represents the Reddit API configuration
+type RedditConfig struct {
+	Enabled      bool                  `yaml:"enabled"`
+	ClientID     string                `yaml:"client_id"`
+	ClientSecret string                `yaml:"client_secret"`
+	UserAgent    string                `yaml:"user_agent"`
+	Username     string                `yaml:"username"`
+	Password     string                `yaml:"password"`
+	BaseURL      string                `yaml:"base_url"`
+	RateLimit    RedditRateLimitConfig `yaml:"rate_limit"`
+	Subreddits   []string              `yaml:"subreddits"`
+	ContentTypes []string              `yaml:"content_types"`
+}
+
+// RedditRateLimitConfig represents Reddit API rate limiting
+type RedditRateLimitConfig struct {
+	RequestsPerMinute int `yaml:"requests_per_minute"`
+	BurstSize         int `yaml:"burst_size"`
+	RetryDelay        int `yaml:"retry_delay"`
+}
+
+// RAGConfig represents the RAG (Retrieval-Augmented Generation) configuration
+type RAGConfig struct {
+	Enabled         bool                  `yaml:"enabled"`
+	VectorDB        VectorDBConfig        `yaml:"vector_db"`
+	Embeddings      EmbeddingsConfig      `yaml:"embeddings"`
+	Retrieval       RetrievalConfig       `yaml:"retrieval"`
+	ContentAnalysis ContentAnalysisConfig `yaml:"content_analysis"`
+}
+
+// VectorDBConfig represents vector database configuration
+type VectorDBConfig struct {
+	Provider    string `yaml:"provider"` // pinecone, weaviate, qdrant
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	APIKey      string `yaml:"api_key"`
+	Environment string `yaml:"environment"`
+	IndexName   string `yaml:"index_name"`
+	Dimension   int    `yaml:"dimension"`
+}
+
+// EmbeddingsConfig represents embeddings configuration
+type EmbeddingsConfig struct {
+	Provider    string  `yaml:"provider"` // openai, sentence-transformers, local
+	Model       string  `yaml:"model"`
+	APIKey      string  `yaml:"api_key"`
+	Dimension   int     `yaml:"dimension"`
+	BatchSize   int     `yaml:"batch_size"`
+	MaxTokens   int     `yaml:"max_tokens"`
+	Temperature float64 `yaml:"temperature"`
+}
+
+// RetrievalConfig represents retrieval configuration
+type RetrievalConfig struct {
+	TopK           int     `yaml:"top_k"`
+	ScoreThreshold float64 `yaml:"score_threshold"`
+	MaxDocuments   int     `yaml:"max_documents"`
+	ContextWindow  int     `yaml:"context_window"`
+	RerankerModel  string  `yaml:"reranker_model"`
+}
+
+// ContentAnalysisConfig represents content analysis configuration
+type ContentAnalysisConfig struct {
+	Enabled             bool     `yaml:"enabled"`
+	ClassificationModel string   `yaml:"classification_model"`
+	SentimentAnalysis   bool     `yaml:"sentiment_analysis"`
+	TopicModeling       bool     `yaml:"topic_modeling"`
+	TrendAnalysis       bool     `yaml:"trend_analysis"`
+	Languages           []string `yaml:"languages"`
+	Categories          []string `yaml:"categories"`
+	MinConfidence       float64  `yaml:"min_confidence"`
 }
