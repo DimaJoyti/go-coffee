@@ -1,6 +1,7 @@
 package failover
 
 import (
+	"go.uber.org/zap"
 	"context"
 	"fmt"
 	"sync"
@@ -142,14 +143,14 @@ func (s *Service) checkRegion(region *config.Region) {
 	status.LastCheck = time.Now()
 
 	if err != nil {
-		s.logger.Warn("Region health check failed", "region", region.Name, "error", err)
+		s.logger.Warn("Region health check failed", zap.String("region", region.Name, zap.Error(err))
 		status.ConsecutiveErrors++
 		if status.Healthy && status.ConsecutiveErrors >= s.config.Failover.FailureThreshold {
 			status.Healthy = false
 			status.LastStatusChange = time.Now()
 			status.FailureCount++
 			status.RecoveryCount = 0
-			s.logger.Error("Region is now unhealthy", "region", region.Name)
+			s.logger.Error("Region is now unhealthy", zap.String("region", region.Name)
 		}
 	} else {
 		status.ConsecutiveErrors = 0
@@ -160,7 +161,7 @@ func (s *Service) checkRegion(region *config.Region) {
 				status.LastStatusChange = time.Now()
 				status.RecoveryCount = 0
 				status.FailureCount = 0
-				s.logger.Info("Region is now healthy", "region", region.Name)
+				s.logger.Info("Region is now healthy", zap.String("region", region.Name)
 			}
 		}
 	}

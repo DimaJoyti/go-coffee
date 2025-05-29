@@ -10,6 +10,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // ArbitrageDetector detects arbitrage opportunities across multiple DEXs
@@ -94,7 +95,7 @@ func (ad *ArbitrageDetector) GetOpportunities(ctx context.Context) ([]*Arbitrage
 
 // DetectArbitrageForToken detects arbitrage opportunities for a specific token
 func (ad *ArbitrageDetector) DetectArbitrageForToken(ctx context.Context, token Token) ([]*ArbitrageDetection, error) {
-	ad.logger.Debug("Detecting arbitrage for token", "token", token.Symbol)
+	ad.logger.Debug("Detecting arbitrage for token", zap.String("token", token.Symbol))
 
 	var opportunities []*ArbitrageDetection
 
@@ -158,8 +159,8 @@ func (ad *ArbitrageDetector) scanForOpportunities(ctx context.Context) {
 		opportunities, err := ad.DetectArbitrageForToken(ctx, token)
 		if err != nil {
 			ad.logger.Error("Failed to detect arbitrage for token",
-				"token", token.Symbol,
-				"error", err)
+				zap.String("token", token.Symbol),
+				zap.Error(err))
 			continue
 		}
 
@@ -199,16 +200,16 @@ func (ad *ArbitrageDetector) handleOpportunity(ctx context.Context, opp *Arbitra
 	// Cache opportunity for external access
 	cacheKey := fmt.Sprintf("arbitrage:opportunity:%s", opp.ID)
 	if err := ad.cache.Set(ctx, cacheKey, opp, time.Minute*5); err != nil {
-		ad.logger.Error("Failed to cache opportunity", "error", err)
+		ad.logger.Error("Failed to cache opportunity", zap.Error(err))
 	}
 
 	ad.logger.Info("Arbitrage opportunity detected",
-		"id", opp.ID,
-		"token", opp.Token.Symbol,
-		"profit_margin", opp.ProfitMargin,
-		"net_profit", opp.NetProfit,
-		"source", opp.SourceExchange.Name,
-		"target", opp.TargetExchange.Name)
+		zap.String("id", opp.ID),
+		zap.String("token", opp.Token.Symbol),
+		zap.String("profit_margin", opp.ProfitMargin.String()),
+		zap.String("net_profit", opp.NetProfit.String()),
+		zap.String("source", opp.SourceExchange.Name),
+		zap.String("target", opp.TargetExchange.Name))
 }
 
 // getPricesFromExchanges gets token prices from all configured exchanges

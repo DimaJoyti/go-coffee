@@ -113,3 +113,6 @@ go.work.sum
 # Augment specific
 /.augment-guidelines
 /.kilocode/mcp.json
+.cursor
+.continue
+.roo

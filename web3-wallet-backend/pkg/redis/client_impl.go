@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -16,6 +17,13 @@ type redisClient struct {
 
 // NewClient creates a new Redis client
 func NewClient(config *Config) (Client, error) {
+	// Set default addresses if not provided
+	if len(config.Addresses) == 0 && config.Host != "" {
+		config.Addresses = []string{fmt.Sprintf("%s:%d", config.Host, config.Port)}
+	}
+	if len(config.Addresses) == 0 {
+		config.Addresses = []string{"localhost:6379"}
+	}
 	var client redis.UniversalClient
 
 	if config.EnableCluster {
@@ -137,6 +145,11 @@ func (c *redisClient) Close() error {
 	return c.client.Close()
 }
 
+// Ping checks the Redis connection
+func (c *redisClient) Ping(ctx context.Context) error {
+	return c.client.Ping(ctx).Err()
+}
+
 // redisPipeline implements the Pipeline interface
 type redisPipeline struct {
 	pipeline redis.Pipeliner
@@ -227,4 +240,37 @@ func (p *redisPipeline) Exec(ctx context.Context) ([]Cmder, error) {
 	}
 
 	return result, nil
+}
+
+// NewClientFromConfig creates a new Redis client from config.RedisConfig
+func NewClientFromConfig(cfg *config.RedisConfig) (Client, error) {
+	redisConfig := &Config{
+		Host:                   cfg.Host,
+		Port:                   cfg.Port,
+		Password:               cfg.Password,
+		DB:                     cfg.DB,
+		PoolSize:               cfg.PoolSize,
+		MinIdleConns:           cfg.MinIdleConns,
+		DialTimeout:            cfg.DialTimeout,
+		ReadTimeout:            cfg.ReadTimeout,
+		WriteTimeout:           cfg.WriteTimeout,
+		PoolTimeout:            cfg.PoolTimeout,
+		IdleTimeout:            cfg.IdleTimeout,
+		IdleCheckFrequency:     cfg.IdleCheckFrequency,
+		MaxRetries:             cfg.MaxRetries,
+		MinRetryBackoff:        cfg.MinRetryBackoff,
+		MaxRetryBackoff:        cfg.MaxRetryBackoff,
+		EnableCluster:          cfg.EnableCluster,
+		RouteByLatency:         cfg.RouteByLatency,
+		RouteRandomly:          cfg.RouteRandomly,
+		EnableReadFromReplicas: cfg.EnableReadFromReplicas,
+	}
+
+	// Copy addresses if provided
+	if len(cfg.Addresses) > 0 {
+		redisConfig.Addresses = make([]string, len(cfg.Addresses))
+		copy(redisConfig.Addresses, cfg.Addresses)
+	}
+
+	return NewClient(redisConfig)
 }

@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	
+	"go.uber.org/zap"
+
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/content"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/rag"
@@ -26,7 +27,7 @@ import (
 type ContentAnalysisService struct {
 	config        *config.Config
 	logger        *logger.Logger
-	aiService     *ai.Service
+	aiService     *ai.SimpleService
 	redditService *reddit.Service
 	ragService    *rag.Service
 	analyzer      *content.Analyzer
@@ -45,35 +46,29 @@ func main() {
 	}
 
 	// Initialize logger
-	logger := logger.New(cfg.Logging.Level, cfg.Logging.Format)
+	logger := logger.NewLogger(cfg.Logging)
 	defer logger.Sync()
 
 	// Initialize Redis client
-	redisClient, err := redis.NewClient(&redis.Config{
-		Host:     cfg.Redis.Host,
-		Port:     cfg.Redis.Port,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-		PoolSize: cfg.Redis.PoolSize,
-	})
+	redisClient, err := redis.NewClientFromConfig(&cfg.Redis)
 	if err != nil {
-		logger.Fatal("Failed to create Redis client", "error", err)
+		logger.Fatal("Failed to create Redis client", zap.Error(err))
 	}
 	defer redisClient.Close()
 
 	// Initialize Kafka producer
-	kafkaProducer, err := kafka.NewProducer(&kafka.Config{
+	kafkaProducer, err := kafka.NewProducer(kafka.Config{
 		Brokers: []string{"localhost:9092"}, // Use from config
-	})
+	}, logger)
 	if err != nil {
-		logger.Fatal("Failed to create Kafka producer", "error", err)
+		logger.Fatal("Failed to create Kafka producer", zap.Error(err))
 	}
 	defer kafkaProducer.Close()
 
 	// Initialize AI service
 	aiService, err := ai.NewService(cfg.AI, logger, redisClient)
 	if err != nil {
-		logger.Fatal("Failed to create AI service", "error", err)
+		logger.Fatal("Failed to create AI service", zap.Error(err))
 	}
 
 	// Initialize content analyzer
@@ -82,7 +77,7 @@ func main() {
 	// Initialize Reddit service
 	redditService, err := reddit.NewService(cfg.AI.Reddit, logger, analyzer, redisClient, kafkaProducer)
 	if err != nil {
-		logger.Fatal("Failed to create Reddit service", "error", err)
+		logger.Fatal("Failed to create Reddit service", zap.Error(err))
 	}
 
 	// Initialize RAG service (placeholder - would need vector store implementation)
@@ -108,14 +103,14 @@ func main() {
 
 	// Start Reddit service
 	if err := service.redditService.Start(ctx); err != nil {
-		logger.Fatal("Failed to start Reddit service", "error", err)
+		logger.Fatal("Failed to start Reddit service", zap.Error(err))
 	}
 
 	// Start HTTP server
 	go func() {
-		logger.Info(fmt.Sprintf("Starting HTTP server on port %d", cfg.Server.Port))
+		logger.Info("Starting HTTP server", zap.Int("port", cfg.Server.Port))
 		if err := service.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start HTTP server", "error", err)
+			logger.Fatal("Failed to start HTTP server", zap.Error(err))
 		}
 	}()
 
@@ -134,12 +129,12 @@ func main() {
 
 	// Stop Reddit service
 	if err := service.redditService.Stop(); err != nil {
-		logger.Error("Error stopping Reddit service", "error", err)
+		logger.Error("Error stopping Reddit service", zap.Error(err))
 	}
 
 	// Stop HTTP server
 	if err := service.httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error("Error stopping HTTP server", "error", err)
+		logger.Error("Error stopping HTTP server", zap.Error(err))
 	}
 
 	logger.Info("Content Analysis Service stopped")
@@ -237,7 +232,7 @@ func (s *ContentAnalysisService) analyzePost(c *gin.Context) {
 
 	classification, err := s.analyzer.AnalyzePost(c.Request.Context(), &post)
 	if err != nil {
-		s.logger.Error("Failed to analyze post", "error", err)
+		s.logger.Error("Failed to analyze post", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to analyze post"})
 		return
 	}
@@ -254,7 +249,7 @@ func (s *ContentAnalysisService) analyzeComment(c *gin.Context) {
 
 	classification, err := s.analyzer.AnalyzeComment(c.Request.Context(), &comment)
 	if err != nil {
-		s.logger.Error("Failed to analyze comment", "error", err)
+		s.logger.Error("Failed to analyze comment", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to analyze comment"})
 		return
 	}

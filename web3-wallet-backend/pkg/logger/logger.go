@@ -116,3 +116,55 @@ func (l *Logger) Named(name string) *Logger {
 func (l *Logger) Sync() error {
 	return l.Logger.Sync()
 }
+
+// New creates a simple logger for development (compatibility function)
+func New(name string) *Logger {
+	config := zap.NewDevelopmentConfig()
+	config.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	config.Development = true
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	logger, err := config.Build()
+	if err != nil {
+		panic(err)
+	}
+
+	return &Logger{logger.Named(name)}
+}
+
+// InfoMap logs an info message with map fields (compatibility)
+func (l *Logger) InfoMap(msg string, fields map[string]interface{}) {
+	zapFields := make([]zap.Field, 0, len(fields))
+	for k, v := range fields {
+		zapFields = append(zapFields, zap.Any(k, v))
+	}
+	l.Logger.Info(msg, zapFields...)
+}
+
+// ErrorMap logs an error message with map fields (compatibility)
+func (l *Logger) ErrorMap(msg string, fields map[string]interface{}) {
+	zapFields := make([]zap.Field, 0, len(fields))
+	for k, v := range fields {
+		zapFields = append(zapFields, zap.Any(k, v))
+	}
+	l.Logger.Error(msg, zapFields...)
+}
+
+// DebugMap logs a debug message with map fields (compatibility)
+func (l *Logger) DebugMap(msg string, fields map[string]interface{}) {
+	zapFields := make([]zap.Field, 0, len(fields))
+	for k, v := range fields {
+		zapFields = append(zapFields, zap.Any(k, v))
+	}
+	l.Logger.Debug(msg, zapFields...)
+}
+
+// WarnMap logs a warning message with map fields (compatibility)
+func (l *Logger) WarnMap(msg string, fields map[string]interface{}) {
+	zapFields := make([]zap.Field, 0, len(fields))
+	for k, v := range fields {
+		zapFields = append(zapFields, zap.Any(k, v))
+	}
+	l.Logger.Warn(msg, zapFields...)
+}

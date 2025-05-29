@@ -1,10 +1,13 @@
 package defi
 
 import (
+	"go.uber.org/zap"
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -42,7 +45,7 @@ func (h *GRPCHandler) GetTokenPrice(ctx context.Context, req interface{}) (inter
 
 	resp, err := h.service.GetTokenPrice(ctx, mockReq)
 	if err != nil {
-		h.logger.Error("Failed to get token price", "error", err)
+		h.logger.Error("Failed to get token price", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get token price: %v", err)
 	}
 
@@ -63,7 +66,7 @@ func (h *GRPCHandler) GetSwapQuote(ctx context.Context, req interface{}) (interf
 
 	resp, err := h.service.GetSwapQuote(ctx, mockReq)
 	if err != nil {
-		h.logger.Error("Failed to get swap quote", "error", err)
+		h.logger.Error("Failed to get swap quote", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get swap quote: %v", err)
 	}
 
@@ -84,7 +87,7 @@ func (h *GRPCHandler) ExecuteSwap(ctx context.Context, req interface{}) (interfa
 
 	resp, err := h.service.ExecuteSwap(ctx, mockReq)
 	if err != nil {
-		h.logger.Error("Failed to execute swap", "error", err)
+		h.logger.Error("Failed to execute swap", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to execute swap: %v", err)
 	}
 
@@ -105,7 +108,7 @@ func (h *GRPCHandler) GetLiquidityPools(ctx context.Context, req interface{}) (i
 
 	resp, err := h.service.GetLiquidityPools(ctx, mockReq)
 	if err != nil {
-		h.logger.Error("Failed to get liquidity pools", "error", err)
+		h.logger.Error("Failed to get liquidity pools", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get liquidity pools: %v", err)
 	}
 
@@ -128,7 +131,7 @@ func (h *GRPCHandler) AddLiquidity(ctx context.Context, req interface{}) (interf
 
 	resp, err := h.service.AddLiquidity(ctx, mockReq)
 	if err != nil {
-		h.logger.Error("Failed to add liquidity", "error", err)
+		h.logger.Error("Failed to add liquidity", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to add liquidity: %v", err)
 	}
 
@@ -141,7 +144,7 @@ func (h *GRPCHandler) GetYieldFarms(ctx context.Context, req interface{}) (inter
 
 	farms, err := h.service.GetYieldFarms(ctx, ChainEthereum)
 	if err != nil {
-		h.logger.Error("Failed to get yield farms", "error", err)
+		h.logger.Error("Failed to get yield farms", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get yield farms: %v", err)
 	}
 
@@ -154,7 +157,7 @@ func (h *GRPCHandler) StakeTokens(ctx context.Context, req interface{}) (interfa
 
 	err := h.service.StakeTokens(ctx, "mock-user-id", "mock-farm-id", decimal.NewFromFloat(100.0))
 	if err != nil {
-		h.logger.Error("Failed to stake tokens", "error", err)
+		h.logger.Error("Failed to stake tokens", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to stake tokens: %v", err)
 	}
 
@@ -167,7 +170,7 @@ func (h *GRPCHandler) GetLendingPositions(ctx context.Context, req interface{}) 
 
 	positions, err := h.service.GetLendingPositions(ctx, "mock-user-id")
 	if err != nil {
-		h.logger.Error("Failed to get lending positions", "error", err)
+		h.logger.Error("Failed to get lending positions", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get lending positions: %v", err)
 	}
 
@@ -180,7 +183,7 @@ func (h *GRPCHandler) LendTokens(ctx context.Context, req interface{}) (interfac
 
 	err := h.service.LendTokens(ctx, "mock-user-id", "0xA0b86a33E6441b8C4505B6B8C0E4F7c3C4b5C8E1", decimal.NewFromFloat(1000.0))
 	if err != nil {
-		h.logger.Error("Failed to lend tokens", "error", err)
+		h.logger.Error("Failed to lend tokens", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to lend tokens: %v", err)
 	}
 
@@ -193,7 +196,7 @@ func (h *GRPCHandler) BorrowTokens(ctx context.Context, req interface{}) (interf
 
 	err := h.service.BorrowTokens(ctx, "mock-user-id", "0xA0b86a33E6441b8C4505B6B8C0E4F7c3C4b5C8E1", decimal.NewFromFloat(500.0))
 	if err != nil {
-		h.logger.Error("Failed to borrow tokens", "error", err)
+		h.logger.Error("Failed to borrow tokens", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to borrow tokens: %v", err)
 	}
 
@@ -206,7 +209,7 @@ func (h *GRPCHandler) GetAaveAccountData(ctx context.Context, req interface{}) (
 
 	accountData, err := h.service.aaveClient.GetUserAccountData(ctx, "0x742d35Cc6634C0532925a3b8D4C9db96590e4265")
 	if err != nil {
-		h.logger.Error("Failed to get Aave account data", "error", err)
+		h.logger.Error("Failed to get Aave account data", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get Aave account data: %v", err)
 	}
 
@@ -219,7 +222,7 @@ func (h *GRPCHandler) GetChainlinkPrice(ctx context.Context, req interface{}) (i
 
 	price, err := h.service.chainlinkClient.GetTokenPrice(ctx, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
 	if err != nil {
-		h.logger.Error("Failed to get Chainlink price", "error", err)
+		h.logger.Error("Failed to get Chainlink price", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get Chainlink price: %v", err)
 	}
 
@@ -235,7 +238,7 @@ func (h *GRPCHandler) GetOneInchTokens(ctx context.Context, req interface{}) (in
 
 	tokens, err := h.service.oneInchClient.GetSupportedTokens(ctx, ChainEthereum)
 	if err != nil {
-		h.logger.Error("Failed to get 1inch tokens", "error", err)
+		h.logger.Error("Failed to get 1inch tokens", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get 1inch tokens: %v", err)
 	}
 
@@ -273,8 +276,8 @@ func (h *GRPCHandler) logRequest(method string, req interface{}) {
 	if h.logger.Level() == "debug" {
 		reqJSON, _ := json.Marshal(req)
 		h.logger.Debug("Incoming request", 
-			"method", method, 
-			"request", string(reqJSON))
+			zap.String("method", method), 
+			zap.String("request", string(reqJSON)))
 	}
 }
 
@@ -283,7 +286,7 @@ func (h *GRPCHandler) logResponse(method string, resp interface{}) {
 	if h.logger.Level() == "debug" {
 		respJSON, _ := json.Marshal(resp)
 		h.logger.Debug("Outgoing response", 
-			"method", method, 
-			"response", string(respJSON))
+			zap.String("method", method), 
+			zap.String("response", string(respJSON)))
 	}
 }

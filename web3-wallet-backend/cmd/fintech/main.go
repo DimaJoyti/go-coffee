@@ -62,7 +62,7 @@ func main() {
 
 	// Initialize repositories and services
 	accountRepo := accounts.NewPostgreSQLRepository(db)
-	accountService := accounts.NewService(accountRepo, logger, redisClient)
+	accountService := accounts.NewService(accountRepo, cfg.Fintech.Accounts, logger, redisClient)
 
 	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -117,8 +117,8 @@ func main() {
 	api := router.Group("/api/v1")
 	{
 		// Account routes
-		accountHandlers := accounts.NewHandlers(accountService, logger)
-		accountHandlers.RegisterRoutes(api)
+		accountHandler := accounts.NewHandler(accountService, logger)
+		accountHandler.RegisterRoutes(api)
 	}
 
 	// Metrics endpoint (for Prometheus)
@@ -133,14 +133,13 @@ func main() {
 		Handler:      router,
 		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Starting HTTP server", "address", server.Addr)
+		logger.Info("Starting HTTP server", zap.String("address", server.Addr))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start server", "error", err)
+			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
@@ -157,7 +156,7 @@ func main() {
 
 	// Shutdown server
 	if err := server.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", "error", err)
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
 
 	logger.Info("Server exited")

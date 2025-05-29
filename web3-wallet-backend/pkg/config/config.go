@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -29,9 +29,11 @@ type Config struct {
 type ServerConfig struct {
 	Port           int           `yaml:"port"`
 	Host           string        `yaml:"host"`
+	Environment    string        `yaml:"environment"`
 	Timeout        time.Duration `yaml:"timeout"`
 	ReadTimeout    time.Duration `yaml:"read_timeout"`
 	WriteTimeout   time.Duration `yaml:"write_timeout"`
+	IdleTimeout    time.Duration `yaml:"idle_timeout"`
 	MaxHeaderBytes int           `yaml:"max_header_bytes"`
 }
 
@@ -51,11 +53,26 @@ type DatabaseConfig struct {
 
 // RedisConfig represents the Redis configuration
 type RedisConfig struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	Password string `yaml:"password"`
-	DB       int    `yaml:"db"`
-	PoolSize int    `yaml:"pool_size"`
+	Addresses              []string      `yaml:"addresses"`
+	Host                   string        `yaml:"host"`
+	Port                   int           `yaml:"port"`
+	Password               string        `yaml:"password"`
+	DB                     int           `yaml:"db"`
+	PoolSize               int           `yaml:"pool_size"`
+	MinIdleConns           int           `yaml:"min_idle_conns"`
+	DialTimeout            time.Duration `yaml:"dial_timeout"`
+	ReadTimeout            time.Duration `yaml:"read_timeout"`
+	WriteTimeout           time.Duration `yaml:"write_timeout"`
+	PoolTimeout            time.Duration `yaml:"pool_timeout"`
+	IdleTimeout            time.Duration `yaml:"idle_timeout"`
+	IdleCheckFrequency     time.Duration `yaml:"idle_check_frequency"`
+	MaxRetries             int           `yaml:"max_retries"`
+	MinRetryBackoff        time.Duration `yaml:"min_retry_backoff"`
+	MaxRetryBackoff        time.Duration `yaml:"max_retry_backoff"`
+	EnableCluster          bool          `yaml:"enable_cluster"`
+	RouteByLatency         bool          `yaml:"route_by_latency"`
+	RouteRandomly          bool          `yaml:"route_randomly"`
+	EnableReadFromReplicas bool          `yaml:"enable_read_from_replicas"`
 }
 
 // BlockchainConfig represents the blockchain configuration
@@ -262,7 +279,7 @@ type ServiceConfig struct {
 // LoadConfig loads the configuration from a file
 func LoadConfig(configPath string) (*Config, error) {
 	// Read the configuration file
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}

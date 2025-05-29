@@ -32,7 +32,7 @@ func main() {
 	appLogger.Info("Starting Telegram Bot for Web3 Coffee Platform")
 
 	// Initialize Redis client
-	redisClient, err := redis.NewClient(cfg.Redis)
+	redisClient, err := redis.NewClientFromConfig(&cfg.Redis)
 	if err != nil {
 		appLogger.Fatal(fmt.Sprintf("Failed to connect to Redis: %v", err))
 	}

@@ -8,6 +8,8 @@ import (
 // Config represents Redis configuration
 type Config struct {
 	Addresses              []string      // Redis server addresses (host:port)
+	Host                   string        // Redis host (for single instance)
+	Port                   int           // Redis port (for single instance)
 	Password               string        // Redis password
 	DB                     int           // Redis database
 	PoolSize               int           // Connection pool size
@@ -64,6 +66,9 @@ type Client interface {
 
 	// Close closes the Redis client
 	Close() error
+
+	// Ping checks the Redis connection
+	Ping(ctx context.Context) error
 }
 
 // Pipeline represents a Redis pipeline

@@ -10,6 +10,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // Aave V3 contract addresses on Ethereum mainnet
@@ -48,9 +49,9 @@ func NewAaveClient(client *blockchain.EthereumClient, logger *logger.Logger) *Aa
 // LendTokens lends tokens to Aave
 func (ac *AaveClient) LendTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
 	ac.logger.Info("Lending tokens to Aave",
-		"userID", userID,
-		"token", tokenAddress,
-		"amount", amount)
+		zap.String("userID", userID),
+		zap.String("token", tokenAddress),
+		zap.String("amount", amount.String()))
 
 	// Convert amount to big.Int (assuming 18 decimals)
 	amountBig := new(big.Int)
@@ -62,16 +63,16 @@ func (ac *AaveClient) LendTokens(ctx context.Context, userID, tokenAddress strin
 	// 3. Call supply() on Aave pool contract
 	// 4. Sign and send transaction
 
-	ac.logger.Info("Tokens lent successfully", "txHash", "0x"+strings.Repeat("d", 64))
+	ac.logger.Info("Tokens lent successfully", zap.String("txHash", "0x"+strings.Repeat("d", 64)))
 	return nil
 }
 
 // BorrowTokens borrows tokens from Aave
 func (ac *AaveClient) BorrowTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
 	ac.logger.Info("Borrowing tokens from Aave",
-		"userID", userID,
-		"token", tokenAddress,
-		"amount", amount)
+		zap.String("userID", userID),
+		zap.String("token", tokenAddress),
+		zap.String("amount", amount.String()))
 
 	// Convert amount to big.Int (assuming 18 decimals)
 	amountBig := new(big.Int)
@@ -83,16 +84,16 @@ func (ac *AaveClient) BorrowTokens(ctx context.Context, userID, tokenAddress str
 	// 3. Call borrow() on Aave pool contract
 	// 4. Sign and send transaction
 
-	ac.logger.Info("Tokens borrowed successfully", "txHash", "0x"+strings.Repeat("e", 64))
+	ac.logger.Info("Tokens borrowed successfully", zap.String("txHash", "0x"+strings.Repeat("e", 64)))
 	return nil
 }
 
 // RepayTokens repays borrowed tokens to Aave
 func (ac *AaveClient) RepayTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
 	ac.logger.Info("Repaying tokens to Aave",
-		"userID", userID,
-		"token", tokenAddress,
-		"amount", amount)
+		zap.String("userID", userID),
+		zap.String("token", tokenAddress),
+		zap.String("amount", amount.String()))
 
 	// Convert amount to big.Int (assuming 18 decimals)
 	amountBig := new(big.Int)
@@ -104,16 +105,16 @@ func (ac *AaveClient) RepayTokens(ctx context.Context, userID, tokenAddress stri
 	// 3. Call repay() on Aave pool contract
 	// 4. Sign and send transaction
 
-	ac.logger.Info("Tokens repaid successfully", "txHash", "0x"+strings.Repeat("f", 64))
+	ac.logger.Info("Tokens repaid successfully", zap.String("txHash", "0x"+strings.Repeat("f", 64)))
 	return nil
 }
 
 // WithdrawTokens withdraws lent tokens from Aave
 func (ac *AaveClient) WithdrawTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
 	ac.logger.Info("Withdrawing tokens from Aave",
-		"userID", userID,
-		"token", tokenAddress,
-		"amount", amount)
+		zap.String("userID", userID),
+		zap.String("token", tokenAddress),
+		zap.String("amount", amount.String()))
 
 	// Convert amount to big.Int (assuming 18 decimals)
 	amountBig := new(big.Int)
@@ -124,13 +125,13 @@ func (ac *AaveClient) WithdrawTokens(ctx context.Context, userID, tokenAddress s
 	// 2. Call withdraw() on Aave pool contract
 	// 3. Sign and send transaction
 
-	ac.logger.Info("Tokens withdrawn successfully", "txHash", "0x"+strings.Repeat("1", 64))
+	ac.logger.Info("Tokens withdrawn successfully", zap.String("txHash", "0x"+strings.Repeat("1", 64)))
 	return nil
 }
 
 // GetUserAccountData retrieves user's account data from Aave
 func (ac *AaveClient) GetUserAccountData(ctx context.Context, userAddress string) (*AaveAccountData, error) {
-	ac.logger.Info("Getting user account data from Aave", "userAddress", userAddress)
+	ac.logger.Info("Getting user account data from Aave", zap.String("userAddress", userAddress))
 
 	// In a real implementation, you would call getUserAccountData() on Aave pool
 	// For now, return mock data
@@ -148,7 +149,7 @@ func (ac *AaveClient) GetUserAccountData(ctx context.Context, userAddress string
 
 // GetReserveData retrieves reserve data for a token
 func (ac *AaveClient) GetReserveData(ctx context.Context, tokenAddress string) (*AaveReserveData, error) {
-	ac.logger.Info("Getting reserve data from Aave", "tokenAddress", tokenAddress)
+	ac.logger.Info("Getting reserve data from Aave", zap.String("tokenAddress", tokenAddress))
 
 	// In a real implementation, you would call getReserveData() on Aave pool
 	// For now, return mock data
@@ -167,8 +168,8 @@ func (ac *AaveClient) GetReserveData(ctx context.Context, tokenAddress string) (
 // GetUserReserveData retrieves user's reserve data for a specific token
 func (ac *AaveClient) GetUserReserveData(ctx context.Context, userAddress, tokenAddress string) (*AaveUserReserveData, error) {
 	ac.logger.Info("Getting user reserve data from Aave",
-		"userAddress", userAddress,
-		"tokenAddress", tokenAddress)
+		zap.String("userAddress", userAddress),
+		zap.String("tokenAddress", tokenAddress))
 
 	// In a real implementation, you would call getUserReserveData() on data provider
 	// For now, return mock data
@@ -189,7 +190,7 @@ func (ac *AaveClient) GetUserReserveData(ctx context.Context, userAddress, token
 
 // GetLendingAPY retrieves the current lending APY for a token
 func (ac *AaveClient) GetLendingAPY(ctx context.Context, tokenAddress string) (decimal.Decimal, error) {
-	ac.logger.Info("Getting lending APY from Aave", "tokenAddress", tokenAddress)
+	ac.logger.Info("Getting lending APY from Aave", zap.String("tokenAddress", tokenAddress))
 
 	reserveData, err := ac.GetReserveData(ctx, tokenAddress)
 	if err != nil {
@@ -202,8 +203,8 @@ func (ac *AaveClient) GetLendingAPY(ctx context.Context, tokenAddress string) (d
 // GetBorrowingAPY retrieves the current borrowing APY for a token
 func (ac *AaveClient) GetBorrowingAPY(ctx context.Context, tokenAddress string, stable bool) (decimal.Decimal, error) {
 	ac.logger.Info("Getting borrowing APY from Aave",
-		"tokenAddress", tokenAddress,
-		"stable", stable)
+		zap.String("tokenAddress", tokenAddress),
+		zap.Bool("stable", stable))
 
 	reserveData, err := ac.GetReserveData(ctx, tokenAddress)
 	if err != nil {
@@ -219,8 +220,8 @@ func (ac *AaveClient) GetBorrowingAPY(ctx context.Context, tokenAddress string, 
 // EnableCollateral enables a token as collateral
 func (ac *AaveClient) EnableCollateral(ctx context.Context, userID, tokenAddress string) error {
 	ac.logger.Info("Enabling collateral in Aave",
-		"userID", userID,
-		"tokenAddress", tokenAddress)
+		zap.String("userID", userID),
+		zap.String("tokenAddress", tokenAddress))
 
 	// In a real implementation, you would call setUserUseReserveAsCollateral()
 	ac.logger.Info("Collateral enabled successfully")
@@ -230,8 +231,8 @@ func (ac *AaveClient) EnableCollateral(ctx context.Context, userID, tokenAddress
 // DisableCollateral disables a token as collateral
 func (ac *AaveClient) DisableCollateral(ctx context.Context, userID, tokenAddress string) error {
 	ac.logger.Info("Disabling collateral in Aave",
-		"userID", userID,
-		"tokenAddress", tokenAddress)
+		zap.String("userID", userID),
+		zap.String("tokenAddress", tokenAddress))
 
 	// In a real implementation, you would call setUserUseReserveAsCollateral()
 	ac.logger.Info("Collateral disabled successfully")
@@ -253,7 +254,7 @@ func (ac *AaveClient) loadABIs() {
 	var err error
 	ac.poolABI, err = abi.JSON(strings.NewReader(poolABIJSON))
 	if err != nil {
-		ac.logger.Error("Failed to parse pool ABI", "error", err)
+		ac.logger.Error("Failed to parse pool ABI", zap.Error(err))
 	}
 
 	// ERC20 ABI (simplified)
@@ -264,7 +265,7 @@ func (ac *AaveClient) loadABIs() {
 
 	ac.erc20ABI, err = abi.JSON(strings.NewReader(erc20ABIJSON))
 	if err != nil {
-		ac.logger.Error("Failed to parse ERC20 ABI", "error", err)
+		ac.logger.Error("Failed to parse ERC20 ABI", zap.Error(err))
 	}
 }
 

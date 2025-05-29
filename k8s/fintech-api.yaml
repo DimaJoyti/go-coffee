@@ -32,7 +32,7 @@ spec:
       - name: docker-registry-secret
       containers:
       - name: fintech-api
-        image: ghcr.io/dimajoyti/go-coffee/fintech-platform:latest
+        image: ghcr.io/dimajoyti/go-coffee/fintech-platform:v1.0.0
         ports:
         - containerPort: 8080
           name: http
@@ -174,6 +174,8 @@ spec:
     app: fintech-api
 
 ---
+---
+
 # Horizontal Pod Autoscaler
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -217,6 +219,8 @@ spec:
         value: 2
         periodSeconds: 60
       selectPolicy: Max
+
+---
 
 ---
 # Pod Disruption Budget

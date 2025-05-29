@@ -1,6 +1,7 @@
 package order
 
 import (
+	"go.uber.org/zap"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -43,12 +44,12 @@ func (s *Service) GetOrder(ctx context.Context, id string) (*Order, error) {
 			// Get order items
 			items, err := s.GetOrderItems(ctx, id)
 			if err != nil {
-				s.logger.Warn("Failed to get order items", "id", id, "error", err)
+				s.logger.Warn("Failed to get order items", zap.String("id", id), zap.Error(err))
 			} else {
 				order.Items = items
 			}
 			
-			s.logger.Debug("Order cache hit", "id", id)
+			s.logger.Debug("Order cache hit", zap.String("id", id))
 			return &order, nil
 		}
 	}
@@ -63,7 +64,7 @@ func (s *Service) GetOrder(ctx context.Context, id string) (*Order, error) {
 		// Get order items
 		items, err := s.GetOrderItems(ctx, id)
 		if err != nil {
-			s.logger.Warn("Failed to get order items", "id", id, "error", err)
+			s.logger.Warn("Failed to get order items", zap.String("id", id), zap.Error(err))
 		} else {
 			order.Items = items
 		}
@@ -72,7 +73,7 @@ func (s *Service) GetOrder(ctx context.Context, id string) (*Order, error) {
 		orderData, err := json.Marshal(order)
 		if err == nil {
 			if err := s.cache.Set(ctx, cacheKey, orderData, s.cacheTTL); err != nil {
-				s.logger.Warn("Failed to cache order", "id", id, "error", err)
+				s.logger.Warn("Failed to cache order", zap.String("id", id), zap.Error(err))
 			}
 		}
 	}
@@ -89,7 +90,7 @@ func (s *Service) GetOrderItems(ctx context.Context, orderID string) ([]*OrderIt
 		// Cache hit
 		var items []*OrderItem
 		if err := json.Unmarshal([]byte(data), &items); err == nil {
-			s.logger.Debug("Order items cache hit", "orderID", orderID)
+			s.logger.Debug("Order items cache hit", zap.String("orderID", orderID))
 			return items, nil
 		}
 	}
@@ -105,7 +106,7 @@ func (s *Service) GetOrderItems(ctx context.Context, orderID string) ([]*OrderIt
 		itemsData, err := json.Marshal(items)
 		if err == nil {
 			if err := s.cache.Set(ctx, cacheKey, itemsData, s.cacheTTL); err != nil {
-				s.logger.Warn("Failed to cache order items", "orderID", orderID, "error", err)
+				s.logger.Warn("Failed to cache order items", zap.String("orderID", orderID), zap.Error(err))
 			}
 		}
 	}
@@ -124,7 +125,7 @@ func (s *Service) CreateOrder(ctx context.Context, order *Order) error {
 	for _, item := range order.Items {
 		item.OrderID = order.ID
 		if err := s.repo.CreateOrderItem(ctx, item); err != nil {
-			s.logger.Error("Failed to create order item", "orderID", order.ID, "error", err)
+			s.logger.Error("Failed to create order item", zap.String("orderID", order.ID), zap.Error(err))
 			// Continue with other items
 		}
 	}
@@ -134,7 +135,7 @@ func (s *Service) CreateOrder(ctx context.Context, order *Order) error {
 	orderData, err := json.Marshal(order)
 	if err == nil {
 		if err := s.cache.Set(ctx, cacheKey, orderData, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache order", "id", order.ID, "error", err)
+			s.logger.Warn("Failed to cache order", zap.String("id", order.ID), zap.Error(err))
 		}
 	}
 
@@ -143,7 +144,7 @@ func (s *Service) CreateOrder(ctx context.Context, order *Order) error {
 	itemsData, err := json.Marshal(order.Items)
 	if err == nil {
 		if err := s.cache.Set(ctx, cacheKey, itemsData, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache order items", "orderID", order.ID, "error", err)
+			s.logger.Warn("Failed to cache order items", zap.String("orderID", order.ID), zap.Error(err))
 		}
 	}
 
@@ -171,7 +172,7 @@ func (s *Service) CreateOrder(ctx context.Context, order *Order) error {
 	eventData, err := json.Marshal(event)
 	if err == nil {
 		if err := s.producer.Produce("order-events", []byte(order.ID), eventData); err != nil {
-			s.logger.Warn("Failed to publish order created event", "id", order.ID, "error", err)
+			s.logger.Warn("Failed to publish order created event", zap.String("id", order.ID), zap.Error(err))
 		}
 	}
 
@@ -190,7 +191,7 @@ func (s *Service) UpdateOrder(ctx context.Context, id string, order *Order) erro
 	orderData, err := json.Marshal(order)
 	if err == nil {
 		if err := s.cache.Set(ctx, cacheKey, orderData, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache order", "id", id, "error", err)
+			s.logger.Warn("Failed to cache order", zap.String("id", id), zap.Error(err))
 		}
 	}
 
@@ -205,7 +206,7 @@ func (s *Service) UpdateOrder(ctx context.Context, id string, order *Order) erro
 	eventData, err := json.Marshal(event)
 	if err == nil {
 		if err := s.producer.Produce("order-events", []byte(order.ID), eventData); err != nil {
-			s.logger.Warn("Failed to publish order updated event", "id", order.ID, "error", err)
+			s.logger.Warn("Failed to publish order updated event", zap.String("id", order.ID), zap.Error(err))
 		}
 	}
 
@@ -227,13 +228,13 @@ func (s *Service) DeleteOrder(ctx context.Context, id string) error {
 	// Delete from cache
 	cacheKey := fmt.Sprintf("order:%s", id)
 	if err := s.cache.Del(ctx, cacheKey); err != nil {
-		s.logger.Warn("Failed to delete order from cache", "id", id, "error", err)
+		s.logger.Warn("Failed to delete order from cache", zap.String("id", id), zap.Error(err))
 	}
 
 	// Delete order items from cache
 	cacheKey = fmt.Sprintf("order:%s:items", id)
 	if err := s.cache.Del(ctx, cacheKey); err != nil {
-		s.logger.Warn("Failed to delete order items from cache", "orderID", id, "error", err)
+		s.logger.Warn("Failed to delete order items from cache", "orderID", id, zap.Error(err))
 	}
 
 	// Publish event
@@ -245,7 +246,7 @@ func (s *Service) DeleteOrder(ctx context.Context, id string) error {
 	eventData, err := json.Marshal(event)
 	if err == nil {
 		if err := s.producer.Produce("order-events", []byte(id), eventData); err != nil {
-			s.logger.Warn("Failed to publish order deleted event", "id", id, "error", err)
+			s.logger.Warn("Failed to publish order deleted event", zap.String("id", id), zap.Error(err))
 		}
 	}
 
@@ -270,13 +271,13 @@ func (s *Service) ListOrders(ctx context.Context, userID, status string, page, p
 			for _, order := range result.Orders {
 				items, err := s.GetOrderItems(ctx, order.ID)
 				if err != nil {
-					s.logger.Warn("Failed to get order items", "id", order.ID, "error", err)
+					s.logger.Warn("Failed to get order items", zap.String("id", order.ID), zap.Error(err))
 				} else {
 					order.Items = items
 				}
 			}
 			
-			s.logger.Debug("Orders cache hit", "key", cacheKey)
+			s.logger.Debug("Orders cache hit", zap.String("key", cacheKey))
 			return result.Orders, result.Total, nil
 		}
 	}
@@ -291,7 +292,7 @@ func (s *Service) ListOrders(ctx context.Context, userID, status string, page, p
 	for _, order := range orders {
 		items, err := s.GetOrderItems(ctx, order.ID)
 		if err != nil {
-			s.logger.Warn("Failed to get order items", "id", order.ID, "error", err)
+			s.logger.Warn("Failed to get order items", zap.String("id", order.ID), zap.Error(err))
 		} else {
 			order.Items = items
 		}
@@ -309,7 +310,7 @@ func (s *Service) ListOrders(ctx context.Context, userID, status string, page, p
 	data, err = json.Marshal(result)
 	if err == nil {
 		if err := s.cache.Set(ctx, cacheKey, data, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache orders", "key", cacheKey, "error", err)
+			s.logger.Warn("Failed to cache orders", zap.String("key", cacheKey), zap.Error(err))
 		}
 	}
 

@@ -21,7 +21,7 @@ type Service struct {
 	ethClient     *blockchain.EthereumClient
 	bscClient     *blockchain.EthereumClient
 	polygonClient *blockchain.EthereumClient
-	solanaClient  *blockchain.SolanaClient
+	solanaClient  *blockchain.SimpleSolanaClient
 	keyManager    *crypto.KeyManager
 	logger        *logger.Logger
 	keystorePath  string
@@ -357,14 +357,14 @@ func (s *Service) getSolanaBalance(ctx context.Context, wallet *models.Wallet, r
 		decimals = 9
 	} else {
 		// Get SPL token balance
-		balance, tokenDecimals, err := s.solanaClient.GetTokenBalance(ctx, wallet.Address, req.TokenAddress)
+		balance, err := s.solanaClient.GetTokenBalance(ctx, wallet.Address, req.TokenAddress)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to get token balance: %v", err))
 			return nil, fmt.Errorf("failed to get token balance: %w", err)
 		}
 		balanceStr = balance.String()
 		symbol = "TOKEN"
-		decimals = int(tokenDecimals)
+		decimals = 6 // Default SPL token decimals
 	}
 
 	s.logger.Info(fmt.Sprintf("Solana balance retrieved successfully for wallet %s: %s", wallet.ID, balanceStr))

@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/accounts"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
@@ -46,7 +47,7 @@ func main() {
 	}
 
 	// Initialize logger
-	logger := logger.New(cfg.Logging.Level, cfg.Logging.Format)
+	logger := logger.New("fintech-api")
 	defer logger.Sync()
 
 	// Create server instance
@@ -57,12 +58,12 @@ func main() {
 
 	// Initialize server
 	if err := server.initialize(); err != nil {
-		logger.Fatal("Failed to initialize server", "error", err)
+		logger.Fatal("Failed to initialize server", zap.Error(err))
 	}
 
 	// Start server
 	if err := server.start(); err != nil {
-		logger.Fatal("Failed to start server", "error", err)
+		logger.Fatal("Failed to start server", zap.Error(err))
 	}
 
 	// Wait for shutdown signal
@@ -70,7 +71,7 @@ func main() {
 
 	// Graceful shutdown
 	if err := server.shutdown(); err != nil {
-		logger.Error("Error during shutdown", "error", err)
+		logger.Error("Error during shutdown", zap.Error(err))
 	}
 
 	logger.Info("Fintech API Server stopped")
@@ -111,9 +112,9 @@ func (s *FintechAPIServer) initDatabase() error {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		s.config.Database.Host,
 		s.config.Database.Port,
-		s.config.Database.User,
+		s.config.Database.Username,
 		s.config.Database.Password,
-		s.config.Database.Name,
+		s.config.Database.Database,
 	)
 
 	db, err := sqlx.Connect("postgres", dsn)
@@ -228,17 +229,17 @@ func (s *FintechAPIServer) initHTTPServer() error {
 		IdleTimeout:  time.Duration(s.config.Server.IdleTimeout) * time.Second,
 	}
 
-	s.logger.Info("HTTP server initialized", "port", s.config.Server.Port)
+	s.logger.Info("HTTP server initialized", zap.Int("port", s.config.Server.Port))
 	return nil
 }
 
 // start starts the HTTP server
 func (s *FintechAPIServer) start() error {
-	s.logger.Info("Starting HTTP server", "port", s.config.Server.Port)
+	s.logger.Info("Starting HTTP server", zap.Int("port", s.config.Server.Port))
 
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Fatal("Failed to start HTTP server", "error", err)
+			s.logger.Fatal("Failed to start HTTP server", zap.Error(err))
 		}
 	}()
 
@@ -255,7 +256,7 @@ func (s *FintechAPIServer) waitForShutdown() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-quit
-	s.logger.Info("Received shutdown signal", "signal", sig.String())
+	s.logger.Info("Received shutdown signal", zap.String("signal", sig.String()))
 }
 
 // shutdown gracefully shuts down the server
@@ -270,7 +271,7 @@ func (s *FintechAPIServer) shutdown() error {
 	if s.httpServer != nil {
 		s.logger.Info("Shutting down HTTP server...")
 		if err := s.httpServer.Shutdown(ctx); err != nil {
-			s.logger.Error("Error shutting down HTTP server", "error", err)
+			s.logger.Error("Error shutting down HTTP server", zap.Error(err))
 		}
 	}
 
@@ -278,7 +279,7 @@ func (s *FintechAPIServer) shutdown() error {
 	if s.db != nil {
 		s.logger.Info("Closing database connection...")
 		if err := s.db.Close(); err != nil {
-			s.logger.Error("Error closing database connection", "error", err)
+			s.logger.Error("Error closing database connection", zap.Error(err))
 		}
 	}
 
@@ -286,7 +287,7 @@ func (s *FintechAPIServer) shutdown() error {
 	if s.cache != nil {
 		s.logger.Info("Closing Redis connection...")
 		if err := s.cache.Close(); err != nil {
-			s.logger.Error("Error closing Redis connection", "error", err)
+			s.logger.Error("Error closing Redis connection", zap.Error(err))
 		}
 	}
 
