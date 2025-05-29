@@ -1,0 +1,340 @@
+# Default values for fintech-platform
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Application configuration
+app:
+  name: fintech-platform
+  version: "1.0.0"
+  environment: production
+
+# API service configuration
+api:
+  enabled: true
+  name: fintech-api
+  image:
+    registry: ghcr.io
+    repository: dimajoyti/go-coffee/fintech-platform
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  replicaCount: 3
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    annotations: {}
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: api.fintech-platform.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: fintech-api-tls
+        hosts:
+          - api.fintech-platform.com
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  podSecurityContext:
+    fsGroup: 1000
+  
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+      - ALL
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Configuration
+config:
+  server:
+    port: 8080
+    host: "0.0.0.0"
+    environment: "production"
+    readTimeout: 30
+    writeTimeout: 30
+    idleTimeout: 120
+  
+  security:
+    jwtExpiry: "24h"
+    refreshTokenExpiry: "720h"
+    bcryptCost: 12
+    rateLimit:
+      enabled: true
+      requestsPerMinute: 100
+      burstSize: 20
+  
+  logging:
+    level: "info"
+    format: "json"
+    output: "stdout"
+  
+  monitoring:
+    enabled: true
+    metricsPort: 9090
+    healthCheckInterval: "30s"
+    prometheus:
+      enabled: true
+      path: "/metrics"
+
+# Database configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "postgres"
+    database: "fintech_platform"
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "fast-ssd"
+    resources:
+      limits:
+        memory: 4Gi
+        cpu: 2000m
+      requests:
+        memory: 2Gi
+        cpu: 1000m
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Redis configuration
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: "fast-ssd"
+    resources:
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+      requests:
+        memory: 1Gi
+        cpu: 500m
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    server:
+      persistentVolume:
+        enabled: true
+        size: 50Gi
+        storageClass: "fast-ssd"
+      resources:
+        limits:
+          memory: 4Gi
+          cpu: 1000m
+        requests:
+          memory: 2Gi
+          cpu: 500m
+    alertmanager:
+      enabled: true
+      persistentVolume:
+        enabled: true
+        size: 10Gi
+    nodeExporter:
+      enabled: true
+    kubeStateMetrics:
+      enabled: true
+  
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "standard"
+    adminPassword: "admin123"
+    resources:
+      limits:
+        memory: 1Gi
+        cpu: 500m
+      requests:
+        memory: 512Mi
+        cpu: 250m
+    ingress:
+      enabled: true
+      hosts:
+        - grafana.fintech-platform.com
+      tls:
+        - secretName: grafana-tls
+          hosts:
+            - grafana.fintech-platform.com
+
+# Secrets (these should be overridden in production)
+secrets:
+  # Database
+  databasePassword: "postgres"
+  
+  # Security
+  jwtSecret: "your-jwt-secret-key-change-this-in-production"
+  webhookSecret: "your-webhook-secret-key-change-this"
+  encryptionKey: "your-32-character-encryption-key"
+  
+  # External APIs (set these in production)
+  stripeSecretKey: ""
+  circleApiKey: ""
+  ethereumPrivateKey: ""
+  solanaPrivateKey: ""
+  
+  # Email/SMS
+  smtpUsername: ""
+  smtpPassword: ""
+  smsApiKey: ""
+  smsApiSecret: ""
+  
+  # KYC Providers
+  jumioApiToken: ""
+  jumioApiSecret: ""
+  onfidoApiToken: ""
+
+# Network policies
+networkPolicies:
+  enabled: true
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC
+rbac:
+  create: true
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "30d"
+  storage:
+    size: 100Gi
+    storageClass: "standard"
+
+# External services configuration
+external:
+  # Blockchain networks
+  ethereum:
+    enabled: true
+    rpcUrl: "https://mainnet.infura.io/v3/YOUR-PROJECT-ID"
+    chainId: 1
+  
+  bitcoin:
+    enabled: true
+    rpcUrl: "https://bitcoin-rpc.example.com"
+    network: "mainnet"
+  
+  solana:
+    enabled: true
+    rpcUrl: "https://api.mainnet-beta.solana.com"
+    cluster: "mainnet-beta"
+  
+  # Payment processors
+  stripe:
+    enabled: true
+    webhookEndpoint: "/webhooks/stripe"
+  
+  circle:
+    enabled: true
+    webhookEndpoint: "/webhooks/circle"
+  
+  # Exchanges
+  binance:
+    enabled: false
+  
+  coinbase:
+    enabled: false
+
+# Feature flags
+features:
+  accounts:
+    enabled: true
+    kycRequired: true
+    twoFactorAuth: true
+  
+  payments:
+    enabled: true
+    supportedCurrencies: ["USD", "EUR", "GBP", "BTC", "ETH", "USDC", "USDT"]
+  
+  yield:
+    enabled: true
+    supportedProtocols: ["uniswap", "compound", "aave", "curve"]
+  
+  trading:
+    enabled: true
+    supportedExchanges: ["binance", "coinbase", "kraken", "uniswap"]
+  
+  cards:
+    enabled: true
+    virtualCards: true
+    physicalCards: false

@@ -22,6 +22,7 @@ type Config struct {
 	Services     ServicesConfig     `yaml:"services"`
 	Telegram     TelegramConfig     `yaml:"telegram"`
 	AI           AIConfig           `yaml:"ai"`
+	Fintech      FintechConfig      `yaml:"fintech"`
 }
 
 // ServerConfig represents the HTTP server configuration
@@ -436,4 +437,380 @@ type ContentAnalysisConfig struct {
 	Languages           []string `yaml:"languages"`
 	Categories          []string `yaml:"categories"`
 	MinConfidence       float64  `yaml:"min_confidence"`
+}
+
+// FintechConfig represents the fintech platform configuration
+type FintechConfig struct {
+	Accounts AccountsConfig `yaml:"accounts"`
+	Payments PaymentsConfig `yaml:"payments"`
+	Yield    YieldConfig    `yaml:"yield"`
+	Trading  TradingConfig  `yaml:"trading"`
+	Cards    CardsConfig    `yaml:"cards"`
+}
+
+// AccountsConfig represents the accounts module configuration
+type AccountsConfig struct {
+	Enabled              bool                 `yaml:"enabled"`
+	KYCRequired          bool                 `yaml:"kyc_required"`
+	KYCProvider          string               `yaml:"kyc_provider"`
+	TwoFactorAuth        bool                 `yaml:"two_factor_auth"`
+	SessionTimeout       string               `yaml:"session_timeout"`
+	MaxLoginAttempts     int                  `yaml:"max_login_attempts"`
+	PasswordPolicy       PasswordPolicyConfig `yaml:"password_policy"`
+	AccountLimits        AccountLimitsConfig  `yaml:"account_limits"`
+	ComplianceChecks     ComplianceConfig     `yaml:"compliance_checks"`
+	NotificationSettings NotificationSettings `yaml:"notification_settings"`
+}
+
+// PasswordPolicyConfig represents password policy configuration
+type PasswordPolicyConfig struct {
+	MinLength        int  `yaml:"min_length"`
+	RequireUppercase bool `yaml:"require_uppercase"`
+	RequireLowercase bool `yaml:"require_lowercase"`
+	RequireNumbers   bool `yaml:"require_numbers"`
+	RequireSymbols   bool `yaml:"require_symbols"`
+	ExpirationDays   int  `yaml:"expiration_days"`
+}
+
+// AccountLimitsConfig represents account limits configuration
+type AccountLimitsConfig struct {
+	DailyTransactionLimit   string `yaml:"daily_transaction_limit"`
+	MonthlyTransactionLimit string `yaml:"monthly_transaction_limit"`
+	MaxWalletsPerUser       int    `yaml:"max_wallets_per_user"`
+	MaxCardsPerUser         int    `yaml:"max_cards_per_user"`
+	MinAccountBalance       string `yaml:"min_account_balance"`
+}
+
+// ComplianceConfig represents compliance configuration
+type ComplianceConfig struct {
+	AMLEnabled        bool     `yaml:"aml_enabled"`
+	SanctionsCheck    bool     `yaml:"sanctions_check"`
+	PEPCheck          bool     `yaml:"pep_check"`
+	RiskScoring       bool     `yaml:"risk_scoring"`
+	TransactionLimits bool     `yaml:"transaction_limits"`
+	ReportingRequired bool     `yaml:"reporting_required"`
+	AllowedCountries  []string `yaml:"allowed_countries"`
+	BlockedCountries  []string `yaml:"blocked_countries"`
+}
+
+// NotificationSettings represents notification settings
+type NotificationSettings struct {
+	EmailEnabled      bool `yaml:"email_enabled"`
+	SMSEnabled        bool `yaml:"sms_enabled"`
+	PushEnabled       bool `yaml:"push_enabled"`
+	WebhookEnabled    bool `yaml:"webhook_enabled"`
+	SecurityAlerts    bool `yaml:"security_alerts"`
+	TransactionAlerts bool `yaml:"transaction_alerts"`
+}
+
+// PaymentsConfig represents the payments module configuration
+type PaymentsConfig struct {
+	Enabled             bool                  `yaml:"enabled"`
+	SupportedCurrencies []string              `yaml:"supported_currencies"`
+	SupportedNetworks   []string              `yaml:"supported_networks"`
+	DefaultNetwork      string                `yaml:"default_network"`
+	TransactionFees     TransactionFeesConfig `yaml:"transaction_fees"`
+	PaymentMethods      PaymentMethodsConfig  `yaml:"payment_methods"`
+	FraudDetection      FraudDetectionConfig  `yaml:"fraud_detection"`
+	Settlement          SettlementConfig      `yaml:"settlement"`
+	Webhooks            WebhooksConfig        `yaml:"webhooks"`
+	Reconciliation      ReconciliationConfig  `yaml:"reconciliation"`
+}
+
+// TransactionFeesConfig represents transaction fees configuration
+type TransactionFeesConfig struct {
+	FeeStructure       string  `yaml:"fee_structure"` // flat, percentage, tiered
+	BaseFee            string  `yaml:"base_fee"`
+	PercentageFee      float64 `yaml:"percentage_fee"`
+	MinFee             string  `yaml:"min_fee"`
+	MaxFee             string  `yaml:"max_fee"`
+	NetworkFeeMarkup   float64 `yaml:"network_fee_markup"`
+	PriorityFeeEnabled bool    `yaml:"priority_fee_enabled"`
+}
+
+// PaymentMethodsConfig represents payment methods configuration
+type PaymentMethodsConfig struct {
+	CryptoEnabled    bool     `yaml:"crypto_enabled"`
+	FiatEnabled      bool     `yaml:"fiat_enabled"`
+	StablecoinOnly   bool     `yaml:"stablecoin_only"`
+	SupportedTokens  []string `yaml:"supported_tokens"`
+	MinPaymentAmount string   `yaml:"min_payment_amount"`
+	MaxPaymentAmount string   `yaml:"max_payment_amount"`
+}
+
+// FraudDetectionConfig represents fraud detection configuration
+type FraudDetectionConfig struct {
+	Enabled            bool    `yaml:"enabled"`
+	RiskScoreThreshold float64 `yaml:"risk_score_threshold"`
+	VelocityChecks     bool    `yaml:"velocity_checks"`
+	GeolocationChecks  bool    `yaml:"geolocation_checks"`
+	DeviceFingerprint  bool    `yaml:"device_fingerprint"`
+	MLModelEnabled     bool    `yaml:"ml_model_enabled"`
+}
+
+// SettlementConfig represents settlement configuration
+type SettlementConfig struct {
+	AutoSettlement      bool   `yaml:"auto_settlement"`
+	SettlementSchedule  string `yaml:"settlement_schedule"`
+	MinSettlementAmount string `yaml:"min_settlement_amount"`
+	SettlementCurrency  string `yaml:"settlement_currency"`
+	HoldPeriod          string `yaml:"hold_period"`
+}
+
+// WebhooksConfig represents webhooks configuration
+type WebhooksConfig struct {
+	Enabled       bool     `yaml:"enabled"`
+	RetryAttempts int      `yaml:"retry_attempts"`
+	RetryDelay    string   `yaml:"retry_delay"`
+	Timeout       string   `yaml:"timeout"`
+	SigningSecret string   `yaml:"signing_secret"`
+	AllowedEvents []string `yaml:"allowed_events"`
+}
+
+// ReconciliationConfig represents reconciliation configuration
+type ReconciliationConfig struct {
+	Enabled           bool   `yaml:"enabled"`
+	Schedule          string `yaml:"schedule"`
+	ToleranceAmount   string `yaml:"tolerance_amount"`
+	AutoResolve       bool   `yaml:"auto_resolve"`
+	NotifyDiscrepancy bool   `yaml:"notify_discrepancy"`
+}
+
+// YieldConfig represents the yield module configuration
+type YieldConfig struct {
+	Enabled             bool                    `yaml:"enabled"`
+	SupportedProtocols  []string                `yaml:"supported_protocols"`
+	DefaultStrategy     string                  `yaml:"default_strategy"`
+	AutoCompounding     bool                    `yaml:"auto_compounding"`
+	RiskManagement      YieldRiskConfig         `yaml:"risk_management"`
+	StakingPools        StakingPoolsConfig      `yaml:"staking_pools"`
+	LiquidityMining     LiquidityMiningConfig   `yaml:"liquidity_mining"`
+	YieldOptimization   YieldOptimizationConfig `yaml:"yield_optimization"`
+	RewardsDistribution RewardsConfig           `yaml:"rewards_distribution"`
+	PerformanceTracking PerformanceConfig       `yaml:"performance_tracking"`
+}
+
+// YieldRiskConfig represents yield risk management configuration
+type YieldRiskConfig struct {
+	MaxAllocation        float64  `yaml:"max_allocation"`
+	DiversificationRules bool     `yaml:"diversification_rules"`
+	RiskScoreThreshold   float64  `yaml:"risk_score_threshold"`
+	ImpermanentLossLimit float64  `yaml:"impermanent_loss_limit"`
+	AllowedProtocols     []string `yaml:"allowed_protocols"`
+	BlacklistedTokens    []string `yaml:"blacklisted_tokens"`
+}
+
+// StakingPoolsConfig represents staking pools configuration
+type StakingPoolsConfig struct {
+	Enabled            bool     `yaml:"enabled"`
+	MinStakeAmount     string   `yaml:"min_stake_amount"`
+	MaxStakeAmount     string   `yaml:"max_stake_amount"`
+	UnstakingPeriod    string   `yaml:"unstaking_period"`
+	SupportedTokens    []string `yaml:"supported_tokens"`
+	AutoRestaking      bool     `yaml:"auto_restaking"`
+	SlashingProtection bool     `yaml:"slashing_protection"`
+}
+
+// LiquidityMiningConfig represents liquidity mining configuration
+type LiquidityMiningConfig struct {
+	Enabled              bool     `yaml:"enabled"`
+	SupportedPairs       []string `yaml:"supported_pairs"`
+	MinLiquidityAmount   string   `yaml:"min_liquidity_amount"`
+	MaxLiquidityAmount   string   `yaml:"max_liquidity_amount"`
+	ImpermanentLossAlert bool     `yaml:"impermanent_loss_alert"`
+	AutoRebalancing      bool     `yaml:"auto_rebalancing"`
+	FeeHarvesting        bool     `yaml:"fee_harvesting"`
+}
+
+// YieldOptimizationConfig represents yield optimization configuration
+type YieldOptimizationConfig struct {
+	Enabled              bool    `yaml:"enabled"`
+	OptimizationInterval string  `yaml:"optimization_interval"`
+	GasOptimization      bool    `yaml:"gas_optimization"`
+	YieldThreshold       float64 `yaml:"yield_threshold"`
+	AutoMigration        bool    `yaml:"auto_migration"`
+	CompoundingFrequency string  `yaml:"compounding_frequency"`
+}
+
+// RewardsConfig represents rewards distribution configuration
+type RewardsConfig struct {
+	AutoClaim         bool   `yaml:"auto_claim"`
+	ClaimThreshold    string `yaml:"claim_threshold"`
+	ReinvestRewards   bool   `yaml:"reinvest_rewards"`
+	RewardsToken      string `yaml:"rewards_token"`
+	DistributionDelay string `yaml:"distribution_delay"`
+}
+
+// PerformanceConfig represents performance tracking configuration
+type PerformanceConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	TrackingInterval string `yaml:"tracking_interval"`
+	BenchmarkEnabled bool   `yaml:"benchmark_enabled"`
+	ReportGeneration bool   `yaml:"report_generation"`
+	AlertsEnabled    bool   `yaml:"alerts_enabled"`
+}
+
+// TradingConfig represents the trading module configuration
+type TradingConfig struct {
+	Enabled             bool                     `yaml:"enabled"`
+	SupportedExchanges  []string                 `yaml:"supported_exchanges"`
+	DefaultExchange     string                   `yaml:"default_exchange"`
+	TradingPairs        []string                 `yaml:"trading_pairs"`
+	OrderTypes          []string                 `yaml:"order_types"`
+	RiskManagement      TradingRiskConfig        `yaml:"risk_management"`
+	AlgorithmicTrading  AlgorithmicTradingConfig `yaml:"algorithmic_trading"`
+	MarketData          MarketDataConfig         `yaml:"market_data"`
+	ExecutionEngine     ExecutionEngineConfig    `yaml:"execution_engine"`
+	PortfolioManagement PortfolioConfig          `yaml:"portfolio_management"`
+}
+
+// TradingRiskConfig represents trading risk management configuration
+type TradingRiskConfig struct {
+	MaxPositionSize    float64 `yaml:"max_position_size"`
+	MaxDailyLoss       float64 `yaml:"max_daily_loss"`
+	StopLossRequired   bool    `yaml:"stop_loss_required"`
+	TakeProfitRequired bool    `yaml:"take_profit_required"`
+	MaxLeverage        float64 `yaml:"max_leverage"`
+	RiskScoreThreshold float64 `yaml:"risk_score_threshold"`
+	VolatilityLimit    float64 `yaml:"volatility_limit"`
+}
+
+// AlgorithmicTradingConfig represents algorithmic trading configuration
+type AlgorithmicTradingConfig struct {
+	Enabled             bool     `yaml:"enabled"`
+	SupportedStrategies []string `yaml:"supported_strategies"`
+	BacktestingEnabled  bool     `yaml:"backtesting_enabled"`
+	PaperTradingEnabled bool     `yaml:"paper_trading_enabled"`
+	MaxActiveStrategies int      `yaml:"max_active_strategies"`
+	StrategyAllocation  float64  `yaml:"strategy_allocation"`
+}
+
+// MarketDataConfig represents market data configuration
+type MarketDataConfig struct {
+	Enabled           bool     `yaml:"enabled"`
+	DataProviders     []string `yaml:"data_providers"`
+	UpdateFrequency   string   `yaml:"update_frequency"`
+	HistoricalData    bool     `yaml:"historical_data"`
+	RealtimeData      bool     `yaml:"realtime_data"`
+	TechnicalAnalysis bool     `yaml:"technical_analysis"`
+}
+
+// ExecutionEngineConfig represents execution engine configuration
+type ExecutionEngineConfig struct {
+	Enabled             bool    `yaml:"enabled"`
+	OrderRouting        bool    `yaml:"order_routing"`
+	SmartOrderRouting   bool    `yaml:"smart_order_routing"`
+	SlippageProtection  bool    `yaml:"slippage_protection"`
+	MaxSlippage         float64 `yaml:"max_slippage"`
+	PartialFillsEnabled bool    `yaml:"partial_fills_enabled"`
+	TimeInForce         string  `yaml:"time_in_force"`
+}
+
+// PortfolioConfig represents portfolio management configuration
+type PortfolioConfig struct {
+	Enabled              bool    `yaml:"enabled"`
+	AutoRebalancing      bool    `yaml:"auto_rebalancing"`
+	RebalancingThreshold float64 `yaml:"rebalancing_threshold"`
+	DiversificationRules bool    `yaml:"diversification_rules"`
+	PerformanceTracking  bool    `yaml:"performance_tracking"`
+	RiskAnalysis         bool    `yaml:"risk_analysis"`
+}
+
+// CardsConfig represents the cards module configuration
+type CardsConfig struct {
+	Enabled               bool                        `yaml:"enabled"`
+	SupportedCardTypes    []string                    `yaml:"supported_card_types"`
+	DefaultCardType       string                      `yaml:"default_card_type"`
+	VirtualCards          VirtualCardsConfig          `yaml:"virtual_cards"`
+	PhysicalCards         PhysicalCardsConfig         `yaml:"physical_cards"`
+	CardSecurity          CardSecurityConfig          `yaml:"card_security"`
+	SpendingControls      SpendingControlsConfig      `yaml:"spending_controls"`
+	CardManagement        CardManagementConfig        `yaml:"card_management"`
+	TransactionProcessing TransactionProcessingConfig `yaml:"transaction_processing"`
+	RewardsProgram        CardRewardsConfig           `yaml:"rewards_program"`
+}
+
+// VirtualCardsConfig represents virtual cards configuration
+type VirtualCardsConfig struct {
+	Enabled               bool     `yaml:"enabled"`
+	InstantIssuance       bool     `yaml:"instant_issuance"`
+	MaxCardsPerUser       int      `yaml:"max_cards_per_user"`
+	DefaultExpiryPeriod   string   `yaml:"default_expiry_period"`
+	SupportedNetworks     []string `yaml:"supported_networks"`
+	SingleUseCards        bool     `yaml:"single_use_cards"`
+	MerchantSpecificCards bool     `yaml:"merchant_specific_cards"`
+}
+
+// PhysicalCardsConfig represents physical cards configuration
+type PhysicalCardsConfig struct {
+	Enabled             bool     `yaml:"enabled"`
+	IssuanceEnabled     bool     `yaml:"issuance_enabled"`
+	ShippingEnabled     bool     `yaml:"shipping_enabled"`
+	ShippingCost        string   `yaml:"shipping_cost"`
+	ProductionTime      string   `yaml:"production_time"`
+	SupportedRegions    []string `yaml:"supported_regions"`
+	CardDesigns         []string `yaml:"card_designs"`
+	CustomDesignEnabled bool     `yaml:"custom_design_enabled"`
+}
+
+// CardSecurityConfig represents card security configuration
+type CardSecurityConfig struct {
+	CVVRotation         bool   `yaml:"cvv_rotation"`
+	CVVRotationInterval string `yaml:"cvv_rotation_interval"`
+	TokenizationEnabled bool   `yaml:"tokenization_enabled"`
+	BiometricAuth       bool   `yaml:"biometric_auth"`
+	PINRequired         bool   `yaml:"pin_required"`
+	FraudDetection      bool   `yaml:"fraud_detection"`
+	VelocityChecks      bool   `yaml:"velocity_checks"`
+	GeofencingEnabled   bool   `yaml:"geofencing_enabled"`
+}
+
+// SpendingControlsConfig represents spending controls configuration
+type SpendingControlsConfig struct {
+	Enabled            bool     `yaml:"enabled"`
+	DailyLimits        bool     `yaml:"daily_limits"`
+	MonthlyLimits      bool     `yaml:"monthly_limits"`
+	TransactionLimits  bool     `yaml:"transaction_limits"`
+	MerchantCategories bool     `yaml:"merchant_categories"`
+	GeographicControls bool     `yaml:"geographic_controls"`
+	TimeBasedControls  bool     `yaml:"time_based_controls"`
+	AllowedMerchants   []string `yaml:"allowed_merchants"`
+	BlockedMerchants   []string `yaml:"blocked_merchants"`
+}
+
+// CardManagementConfig represents card management configuration
+type CardManagementConfig struct {
+	Enabled             bool   `yaml:"enabled"`
+	SelfServiceEnabled  bool   `yaml:"self_service_enabled"`
+	InstantActivation   bool   `yaml:"instant_activation"`
+	InstantSuspension   bool   `yaml:"instant_suspension"`
+	InstantReplacement  bool   `yaml:"instant_replacement"`
+	BulkOperations      bool   `yaml:"bulk_operations"`
+	AutoRenewal         bool   `yaml:"auto_renewal"`
+	RenewalNotification string `yaml:"renewal_notification"`
+}
+
+// TransactionProcessingConfig represents transaction processing configuration
+type TransactionProcessingConfig struct {
+	Enabled              bool    `yaml:"enabled"`
+	RealtimeProcessing   bool    `yaml:"realtime_processing"`
+	AuthorizationTimeout string  `yaml:"authorization_timeout"`
+	SettlementDelay      string  `yaml:"settlement_delay"`
+	DeclineReasons       bool    `yaml:"decline_reasons"`
+	PartialApprovals     bool    `yaml:"partial_approvals"`
+	CurrencyConversion   bool    `yaml:"currency_conversion"`
+	FXMarkup             float64 `yaml:"fx_markup"`
+}
+
+// CardRewardsConfig represents card rewards program configuration
+type CardRewardsConfig struct {
+	Enabled             bool               `yaml:"enabled"`
+	RewardsType         string             `yaml:"rewards_type"` // cashback, points, crypto
+	CashbackRate        float64            `yaml:"cashback_rate"`
+	PointsMultiplier    float64            `yaml:"points_multiplier"`
+	CryptoRewards       bool               `yaml:"crypto_rewards"`
+	RewardsToken        string             `yaml:"rewards_token"`
+	CategoryMultipliers map[string]float64 `yaml:"category_multipliers"`
+	RedemptionOptions   []string           `yaml:"redemption_options"`
+	MinRedemptionAmount string             `yaml:"min_redemption_amount"`
 }

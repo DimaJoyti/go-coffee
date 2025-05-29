@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fintech-config
+  namespace: fintech-platform
+data:
+  config.yaml: |
+    server:
+      port: 8080
+      host: "0.0.0.0"
+      environment: "production"
+      read_timeout: 30
+      write_timeout: 30
+      idle_timeout: 120
+
+    database:
+      host: "postgres-service"
+      port: 5432
+      name: "fintech_platform"
+      user: "postgres"
+      ssl_mode: "require"
+      max_open_conns: 25
+      max_idle_conns: 5
+      conn_max_lifetime: 300
+
+    redis:
+      host: "redis-service"
+      port: 6379
+      db: 0
+      pool_size: 10
+      min_idle_conns: 5
+
+    security:
+      jwt_expiry: "24h"
+      refresh_token_expiry: "720h"
+      bcrypt_cost: 12
+      rate_limit:
+        enabled: true
+        requests_per_minute: 100
+        burst_size: 20
+
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+
+    monitoring:
+      enabled: true
+      metrics_port: 9090
+      health_check_interval: "30s"
+      prometheus:
+        enabled: true
+        path: "/metrics"
+
+    fintech:
+      accounts:
+        enabled: true
+        kyc_required: true
+        two_factor_auth: true
+        session_timeout: "24h"
+        max_login_attempts: 5
+        account_limits:
+          daily_transaction_limit: "10000.00"
+          monthly_transaction_limit: "100000.00"
+          max_wallets_per_user: 10
+          max_cards_per_user: 5
+
+      payments:
+        enabled: true
+        supported_currencies: ["USD", "EUR", "GBP", "BTC", "ETH", "USDC", "USDT"]
+        supported_networks: ["ethereum", "bitcoin", "polygon", "bsc"]
+        default_network: "ethereum"
+        transaction_fees:
+          fee_structure: "tiered"
+          base_fee: "0.50"
+          percentage_fee: 0.025
+          min_fee: "0.10"
+          max_fee: "100.00"
+
+      yield:
+        enabled: true
+        supported_protocols: ["uniswap", "compound", "aave", "curve"]
+        default_strategy: "conservative"
+        auto_compounding: true
+        risk_management:
+          max_allocation: 0.8
+          diversification_rules: true
+          risk_score_threshold: 0.6
+
+      trading:
+        enabled: true
+        supported_exchanges: ["binance", "coinbase", "kraken", "uniswap"]
+        default_exchange: "uniswap"
+        trading_pairs: ["BTC/USD", "ETH/USD", "BTC/ETH", "USDC/USDT"]
+        order_types: ["market", "limit", "stop_loss", "stop_limit"]
+
+      cards:
+        enabled: true
+        supported_card_types: ["virtual", "physical"]
+        default_card_type: "virtual"
+        virtual_cards:
+          enabled: true
+          instant_issuance: true
+          max_cards_per_user: 10
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: fintech-platform
+data:
+  POSTGRES_DB: "fintech_platform"
+  POSTGRES_USER: "postgres"
+  PGDATA: "/var/lib/postgresql/data/pgdata"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: fintech-platform
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    port 6379
+    tcp-backlog 511
+    timeout 0
+    tcp-keepalive 300
+    
+    daemonize no
+    supervised no
+    loglevel notice
+    databases 16
+    
+    maxmemory 2gb
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 5
+    
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    no-appendfsync-on-rewrite no
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+    
+    slowlog-log-slower-than 10000
+    slowlog-max-len 128
+    
+    latency-monitor-threshold 100
+    
+    notify-keyspace-events "Ex"

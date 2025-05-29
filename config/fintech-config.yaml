@@ -1,0 +1,429 @@
+# Fintech Platform Configuration
+# This configuration file defines settings for all five core modules:
+# Accounts, Payments, Yield, Trading, and Cards
+
+# Server Configuration
+server:
+  port: 8080
+  host: "0.0.0.0"
+  environment: "development" # development, staging, production
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+  max_header_bytes: 1048576
+
+# Database Configuration
+database:
+  host: "localhost"
+  port: 5432
+  name: "fintech_platform"
+  user: "postgres"
+  password: "postgres"
+  ssl_mode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 300
+
+# Redis Configuration
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+  dial_timeout: 5
+  read_timeout: 3
+  write_timeout: 3
+
+# Security Configuration
+security:
+  jwt_secret: "${JWT_SECRET}"
+  jwt_expiry: "24h"
+  refresh_token_expiry: "720h" # 30 days
+  bcrypt_cost: 12
+  rate_limit:
+    enabled: true
+    requests_per_minute: 100
+    burst_size: 20
+  cors:
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["Origin", "Content-Type", "Authorization"]
+    expose_headers: ["Content-Length"]
+    allow_credentials: true
+    max_age: 86400
+
+# Logging Configuration
+logging:
+  level: "info" # debug, info, warn, error
+  format: "json" # json, text
+  output: "stdout" # stdout, file
+  file_path: "/var/log/fintech-api.log"
+  max_size: 100 # MB
+  max_age: 7 # days
+  max_backups: 3
+  compress: true
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  metrics_port: 9090
+  health_check_interval: "30s"
+  prometheus:
+    enabled: true
+    path: "/metrics"
+  jaeger:
+    enabled: false
+    endpoint: "http://localhost:14268/api/traces"
+
+# Notification Configuration
+notification:
+  email:
+    enabled: true
+    provider: "smtp" # smtp, sendgrid, ses
+    smtp_host: "${SMTP_HOST}"
+    smtp_port: 587
+    smtp_username: "${SMTP_USERNAME}"
+    smtp_password: "${SMTP_PASSWORD}"
+    from_email: "noreply@fintech.com"
+    from_name: "Fintech Platform"
+  sms:
+    enabled: true
+    provider: "twilio" # twilio, aws_sns
+    api_key: "${SMS_API_KEY}"
+    api_secret: "${SMS_API_SECRET}"
+    from_number: "${SMS_FROM_NUMBER}"
+  push:
+    enabled: true
+    provider: "fcm" # fcm, apns
+    api_key: "${PUSH_API_KEY}"
+    project_id: "${PUSH_PROJECT_ID}"
+
+# Fintech Module Configurations
+fintech:
+  # Accounts Module Configuration
+  accounts:
+    enabled: true
+    kyc_required: true
+    kyc_provider: "jumio" # jumio, onfido, sumsub
+    two_factor_auth: true
+    session_timeout: "24h"
+    max_login_attempts: 5
+    password_policy:
+      min_length: 8
+      require_uppercase: true
+      require_lowercase: true
+      require_numbers: true
+      require_symbols: true
+      expiration_days: 90
+    account_limits:
+      daily_transaction_limit: "10000.00"
+      monthly_transaction_limit: "100000.00"
+      max_wallets_per_user: 10
+      max_cards_per_user: 5
+      min_account_balance: "0.00"
+    compliance_checks:
+      aml_enabled: true
+      sanctions_check: true
+      pep_check: true
+      risk_scoring: true
+      transaction_limits: true
+      reporting_required: true
+      allowed_countries: ["US", "CA", "GB", "DE", "FR", "AU", "JP"]
+      blocked_countries: ["IR", "KP", "SY"]
+    notification_settings:
+      email_enabled: true
+      sms_enabled: true
+      push_enabled: true
+      webhook_enabled: true
+      security_alerts: true
+      transaction_alerts: true
+
+  # Payments Module Configuration
+  payments:
+    enabled: true
+    supported_currencies: ["USD", "EUR", "GBP", "BTC", "ETH", "USDC", "USDT"]
+    supported_networks: ["ethereum", "bitcoin", "polygon", "bsc", "solana"]
+    default_network: "ethereum"
+    transaction_fees:
+      fee_structure: "tiered" # flat, percentage, tiered
+      base_fee: "0.50"
+      percentage_fee: 0.025
+      min_fee: "0.10"
+      max_fee: "100.00"
+      network_fee_markup: 1.2
+      priority_fee_enabled: true
+    payment_methods:
+      crypto_enabled: true
+      fiat_enabled: true
+      stablecoin_only: false
+      supported_tokens: ["BTC", "ETH", "USDC", "USDT", "DAI"]
+      min_payment_amount: "1.00"
+      max_payment_amount: "100000.00"
+    fraud_detection:
+      enabled: true
+      risk_score_threshold: 0.7
+      velocity_checks: true
+      geolocation_checks: true
+      device_fingerprint: true
+      ml_model_enabled: true
+    settlement:
+      auto_settlement: true
+      settlement_schedule: "daily"
+      min_settlement_amount: "100.00"
+      settlement_currency: "USD"
+      hold_period: "24h"
+    webhooks:
+      enabled: true
+      retry_attempts: 3
+      retry_delay: "5s"
+      timeout: "30s"
+      signing_secret: "${WEBHOOK_SECRET}"
+      allowed_events: ["payment.completed", "payment.failed", "refund.processed"]
+    reconciliation:
+      enabled: true
+      schedule: "0 2 * * *" # Daily at 2 AM
+      tolerance_amount: "0.01"
+      auto_resolve: false
+      notify_discrepancy: true
+
+  # Yield Module Configuration
+  yield:
+    enabled: true
+    supported_protocols: ["uniswap", "compound", "aave", "curve", "yearn"]
+    default_strategy: "conservative"
+    auto_compounding: true
+    risk_management:
+      max_allocation: 0.8
+      diversification_rules: true
+      risk_score_threshold: 0.6
+      impermanent_loss_limit: 0.1
+      allowed_protocols: ["uniswap", "compound", "aave"]
+      blacklisted_tokens: []
+    staking_pools:
+      enabled: true
+      min_stake_amount: "100.00"
+      max_stake_amount: "1000000.00"
+      unstaking_period: "7d"
+      supported_tokens: ["ETH", "MATIC", "SOL", "ADA"]
+      auto_restaking: true
+      slashing_protection: true
+    liquidity_mining:
+      enabled: true
+      supported_pairs: ["ETH/USDC", "BTC/ETH", "USDC/USDT"]
+      min_liquidity_amount: "1000.00"
+      max_liquidity_amount: "10000000.00"
+      impermanent_loss_alert: true
+      auto_rebalancing: true
+      fee_harvesting: true
+    yield_optimization:
+      enabled: true
+      optimization_interval: "1h"
+      gas_optimization: true
+      yield_threshold: 0.01
+      auto_migration: true
+      compounding_frequency: "daily"
+    rewards_distribution:
+      auto_claim: true
+      claim_threshold: "10.00"
+      reinvest_rewards: true
+      rewards_token: "PLATFORM"
+      distribution_delay: "24h"
+    performance_tracking:
+      enabled: true
+      tracking_interval: "1h"
+      benchmark_enabled: true
+      report_generation: true
+      alerts_enabled: true
+
+  # Trading Module Configuration
+  trading:
+    enabled: true
+    supported_exchanges: ["binance", "coinbase", "kraken", "uniswap", "1inch"]
+    default_exchange: "uniswap"
+    trading_pairs: ["BTC/USD", "ETH/USD", "BTC/ETH", "USDC/USDT"]
+    order_types: ["market", "limit", "stop_loss", "stop_limit", "take_profit"]
+    risk_management:
+      max_position_size: 0.1
+      max_daily_loss: 0.05
+      stop_loss_required: true
+      take_profit_required: false
+      max_leverage: 3.0
+      risk_score_threshold: 0.7
+      volatility_limit: 0.3
+    algorithmic_trading:
+      enabled: true
+      supported_strategies: ["dca", "grid", "momentum", "mean_reversion"]
+      backtesting_enabled: true
+      paper_trading_enabled: true
+      max_active_strategies: 5
+      strategy_allocation: 0.2
+    market_data:
+      enabled: true
+      data_providers: ["coinmarketcap", "coingecko", "binance"]
+      update_frequency: "1m"
+      historical_data: true
+      realtime_data: true
+      technical_analysis: true
+    execution_engine:
+      enabled: true
+      order_routing: true
+      smart_order_routing: true
+      slippage_protection: true
+      max_slippage: 0.01
+      partial_fills_enabled: true
+      time_in_force: "gtc"
+    portfolio_management:
+      enabled: true
+      auto_rebalancing: true
+      rebalancing_threshold: 0.05
+      diversification_rules: true
+      performance_tracking: true
+      risk_analysis: true
+
+  # Cards Module Configuration
+  cards:
+    enabled: true
+    supported_card_types: ["virtual", "physical"]
+    default_card_type: "virtual"
+    virtual_cards:
+      enabled: true
+      instant_issuance: true
+      max_cards_per_user: 10
+      default_expiry_period: "3y"
+      supported_networks: ["visa", "mastercard"]
+      single_use_cards: true
+      merchant_specific_cards: true
+    physical_cards:
+      enabled: true
+      issuance_enabled: true
+      shipping_enabled: true
+      shipping_cost: "10.00"
+      production_time: "7d"
+      supported_regions: ["US", "CA", "EU", "UK"]
+      card_designs: ["default", "premium", "custom"]
+      custom_design_enabled: true
+    card_security:
+      cvv_rotation: true
+      cvv_rotation_interval: "30d"
+      tokenization_enabled: true
+      biometric_auth: true
+      pin_required: true
+      fraud_detection: true
+      velocity_checks: true
+      geofencing_enabled: true
+    spending_controls:
+      enabled: true
+      daily_limits: true
+      monthly_limits: true
+      transaction_limits: true
+      merchant_categories: true
+      geographic_controls: true
+      time_based_controls: true
+      allowed_merchants: []
+      blocked_merchants: []
+    card_management:
+      enabled: true
+      self_service_enabled: true
+      instant_activation: true
+      instant_suspension: true
+      instant_replacement: true
+      bulk_operations: true
+      auto_renewal: true
+      renewal_notification: "30d"
+    transaction_processing:
+      enabled: true
+      realtime_processing: true
+      authorization_timeout: "30s"
+      settlement_delay: "24h"
+      decline_reasons: true
+      partial_approvals: false
+      currency_conversion: true
+      fx_markup: 0.025
+    rewards_program:
+      enabled: true
+      rewards_type: "cashback" # cashback, points, crypto
+      cashback_rate: 0.01
+      points_multiplier: 1.0
+      crypto_rewards: true
+      rewards_token: "PLATFORM"
+      category_multipliers:
+        "grocery": 2.0
+        "gas": 1.5
+        "dining": 2.0
+        "travel": 3.0
+      redemption_options: ["cash", "crypto", "gift_cards"]
+      min_redemption_amount: "25.00"
+
+# External Service Integrations
+integrations:
+  # Blockchain integrations
+  blockchain:
+    ethereum:
+      rpc_url: "${ETHEREUM_RPC_URL}"
+      private_key: "${ETHEREUM_PRIVATE_KEY}"
+      gas_limit: 21000
+      gas_price: "20000000000" # 20 gwei
+    bitcoin:
+      rpc_url: "${BITCOIN_RPC_URL}"
+      username: "${BITCOIN_RPC_USERNAME}"
+      password: "${BITCOIN_RPC_PASSWORD}"
+    solana:
+      rpc_url: "${SOLANA_RPC_URL}"
+      private_key: "${SOLANA_PRIVATE_KEY}"
+
+  # KYC providers
+  kyc:
+    jumio:
+      api_token: "${JUMIO_API_TOKEN}"
+      api_secret: "${JUMIO_API_SECRET}"
+      base_url: "https://netverify.com"
+    onfido:
+      api_token: "${ONFIDO_API_TOKEN}"
+      base_url: "https://api.onfido.com"
+
+  # Payment processors
+  payment_processors:
+    stripe:
+      secret_key: "${STRIPE_SECRET_KEY}"
+      publishable_key: "${STRIPE_PUBLISHABLE_KEY}"
+      webhook_secret: "${STRIPE_WEBHOOK_SECRET}"
+    circle:
+      api_key: "${CIRCLE_API_KEY}"
+      base_url: "https://api.circle.com"
+
+  # Card issuers
+  card_issuers:
+    marqeta:
+      username: "${MARQETA_USERNAME}"
+      password: "${MARQETA_PASSWORD}"
+      base_url: "https://sandbox-api.marqeta.com"
+    galileo:
+      api_login: "${GALILEO_API_LOGIN}"
+      api_password: "${GALILEO_API_PASSWORD}"
+      base_url: "https://api.galileo-ft.com"
+
+  # Market data providers
+  market_data:
+    coinmarketcap:
+      api_key: "${CMC_API_KEY}"
+      base_url: "https://pro-api.coinmarketcap.com"
+    coingecko:
+      api_key: "${COINGECKO_API_KEY}"
+      base_url: "https://api.coingecko.com"
+
+# Feature Flags
+features:
+  experimental_features: false
+  beta_features: true
+  advanced_trading: true
+  institutional_features: false
+  mobile_app_support: true
+  web_app_support: true
+  api_access: true
+  webhook_support: true
+  real_time_notifications: true
+  multi_currency_support: true
+  cross_border_payments: true
+  regulatory_reporting: true
