@@ -1,0 +1,260 @@
+# AI Order Management Service Makefile
+# Comprehensive build and deployment automation for Go Coffee AI microservices
+
+.PHONY: help build run test clean proto docker compose logs stop install-deps
+
+# Default target
+help: ## Show this help message
+	@echo "🤖 AI Order Management Service - Available Commands:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# Variables
+PROTO_DIR := api/proto
+GO_OUT_DIR := api/proto
+SERVICES := ai-order-service kitchen-service communication-hub user-gateway
+
+# Build targets
+build: ## Build all AI microservices
+	@echo "🔨 Building all AI microservices..."
+	@for service in $(SERVICES); do \
+		echo "Building $$service..."; \
+		go build -o bin/$$service cmd/$$service/main.go; \
+	done
+	@echo "✅ All services built successfully!"
+
+build-ai-order: ## Build AI Order Service only
+	@echo "🔨 Building AI Order Service..."
+	@go build -o bin/ai-order-service cmd/ai-order-service/main.go
+	@echo "✅ AI Order Service built!"
+
+build-kitchen: ## Build Kitchen Service only
+	@echo "🔨 Building Kitchen Service..."
+	@go build -o bin/kitchen-service cmd/kitchen-service/main.go
+	@echo "✅ Kitchen Service built!"
+
+build-communication: ## Build Communication Hub only
+	@echo "🔨 Building Communication Hub..."
+	@go build -o bin/communication-hub cmd/communication-hub/main.go
+	@echo "✅ Communication Hub built!"
+
+build-gateway: ## Build User Gateway only
+	@echo "🔨 Building User Gateway..."
+	@go build -o bin/user-gateway cmd/user-gateway/main.go
+	@echo "✅ User Gateway built!"
+
+# Protocol Buffers
+proto: ## Generate Go code from proto files
+	@echo "🔄 Generating protobuf code..."
+	@mkdir -p $(GO_OUT_DIR)
+	@protoc --go_out=$(GO_OUT_DIR) --go_opt=paths=source_relative \
+		--go-grpc_out=$(GO_OUT_DIR) --go-grpc_opt=paths=source_relative \
+		$(PROTO_DIR)/*.proto
+	@echo "✅ Protobuf code generated!"
+
+install-proto: ## Install protobuf compiler and Go plugins
+	@echo "📦 Installing protobuf tools..."
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@echo "✅ Protobuf tools installed!"
+
+# Dependencies
+install-deps: ## Install Go dependencies
+	@echo "📦 Installing Go dependencies..."
+	@go mod download
+	@go mod tidy
+	@echo "✅ Dependencies installed!"
+
+# Run services
+run-all: ## Run all AI microservices
+	@echo "🚀 Starting all AI microservices..."
+	@make run-redis &
+	@sleep 3
+	@make run-ai-order &
+	@sleep 2
+	@make run-kitchen &
+	@sleep 2
+	@make run-communication &
+	@sleep 2
+	@make run-gateway &
+	@echo "✅ All services started!"
+
+run-ai-order: ## Run AI Order Service
+	@echo "🚀 Starting AI Order Service..."
+	@GRPC_PORT=50051 REDIS_URL=redis://localhost:6379 ./bin/ai-order-service
+
+run-kitchen: ## Run Kitchen Service
+	@echo "🚀 Starting Kitchen Service..."
+	@GRPC_PORT=50052 REDIS_URL=redis://localhost:6379 ./bin/kitchen-service
+
+run-communication: ## Run Communication Hub
+	@echo "🚀 Starting Communication Hub..."
+	@GRPC_PORT=50053 REDIS_URL=redis://localhost:6379 ./bin/communication-hub
+
+run-gateway: ## Run User Gateway
+	@echo "🚀 Starting User Gateway..."
+	@HTTP_PORT=8080 \
+	 AI_ORDER_SERVICE_ADDR=localhost:50051 \
+	 KITCHEN_SERVICE_ADDR=localhost:50052 \
+	 COMMUNICATION_HUB_ADDR=localhost:50053 \
+	 ./bin/user-gateway
+
+run-redis: ## Start Redis server
+	@echo "🚀 Starting Redis server..."
+	@docker run -d --name redis-ai-order -p 6379:6379 redis:7-alpine || docker start redis-ai-order
+
+# Development
+dev: build run-all ## Build and run all services for development
+
+dev-ai-order: build-ai-order run-ai-order ## Build and run AI Order Service for development
+
+dev-kitchen: build-kitchen run-kitchen ## Build and run Kitchen Service for development
+
+dev-communication: build-communication run-communication ## Build and run Communication Hub for development
+
+dev-gateway: build-gateway run-gateway ## Build and run User Gateway for development
+
+# Testing
+test: ## Run all tests
+	@echo "🧪 Running tests..."
+	@go test -v ./internal/ai-order/...
+	@go test -v ./internal/kitchen/...
+	@go test -v ./internal/communication/...
+	@go test -v ./internal/user/...
+	@echo "✅ All tests passed!"
+
+test-ai-order: ## Run AI Order Service tests
+	@echo "🧪 Running AI Order Service tests..."
+	@go test -v ./internal/ai-order/...
+
+test-kitchen: ## Run Kitchen Service tests
+	@echo "🧪 Running Kitchen Service tests..."
+	@go test -v ./internal/kitchen/...
+
+test-communication: ## Run Communication Hub tests
+	@echo "🧪 Running Communication Hub tests..."
+	@go test -v ./internal/communication/...
+
+test-gateway: ## Run User Gateway tests
+	@echo "🧪 Running User Gateway tests..."
+	@go test -v ./internal/user/...
+
+test-coverage: ## Run tests with coverage
+	@echo "🧪 Running tests with coverage..."
+	@go test -coverprofile=coverage.out ./...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "✅ Coverage report generated: coverage.html"
+
+# Docker
+docker-build: ## Build Docker images for all services
+	@echo "🐳 Building Docker images..."
+	@docker build -t ai-order-service -f docker/Dockerfile.ai-order .
+	@docker build -t kitchen-service -f docker/Dockerfile.kitchen .
+	@docker build -t communication-hub -f docker/Dockerfile.communication .
+	@docker build -t user-gateway -f docker/Dockerfile.gateway .
+	@echo "✅ Docker images built!"
+
+docker-run: ## Run services using Docker
+	@echo "🐳 Running services with Docker..."
+	@docker-compose -f docker-compose.ai-order.yml up -d
+	@echo "✅ Services started with Docker!"
+
+compose-up: ## Start all services using docker-compose
+	@echo "🐳 Starting services with docker-compose..."
+	@docker-compose -f docker-compose.ai-order.yml up -d
+	@echo "✅ All services started!"
+
+compose-down: ## Stop all services using docker-compose
+	@echo "🐳 Stopping services with docker-compose..."
+	@docker-compose -f docker-compose.ai-order.yml down
+	@echo "✅ All services stopped!"
+
+# Monitoring and logs
+logs: ## Show logs from all services
+	@echo "📋 Showing logs from all services..."
+	@docker-compose -f docker-compose.ai-order.yml logs -f
+
+logs-ai-order: ## Show AI Order Service logs
+	@echo "📋 Showing AI Order Service logs..."
+	@docker logs -f ai-order-service
+
+logs-kitchen: ## Show Kitchen Service logs
+	@echo "📋 Showing Kitchen Service logs..."
+	@docker logs -f kitchen-service
+
+logs-communication: ## Show Communication Hub logs
+	@echo "📋 Showing Communication Hub logs..."
+	@docker logs -f communication-hub
+
+logs-gateway: ## Show User Gateway logs
+	@echo "📋 Showing User Gateway logs..."
+	@docker logs -f user-gateway
+
+# Cleanup
+clean: ## Clean build artifacts
+	@echo "🧹 Cleaning build artifacts..."
+	@rm -rf bin/
+	@rm -f coverage.out coverage.html
+	@echo "✅ Cleanup completed!"
+
+stop: ## Stop all running services
+	@echo "🛑 Stopping all services..."
+	@pkill -f ai-order-service || true
+	@pkill -f kitchen-service || true
+	@pkill -f communication-hub || true
+	@pkill -f user-gateway || true
+	@docker stop redis-ai-order || true
+	@echo "✅ All services stopped!"
+
+# API Testing
+test-api: ## Test API endpoints
+	@echo "🧪 Testing API endpoints..."
+	@curl -X GET http://localhost:8080/health
+	@curl -X GET http://localhost:8080/api/v1/orders
+	@echo "✅ API tests completed!"
+
+# Database operations
+redis-cli: ## Connect to Redis CLI
+	@echo "🔗 Connecting to Redis CLI..."
+	@docker exec -it redis-ai-order redis-cli
+
+redis-flush: ## Flush Redis database
+	@echo "🗑️ Flushing Redis database..."
+	@docker exec redis-ai-order redis-cli FLUSHALL
+	@echo "✅ Redis database flushed!"
+
+# Deployment
+deploy-local: build docker-build compose-up ## Deploy locally with Docker
+	@echo "🚀 Local deployment completed!"
+
+deploy-k8s: ## Deploy to Kubernetes
+	@echo "🚀 Deploying to Kubernetes..."
+	@kubectl apply -f k8s/ai-order/
+	@echo "✅ Kubernetes deployment completed!"
+
+# Utilities
+format: ## Format Go code
+	@echo "🎨 Formatting Go code..."
+	@go fmt ./...
+	@echo "✅ Code formatted!"
+
+lint: ## Run linter
+	@echo "🔍 Running linter..."
+	@golangci-lint run
+	@echo "✅ Linting completed!"
+
+mod-update: ## Update Go modules
+	@echo "📦 Updating Go modules..."
+	@go get -u ./...
+	@go mod tidy
+	@echo "✅ Modules updated!"
+
+# Documentation
+docs: ## Generate documentation
+	@echo "📚 Generating documentation..."
+	@godoc -http=:6060 &
+	@echo "✅ Documentation server started at http://localhost:6060"
+
+# Quick start
+quick-start: install-deps proto build run-redis ## Quick start for development
+	@echo "🚀 Quick start completed! Run 'make run-all' to start all services."

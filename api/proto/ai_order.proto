@@ -1,0 +1,292 @@
+syntax = "proto3";
+
+package ai_order;
+
+option go_package = "github.com/DimaJoyti/go-coffee/api/proto/ai_order";
+
+import "google/protobuf/timestamp.proto";
+
+// AI Order Management Service
+service AIOrderService {
+  // Create a new order with AI analysis
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  
+  // Get order details with AI insights
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  
+  // List orders with AI filtering
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  
+  // Update order status with AI validation
+  rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (UpdateOrderStatusResponse);
+  
+  // Cancel order with AI impact analysis
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  
+  // Get AI recommendations for order
+  rpc GetOrderRecommendations(GetOrderRecommendationsRequest) returns (GetOrderRecommendationsResponse);
+  
+  // Analyze order patterns with AI
+  rpc AnalyzeOrderPatterns(AnalyzeOrderPatternsRequest) returns (AnalyzeOrderPatternsResponse);
+  
+  // Predict order completion time
+  rpc PredictCompletionTime(PredictCompletionTimeRequest) returns (PredictCompletionTimeResponse);
+}
+
+// Order status enumeration
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_CONFIRMED = 2;
+  ORDER_STATUS_PREPARING = 3;
+  ORDER_STATUS_READY = 4;
+  ORDER_STATUS_COMPLETED = 5;
+  ORDER_STATUS_CANCELLED = 6;
+}
+
+// Order priority based on AI analysis
+enum OrderPriority {
+  ORDER_PRIORITY_UNSPECIFIED = 0;
+  ORDER_PRIORITY_LOW = 1;
+  ORDER_PRIORITY_NORMAL = 2;
+  ORDER_PRIORITY_HIGH = 3;
+  ORDER_PRIORITY_URGENT = 4;
+}
+
+// Order item with AI enhancements
+message OrderItem {
+  string id = 1;
+  string product_id = 2;
+  string product_name = 3;
+  int32 quantity = 4;
+  double unit_price = 5;
+  double total_price = 6;
+  repeated string customizations = 7;
+  AIItemInsights ai_insights = 8;
+}
+
+// AI insights for order items
+message AIItemInsights {
+  double popularity_score = 1;
+  double preparation_complexity = 2;
+  repeated string suggested_pairings = 3;
+  double estimated_prep_time_minutes = 4;
+  string dietary_info = 5;
+}
+
+// Customer information with AI profile
+message Customer {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  AICustomerProfile ai_profile = 5;
+}
+
+// AI customer profile
+message AICustomerProfile {
+  repeated string favorite_items = 1;
+  double loyalty_score = 2;
+  string preferred_time_slot = 3;
+  double average_order_value = 4;
+  int32 total_orders = 5;
+  repeated string dietary_preferences = 6;
+  double satisfaction_score = 7;
+}
+
+// Order with AI enhancements
+message Order {
+  string id = 1;
+  Customer customer = 2;
+  repeated OrderItem items = 3;
+  OrderStatus status = 4;
+  OrderPriority priority = 5;
+  double total_amount = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp estimated_completion = 9;
+  string location_id = 10;
+  AIOrderInsights ai_insights = 11;
+  string special_instructions = 12;
+}
+
+// AI insights for orders
+message AIOrderInsights {
+  double complexity_score = 1;
+  double estimated_prep_time_minutes = 2;
+  repeated string recommended_additions = 3;
+  double revenue_impact = 4;
+  string peak_time_analysis = 5;
+  double customer_satisfaction_prediction = 6;
+  repeated string optimization_suggestions = 7;
+}
+
+// Create Order Request
+message CreateOrderRequest {
+  Customer customer = 1;
+  repeated OrderItem items = 2;
+  string location_id = 3;
+  string special_instructions = 4;
+  bool enable_ai_optimization = 5;
+}
+
+// Create Order Response
+message CreateOrderResponse {
+  Order order = 1;
+  repeated string ai_recommendations = 2;
+  double estimated_wait_time_minutes = 3;
+  bool success = 4;
+  string message = 5;
+}
+
+// Get Order Request
+message GetOrderRequest {
+  string order_id = 1;
+  bool include_ai_insights = 2;
+}
+
+// Get Order Response
+message GetOrderResponse {
+  Order order = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// List Orders Request
+message ListOrdersRequest {
+  string customer_id = 1;
+  string location_id = 2;
+  OrderStatus status = 3;
+  google.protobuf.Timestamp from_date = 4;
+  google.protobuf.Timestamp to_date = 5;
+  int32 page_size = 6;
+  string page_token = 7;
+  bool enable_ai_filtering = 8;
+}
+
+// List Orders Response
+message ListOrdersResponse {
+  repeated Order orders = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  AIAnalytics ai_analytics = 4;
+  bool success = 5;
+  string message = 6;
+}
+
+// AI Analytics for order lists
+message AIAnalytics {
+  double average_order_value = 1;
+  double total_revenue = 2;
+  repeated string popular_items = 3;
+  double customer_satisfaction_avg = 4;
+  double peak_hour_analysis = 5;
+}
+
+// Update Order Status Request
+message UpdateOrderStatusRequest {
+  string order_id = 1;
+  OrderStatus new_status = 2;
+  string reason = 3;
+  bool notify_customer = 4;
+}
+
+// Update Order Status Response
+message UpdateOrderStatusResponse {
+  Order order = 1;
+  repeated string ai_notifications = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Cancel Order Request
+message CancelOrderRequest {
+  string order_id = 1;
+  string reason = 2;
+  bool refund_required = 3;
+}
+
+// Cancel Order Response
+message CancelOrderResponse {
+  Order order = 1;
+  AIImpactAnalysis impact_analysis = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// AI Impact Analysis for cancellations
+message AIImpactAnalysis {
+  double revenue_impact = 1;
+  double customer_satisfaction_impact = 2;
+  repeated string mitigation_suggestions = 3;
+  double kitchen_efficiency_impact = 4;
+}
+
+// Get Order Recommendations Request
+message GetOrderRecommendationsRequest {
+  string customer_id = 1;
+  string location_id = 2;
+  repeated string current_items = 3;
+  string time_of_day = 4;
+}
+
+// Get Order Recommendations Response
+message GetOrderRecommendationsResponse {
+  repeated RecommendedItem recommendations = 1;
+  string reasoning = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Recommended item with AI scoring
+message RecommendedItem {
+  string product_id = 1;
+  string product_name = 2;
+  double confidence_score = 3;
+  string reason = 4;
+  double price = 5;
+  double estimated_prep_time = 6;
+}
+
+// Analyze Order Patterns Request
+message AnalyzeOrderPatternsRequest {
+  string location_id = 1;
+  google.protobuf.Timestamp from_date = 2;
+  google.protobuf.Timestamp to_date = 3;
+  string analysis_type = 4; // "daily", "weekly", "monthly"
+}
+
+// Analyze Order Patterns Response
+message AnalyzeOrderPatternsResponse {
+  repeated PatternInsight insights = 1;
+  repeated string recommendations = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Pattern insight from AI analysis
+message PatternInsight {
+  string pattern_type = 1;
+  string description = 2;
+  double confidence = 3;
+  repeated string affected_items = 4;
+  string time_period = 5;
+  double impact_score = 6;
+}
+
+// Predict Completion Time Request
+message PredictCompletionTimeRequest {
+  string order_id = 1;
+  string location_id = 2;
+  int32 current_queue_size = 3;
+}
+
+// Predict Completion Time Response
+message PredictCompletionTimeResponse {
+  double estimated_minutes = 1;
+  double confidence_level = 2;
+  repeated string factors = 3;
+  google.protobuf.Timestamp estimated_completion_time = 4;
+  bool success = 5;
+  string message = 6;
+}

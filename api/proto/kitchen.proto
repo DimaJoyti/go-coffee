@@ -1,0 +1,363 @@
+syntax = "proto3";
+
+package kitchen;
+
+option go_package = "github.com/DimaJoyti/go-coffee/api/proto/kitchen";
+
+import "google/protobuf/timestamp.proto";
+
+// Kitchen Management Service with AI optimization
+service KitchenService {
+  // Add order to kitchen queue with AI prioritization
+  rpc AddToQueue(AddToQueueRequest) returns (AddToQueueResponse);
+  
+  // Get current kitchen queue with AI insights
+  rpc GetQueue(GetQueueRequest) returns (GetQueueResponse);
+  
+  // Update order preparation status
+  rpc UpdatePreparationStatus(UpdatePreparationStatusRequest) returns (UpdatePreparationStatusResponse);
+  
+  // Complete order preparation
+  rpc CompleteOrder(CompleteOrderRequest) returns (CompleteOrderResponse);
+  
+  // Get kitchen performance metrics with AI analysis
+  rpc GetPerformanceMetrics(GetPerformanceMetricsRequest) returns (GetPerformanceMetricsResponse);
+  
+  // Optimize kitchen workflow with AI
+  rpc OptimizeWorkflow(OptimizeWorkflowRequest) returns (OptimizeWorkflowResponse);
+  
+  // Predict kitchen capacity
+  rpc PredictCapacity(PredictCapacityRequest) returns (PredictCapacityResponse);
+  
+  // Get ingredient requirements with AI forecasting
+  rpc GetIngredientRequirements(GetIngredientRequirementsRequest) returns (GetIngredientRequirementsResponse);
+  
+  // Alert for kitchen issues
+  rpc AlertKitchenIssue(AlertKitchenIssueRequest) returns (AlertKitchenIssueResponse);
+}
+
+// Kitchen equipment status
+enum EquipmentStatus {
+  EQUIPMENT_STATUS_UNSPECIFIED = 0;
+  EQUIPMENT_STATUS_AVAILABLE = 1;
+  EQUIPMENT_STATUS_IN_USE = 2;
+  EQUIPMENT_STATUS_MAINTENANCE = 3;
+  EQUIPMENT_STATUS_BROKEN = 4;
+}
+
+// Preparation status for orders
+enum PreparationStatus {
+  PREPARATION_STATUS_UNSPECIFIED = 0;
+  PREPARATION_STATUS_QUEUED = 1;
+  PREPARATION_STATUS_IN_PROGRESS = 2;
+  PREPARATION_STATUS_READY = 3;
+  PREPARATION_STATUS_DELAYED = 4;
+}
+
+// Kitchen station types
+enum StationType {
+  STATION_TYPE_UNSPECIFIED = 0;
+  STATION_TYPE_ESPRESSO = 1;
+  STATION_TYPE_GRINDER = 2;
+  STATION_TYPE_STEAMER = 3;
+  STATION_TYPE_COLD_BREW = 4;
+  STATION_TYPE_PASTRY = 5;
+  STATION_TYPE_ASSEMBLY = 6;
+}
+
+// Kitchen equipment information
+message Equipment {
+  string id = 1;
+  string name = 2;
+  StationType station_type = 3;
+  EquipmentStatus status = 4;
+  double efficiency_score = 5;
+  google.protobuf.Timestamp last_maintenance = 6;
+  int32 current_load = 7;
+  int32 max_capacity = 8;
+  AIEquipmentInsights ai_insights = 9;
+}
+
+// AI insights for equipment
+message AIEquipmentInsights {
+  double predicted_maintenance_date = 1;
+  double efficiency_trend = 2;
+  repeated string optimization_suggestions = 3;
+  double utilization_rate = 4;
+  string performance_grade = 5;
+}
+
+// Kitchen staff member
+message Staff {
+  string id = 1;
+  string name = 2;
+  repeated StationType specializations = 3;
+  double skill_level = 4;
+  bool is_available = 5;
+  int32 current_orders = 6;
+  AIStaffInsights ai_insights = 7;
+}
+
+// AI insights for staff
+message AIStaffInsights {
+  double productivity_score = 1;
+  double average_completion_time = 2;
+  repeated string improvement_areas = 3;
+  double stress_level = 4;
+  string optimal_shift_time = 5;
+}
+
+// Kitchen queue item with AI prioritization
+message QueueItem {
+  string order_id = 1;
+  string customer_name = 2;
+  repeated string items = 3;
+  PreparationStatus status = 4;
+  google.protobuf.Timestamp queued_at = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp estimated_completion = 7;
+  int32 priority_score = 8;
+  string assigned_staff_id = 9;
+  repeated string required_equipment = 10;
+  AIQueueInsights ai_insights = 11;
+}
+
+// AI insights for queue items
+message AIQueueInsights {
+  double complexity_score = 1;
+  double estimated_prep_time = 2;
+  repeated string bottleneck_predictions = 3;
+  string optimal_preparation_order = 4;
+  double customer_wait_tolerance = 5;
+}
+
+// Kitchen performance metrics
+message PerformanceMetrics {
+  double average_preparation_time = 1;
+  int32 orders_completed = 2;
+  int32 orders_in_queue = 3;
+  double efficiency_rate = 4;
+  double customer_satisfaction = 5;
+  repeated EquipmentMetrics equipment_metrics = 6;
+  repeated StaffMetrics staff_metrics = 7;
+  AIPerformanceInsights ai_insights = 8;
+}
+
+// Equipment performance metrics
+message EquipmentMetrics {
+  string equipment_id = 1;
+  double utilization_rate = 2;
+  int32 orders_processed = 3;
+  double average_processing_time = 4;
+  int32 maintenance_alerts = 5;
+}
+
+// Staff performance metrics
+message StaffMetrics {
+  string staff_id = 1;
+  int32 orders_completed = 2;
+  double average_completion_time = 3;
+  double quality_score = 4;
+  int32 errors_count = 5;
+}
+
+// AI performance insights
+message AIPerformanceInsights {
+  repeated string bottlenecks = 1;
+  repeated string optimization_opportunities = 2;
+  double predicted_peak_time = 3;
+  repeated string efficiency_recommendations = 4;
+  double capacity_utilization = 5;
+}
+
+// Add to Queue Request
+message AddToQueueRequest {
+  string order_id = 1;
+  string customer_name = 2;
+  repeated string items = 3;
+  string location_id = 4;
+  int32 customer_priority = 5;
+  bool rush_order = 6;
+}
+
+// Add to Queue Response
+message AddToQueueResponse {
+  QueueItem queue_item = 1;
+  int32 position_in_queue = 2;
+  double estimated_wait_time = 3;
+  repeated string ai_recommendations = 4;
+  bool success = 5;
+  string message = 6;
+}
+
+// Get Queue Request
+message GetQueueRequest {
+  string location_id = 1;
+  bool include_ai_insights = 2;
+  StationType station_filter = 3;
+}
+
+// Get Queue Response
+message GetQueueResponse {
+  repeated QueueItem queue_items = 1;
+  int32 total_items = 2;
+  double average_wait_time = 3;
+  AIQueueAnalysis ai_analysis = 4;
+  bool success = 5;
+  string message = 6;
+}
+
+// AI analysis for queue
+message AIQueueAnalysis {
+  repeated string bottlenecks = 1;
+  repeated string optimization_suggestions = 2;
+  double predicted_completion_time = 3;
+  string recommended_staff_allocation = 4;
+  double efficiency_score = 5;
+}
+
+// Update Preparation Status Request
+message UpdatePreparationStatusRequest {
+  string order_id = 1;
+  PreparationStatus new_status = 2;
+  string staff_id = 3;
+  string notes = 4;
+}
+
+// Update Preparation Status Response
+message UpdatePreparationStatusResponse {
+  QueueItem updated_item = 1;
+  repeated string ai_notifications = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Complete Order Request
+message CompleteOrderRequest {
+  string order_id = 1;
+  string staff_id = 2;
+  double actual_preparation_time = 3;
+  int32 quality_rating = 4;
+  string notes = 5;
+}
+
+// Complete Order Response
+message CompleteOrderResponse {
+  QueueItem completed_item = 1;
+  AICompletionInsights ai_insights = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// AI insights for order completion
+message AICompletionInsights {
+  double time_variance_from_estimate = 1;
+  string performance_feedback = 2;
+  repeated string learning_points = 3;
+  double impact_on_queue = 4;
+}
+
+// Get Performance Metrics Request
+message GetPerformanceMetricsRequest {
+  string location_id = 1;
+  google.protobuf.Timestamp from_time = 2;
+  google.protobuf.Timestamp to_time = 3;
+  bool include_ai_analysis = 4;
+}
+
+// Get Performance Metrics Response
+message GetPerformanceMetricsResponse {
+  PerformanceMetrics metrics = 1;
+  repeated string ai_recommendations = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Optimize Workflow Request
+message OptimizeWorkflowRequest {
+  string location_id = 1;
+  repeated QueueItem current_queue = 2;
+  repeated Equipment available_equipment = 3;
+  repeated Staff available_staff = 4;
+}
+
+// Optimize Workflow Response
+message OptimizeWorkflowResponse {
+  repeated WorkflowOptimization optimizations = 1;
+  double estimated_time_savings = 2;
+  double efficiency_improvement = 3;
+  bool success = 4;
+  string message = 5;
+}
+
+// Workflow optimization suggestion
+message WorkflowOptimization {
+  string order_id = 1;
+  string recommended_station = 2;
+  string recommended_staff = 3;
+  int32 new_priority = 4;
+  string reasoning = 5;
+  double time_impact = 6;
+}
+
+// Predict Capacity Request
+message PredictCapacityRequest {
+  string location_id = 1;
+  google.protobuf.Timestamp target_time = 2;
+  int32 expected_orders = 3;
+}
+
+// Predict Capacity Response
+message PredictCapacityResponse {
+  double capacity_utilization = 1;
+  bool can_handle_load = 2;
+  repeated string capacity_constraints = 3;
+  repeated string recommendations = 4;
+  bool success = 5;
+  string message = 6;
+}
+
+// Get Ingredient Requirements Request
+message GetIngredientRequirementsRequest {
+  string location_id = 1;
+  google.protobuf.Timestamp forecast_date = 2;
+  repeated string menu_items = 3;
+}
+
+// Get Ingredient Requirements Response
+message GetIngredientRequirementsResponse {
+  repeated IngredientRequirement requirements = 1;
+  repeated string ai_recommendations = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Ingredient requirement with AI forecasting
+message IngredientRequirement {
+  string ingredient_id = 1;
+  string ingredient_name = 2;
+  double required_quantity = 3;
+  string unit = 4;
+  double current_stock = 5;
+  double predicted_usage = 6;
+  bool needs_reorder = 7;
+  google.protobuf.Timestamp suggested_order_date = 8;
+}
+
+// Alert Kitchen Issue Request
+message AlertKitchenIssueRequest {
+  string location_id = 1;
+  string issue_type = 2;
+  string description = 3;
+  string severity = 4;
+  string equipment_id = 5;
+}
+
+// Alert Kitchen Issue Response
+message AlertKitchenIssueResponse {
+  string alert_id = 1;
+  repeated string ai_suggestions = 2;
+  string estimated_resolution_time = 3;
+  bool success = 4;
+  string message = 5;
+}

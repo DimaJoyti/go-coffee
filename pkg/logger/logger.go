@@ -7,41 +7,38 @@ import (
 	"time"
 )
 
-// Level представляє рівень логування
+// Level represents logging level
 type Level int
 
 const (
-	// DebugLevel рівень для детального логування
+	// DebugLevel level for detailed logging
 	DebugLevel Level = iota
-	// InfoLevel рівень для інформаційних повідомлень
+	// InfoLevel level for informational messages
 	InfoLevel
-	// WarnLevel рівень для попереджень
+	// WarnLevel level for warnings
 	WarnLevel
-	// ErrorLevel рівень для помилок
+	// ErrorLevel level for errors
 	ErrorLevel
-	// FatalLevel рівень для критичних помилок
+	// FatalLevel level for critical errors
 	FatalLevel
 )
 
-// Logger інтерфейс для логування
-type Logger interface {
-	Debug(format string, args ...interface{})
-	Info(format string, args ...interface{})
-	Warn(format string, args ...interface{})
-	Error(format string, args ...interface{})
-	Fatal(format string, args ...interface{})
-	WithField(key string, value interface{}) Logger
-	WithFields(fields map[string]interface{}) Logger
+// Logger struct for logging - compatible with zap interface
+type Logger struct {
+	logger     *log.Logger
+	level      Level
+	timeFormat string
+	fields     map[string]interface{}
 }
 
-// Config конфігурація для логера
+// Config configuration for logger
 type Config struct {
 	Level      Level
 	TimeFormat string
 	Output     *os.File
 }
 
-// DefaultConfig повертає типову конфігурацію
+// DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	return &Config{
 		Level:      InfoLevel,
@@ -50,22 +47,14 @@ func DefaultConfig() *Config {
 	}
 }
 
-// standardLogger реалізує інтерфейс Logger
-type standardLogger struct {
-	logger     *log.Logger
-	level      Level
-	timeFormat string
-	fields     map[string]interface{}
-}
-
-// NewLogger створює новий логер
-func NewLogger(config *Config) Logger {
+// NewLogger creates a new logger
+func NewLogger(config *Config) *Logger {
 	if config == nil {
 		config = DefaultConfig()
 	}
 
 	logger := log.New(config.Output, "", 0)
-	return &standardLogger{
+	return &Logger{
 		logger:     logger,
 		level:      config.Level,
 		timeFormat: config.TimeFormat,
@@ -73,8 +62,8 @@ func NewLogger(config *Config) Logger {
 	}
 }
 
-// formatFields форматує поля для виведення
-func (l *standardLogger) formatFields() string {
+// formatFields formats fields for output
+func (l *Logger) formatFields() string {
 	if len(l.fields) == 0 {
 		return ""
 	}
@@ -92,8 +81,8 @@ func (l *standardLogger) formatFields() string {
 	return result
 }
 
-// log виконує логування
-func (l *standardLogger) log(level Level, format string, args ...interface{}) {
+// log performs logging
+func (l *Logger) log(level Level, format string, args ...interface{}) {
 	if level < l.level {
 		return
 	}
@@ -127,69 +116,147 @@ func (l *standardLogger) log(level Level, format string, args ...interface{}) {
 	}
 }
 
-// Debug логує повідомлення з рівнем Debug
-func (l *standardLogger) Debug(format string, args ...interface{}) {
+// Debug logs a message with Debug level
+func (l *Logger) Debug(format string, args ...interface{}) {
 	l.log(DebugLevel, format, args...)
 }
 
-// Info логує повідомлення з рівнем Info
-func (l *standardLogger) Info(format string, args ...interface{}) {
+// Info logs a message with Info level
+func (l *Logger) Info(format string, args ...interface{}) {
 	l.log(InfoLevel, format, args...)
 }
 
-// Warn логує повідомлення з рівнем Warn
-func (l *standardLogger) Warn(format string, args ...interface{}) {
+// Warn logs a message with Warn level
+func (l *Logger) Warn(format string, args ...interface{}) {
 	l.log(WarnLevel, format, args...)
 }
 
-// Error логує повідомлення з рівнем Error
-func (l *standardLogger) Error(format string, args ...interface{}) {
+// Error logs a message with Error level
+func (l *Logger) Error(format string, args ...interface{}) {
 	l.log(ErrorLevel, format, args...)
 }
 
-// Fatal логує повідомлення з рівнем Fatal
-func (l *standardLogger) Fatal(format string, args ...interface{}) {
+// Fatal logs a message with Fatal level
+func (l *Logger) Fatal(format string, args ...interface{}) {
 	l.log(FatalLevel, format, args...)
 }
 
-// WithField повертає новий логер з доданим полем
-func (l *standardLogger) WithField(key string, value interface{}) Logger {
-	newLogger := &standardLogger{
+// WithField returns a new logger with added field
+func (l *Logger) WithField(key string, value interface{}) *Logger {
+	newLogger := &Logger{
 		logger:     l.logger,
 		level:      l.level,
 		timeFormat: l.timeFormat,
 		fields:     make(map[string]interface{}),
 	}
 
-	// Копіюємо існуючі поля
+	// Copy existing fields
 	for k, v := range l.fields {
 		newLogger.fields[k] = v
 	}
 
-	// Додаємо нове поле
+	// Add new field
 	newLogger.fields[key] = value
 
 	return newLogger
 }
 
-// WithFields повертає новий логер з доданими полями
-func (l *standardLogger) WithFields(fields map[string]interface{}) Logger {
-	newLogger := &standardLogger{
+// WithFields returns a new logger with added fields
+func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
+	newLogger := &Logger{
 		logger:     l.logger,
 		level:      l.level,
 		timeFormat: l.timeFormat,
 		fields:     make(map[string]interface{}),
 	}
 
-	// Копіюємо існуючі поля
+	// Copy existing fields
 	for k, v := range l.fields {
 		newLogger.fields[k] = v
 	}
 
-	// Додаємо нові поля
+	// Add new fields
 	for k, v := range fields {
 		newLogger.fields[k] = v
 	}
 
 	return newLogger
+}
+
+// New creates a new logger with service name (for compatibility)
+func New(serviceName string) *Logger {
+	config := DefaultConfig()
+	logger := NewLogger(config)
+	return logger.WithField("service", serviceName)
+}
+
+// Zap-compatible methods for AI processor compatibility
+
+// Field represents a key-value pair for structured logging
+type Field struct {
+	Key   string
+	Value interface{}
+}
+
+// String creates a string field
+func String(key, value string) Field {
+	return Field{Key: key, Value: value}
+}
+
+// Int creates an int field
+func Int(key string, value int) Field {
+	return Field{Key: key, Value: value}
+}
+
+// Float64 creates a float64 field
+func Float64(key string, value float64) Field {
+	return Field{Key: key, Value: value}
+}
+
+// Bool creates a bool field
+func Bool(key string, value bool) Field {
+	return Field{Key: key, Value: value}
+}
+
+// Any creates a field with any value
+func Any(key string, value interface{}) Field {
+	return Field{Key: key, Value: value}
+}
+
+// Error creates an error field
+func Error(err error) Field {
+	return Field{Key: "error", Value: err.Error()}
+}
+
+// With creates a new logger with the given fields (zap-compatible)
+func (l *Logger) With(fields ...Field) *Logger {
+	newFields := make(map[string]interface{})
+
+	// Copy existing fields
+	for k, v := range l.fields {
+		newFields[k] = v
+	}
+
+	// Add new fields
+	for _, field := range fields {
+		newFields[field.Key] = field.Value
+	}
+
+	return &Logger{
+		logger:     l.logger,
+		level:      l.level,
+		timeFormat: l.timeFormat,
+		fields:     newFields,
+	}
+}
+
+// Sugar returns a sugared logger (for zap compatibility)
+func (l *Logger) Sugar() *Logger {
+	return l
+}
+
+// Sync flushes any buffered log entries (for zap compatibility)
+func (l *Logger) Sync() error {
+	// Standard logger doesn't need syncing
+	return nil
 }

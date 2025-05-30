@@ -1,0 +1,365 @@
+syntax = "proto3";
+
+package communication;
+
+option go_package = "github.com/DimaJoyti/go-coffee/api/proto/communication";
+
+import "google/protobuf/timestamp.proto";
+
+// Communication Hub Service for inter-service messaging
+service CommunicationService {
+  // Send message between services
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  
+  // Subscribe to message stream
+  rpc SubscribeToMessages(SubscribeRequest) returns (stream MessageEvent);
+  
+  // Broadcast message to multiple services
+  rpc BroadcastMessage(BroadcastMessageRequest) returns (BroadcastMessageResponse);
+  
+  // Get message history
+  rpc GetMessageHistory(GetMessageHistoryRequest) returns (GetMessageHistoryResponse);
+  
+  // Register service for communication
+  rpc RegisterService(RegisterServiceRequest) returns (RegisterServiceResponse);
+  
+  // Unregister service
+  rpc UnregisterService(UnregisterServiceRequest) returns (UnregisterServiceResponse);
+  
+  // Get active services
+  rpc GetActiveServices(GetActiveServicesRequest) returns (GetActiveServicesResponse);
+  
+  // Send notification with AI routing
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  
+  // Get communication analytics
+  rpc GetCommunicationAnalytics(GetCommunicationAnalyticsRequest) returns (GetCommunicationAnalyticsResponse);
+}
+
+// Message types for different communication scenarios
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_ORDER_UPDATE = 1;
+  MESSAGE_TYPE_KITCHEN_STATUS = 2;
+  MESSAGE_TYPE_INVENTORY_ALERT = 3;
+  MESSAGE_TYPE_CUSTOMER_NOTIFICATION = 4;
+  MESSAGE_TYPE_SYSTEM_ALERT = 5;
+  MESSAGE_TYPE_AI_INSIGHT = 6;
+  MESSAGE_TYPE_PERFORMANCE_METRIC = 7;
+  MESSAGE_TYPE_WORKFLOW_OPTIMIZATION = 8;
+}
+
+// Message priority levels
+enum MessagePriority {
+  MESSAGE_PRIORITY_UNSPECIFIED = 0;
+  MESSAGE_PRIORITY_LOW = 1;
+  MESSAGE_PRIORITY_NORMAL = 2;
+  MESSAGE_PRIORITY_HIGH = 3;
+  MESSAGE_PRIORITY_CRITICAL = 4;
+}
+
+// Service types in the ecosystem
+enum ServiceType {
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  SERVICE_TYPE_AI_ORDER = 1;
+  SERVICE_TYPE_KITCHEN = 2;
+  SERVICE_TYPE_USER_GATEWAY = 3;
+  SERVICE_TYPE_INVENTORY = 4;
+  SERVICE_TYPE_PAYMENT = 5;
+  SERVICE_TYPE_NOTIFICATION = 6;
+  SERVICE_TYPE_ANALYTICS = 7;
+}
+
+// Notification channels
+enum NotificationChannel {
+  NOTIFICATION_CHANNEL_UNSPECIFIED = 0;
+  NOTIFICATION_CHANNEL_EMAIL = 1;
+  NOTIFICATION_CHANNEL_SMS = 2;
+  NOTIFICATION_CHANNEL_PUSH = 3;
+  NOTIFICATION_CHANNEL_SLACK = 4;
+  NOTIFICATION_CHANNEL_WEBHOOK = 5;
+  NOTIFICATION_CHANNEL_IN_APP = 6;
+}
+
+// Core message structure
+message Message {
+  string id = 1;
+  string from_service = 2;
+  string to_service = 3;
+  MessageType type = 4;
+  MessagePriority priority = 5;
+  string subject = 6;
+  string content = 7;
+  map<string, string> metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp expires_at = 10;
+  bool requires_acknowledgment = 11;
+  string correlation_id = 12;
+  AIMessageInsights ai_insights = 13;
+}
+
+// AI insights for messages
+message AIMessageInsights {
+  double relevance_score = 1;
+  string sentiment_analysis = 2;
+  repeated string suggested_actions = 3;
+  string urgency_assessment = 4;
+  repeated string related_messages = 5;
+  string routing_recommendation = 6;
+}
+
+// Service registration information
+message ServiceInfo {
+  string service_id = 1;
+  string service_name = 2;
+  ServiceType service_type = 3;
+  string endpoint = 4;
+  string version = 5;
+  repeated MessageType supported_message_types = 6;
+  map<string, string> capabilities = 7;
+  google.protobuf.Timestamp registered_at = 8;
+  google.protobuf.Timestamp last_heartbeat = 9;
+  bool is_active = 10;
+  ServiceHealthStatus health_status = 11;
+}
+
+// Service health status
+message ServiceHealthStatus {
+  bool is_healthy = 1;
+  double cpu_usage = 2;
+  double memory_usage = 3;
+  int32 active_connections = 4;
+  double response_time_ms = 5;
+  string status_message = 6;
+}
+
+// Message event for streaming
+message MessageEvent {
+  string event_id = 1;
+  string event_type = 2;
+  Message message = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string source_service = 5;
+}
+
+// Notification with multiple channels
+message Notification {
+  string id = 1;
+  string recipient_id = 2;
+  string title = 3;
+  string content = 4;
+  repeated NotificationChannel channels = 5;
+  MessagePriority priority = 6;
+  map<string, string> template_data = 7;
+  google.protobuf.Timestamp scheduled_at = 8;
+  bool is_sent = 9;
+  repeated DeliveryStatus delivery_status = 10;
+  AINotificationInsights ai_insights = 11;
+}
+
+// Delivery status for each channel
+message DeliveryStatus {
+  NotificationChannel channel = 1;
+  bool delivered = 2;
+  google.protobuf.Timestamp delivered_at = 3;
+  string error_message = 4;
+  int32 retry_count = 5;
+}
+
+// AI insights for notifications
+message AINotificationInsights {
+  double engagement_prediction = 1;
+  string optimal_send_time = 2;
+  string preferred_channel = 3;
+  double personalization_score = 4;
+  repeated string content_suggestions = 5;
+}
+
+// Communication analytics
+message CommunicationAnalytics {
+  int32 total_messages = 1;
+  int32 messages_by_priority = 2;
+  double average_response_time = 3;
+  int32 failed_deliveries = 4;
+  repeated ServiceCommunicationStats service_stats = 5;
+  repeated MessageTypeStats message_type_stats = 6;
+  AICommunicationInsights ai_insights = 7;
+}
+
+// Communication statistics per service
+message ServiceCommunicationStats {
+  string service_id = 1;
+  int32 messages_sent = 2;
+  int32 messages_received = 3;
+  double average_response_time = 4;
+  int32 failed_messages = 5;
+}
+
+// Statistics per message type
+message MessageTypeStats {
+  MessageType type = 1;
+  int32 count = 2;
+  double average_processing_time = 3;
+  double success_rate = 4;
+}
+
+// AI insights for communication patterns
+message AICommunicationInsights {
+  repeated string communication_patterns = 1;
+  repeated string bottlenecks = 2;
+  repeated string optimization_suggestions = 3;
+  double network_efficiency = 4;
+  string peak_communication_time = 5;
+}
+
+// Send Message Request
+message SendMessageRequest {
+  string to_service = 1;
+  MessageType type = 2;
+  MessagePriority priority = 3;
+  string subject = 4;
+  string content = 5;
+  map<string, string> metadata = 6;
+  bool requires_acknowledgment = 7;
+  string correlation_id = 8;
+  int32 ttl_seconds = 9;
+}
+
+// Send Message Response
+message SendMessageResponse {
+  string message_id = 1;
+  bool delivered = 2;
+  google.protobuf.Timestamp delivered_at = 3;
+  repeated string ai_suggestions = 4;
+  bool success = 5;
+  string message = 6;
+}
+
+// Subscribe Request
+message SubscribeRequest {
+  string service_id = 1;
+  repeated MessageType message_types = 2;
+  MessagePriority min_priority = 3;
+  map<string, string> filters = 4;
+}
+
+// Broadcast Message Request
+message BroadcastMessageRequest {
+  repeated string target_services = 1;
+  MessageType type = 2;
+  MessagePriority priority = 3;
+  string subject = 4;
+  string content = 5;
+  map<string, string> metadata = 6;
+  bool requires_acknowledgment = 7;
+}
+
+// Broadcast Message Response
+message BroadcastMessageResponse {
+  string broadcast_id = 1;
+  int32 total_recipients = 2;
+  int32 successful_deliveries = 3;
+  repeated string failed_services = 4;
+  bool success = 5;
+  string message = 6;
+}
+
+// Get Message History Request
+message GetMessageHistoryRequest {
+  string service_id = 1;
+  MessageType type = 2;
+  google.protobuf.Timestamp from_time = 3;
+  google.protobuf.Timestamp to_time = 4;
+  int32 page_size = 5;
+  string page_token = 6;
+}
+
+// Get Message History Response
+message GetMessageHistoryResponse {
+  repeated Message messages = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  bool success = 4;
+  string message = 5;
+}
+
+// Register Service Request
+message RegisterServiceRequest {
+  string service_name = 1;
+  ServiceType service_type = 2;
+  string endpoint = 3;
+  string version = 4;
+  repeated MessageType supported_message_types = 5;
+  map<string, string> capabilities = 6;
+}
+
+// Register Service Response
+message RegisterServiceResponse {
+  string service_id = 1;
+  ServiceInfo service_info = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Unregister Service Request
+message UnregisterServiceRequest {
+  string service_id = 1;
+  string reason = 2;
+}
+
+// Unregister Service Response
+message UnregisterServiceResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Get Active Services Request
+message GetActiveServicesRequest {
+  ServiceType service_type = 1;
+  bool include_health_status = 2;
+}
+
+// Get Active Services Response
+message GetActiveServicesResponse {
+  repeated ServiceInfo services = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Send Notification Request
+message SendNotificationRequest {
+  string recipient_id = 1;
+  string title = 2;
+  string content = 3;
+  repeated NotificationChannel channels = 4;
+  MessagePriority priority = 5;
+  map<string, string> template_data = 6;
+  google.protobuf.Timestamp scheduled_at = 7;
+  bool enable_ai_optimization = 8;
+}
+
+// Send Notification Response
+message SendNotificationResponse {
+  string notification_id = 1;
+  repeated string delivery_channels = 2;
+  AINotificationInsights ai_insights = 3;
+  bool success = 4;
+  string message = 5;
+}
+
+// Get Communication Analytics Request
+message GetCommunicationAnalyticsRequest {
+  google.protobuf.Timestamp from_time = 1;
+  google.protobuf.Timestamp to_time = 2;
+  repeated string service_ids = 3;
+  bool include_ai_insights = 4;
+}
+
+// Get Communication Analytics Response
+message GetCommunicationAnalyticsResponse {
+  CommunicationAnalytics analytics = 1;
+  repeated string ai_recommendations = 2;
+  bool success = 3;
+  string message = 4;
+}
