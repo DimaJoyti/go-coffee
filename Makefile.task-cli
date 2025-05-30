@@ -1,0 +1,234 @@
+# Task CLI Makefile
+# Build and manage the Task CLI application
+
+# Variables
+APP_NAME = task-cli
+VERSION ?= 1.0.0
+BUILD_TIME = $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+GIT_COMMIT = $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS = -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME) -X main.gitCommit=$(GIT_COMMIT)"
+
+# Directories
+BUILD_DIR = build
+CMD_DIR = cmd/task-cli
+INTERNAL_DIR = internal/task-cli
+
+# Go parameters
+GOCMD = go
+GOBUILD = $(GOCMD) build
+GOCLEAN = $(GOCMD) clean
+GOTEST = $(GOCMD) test
+GOGET = $(GOCMD) get
+GOMOD = $(GOCMD) mod
+GOFMT = $(GOCMD) fmt
+
+# Default target
+.PHONY: all
+all: clean deps fmt test build
+
+# Build the application
+.PHONY: build
+build:
+	@echo "Building $(APP_NAME) v$(VERSION)..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME) ./$(CMD_DIR)
+	@echo "Build complete: $(BUILD_DIR)/$(APP_NAME)"
+
+# Build for multiple platforms
+.PHONY: build-all
+build-all: clean deps fmt test
+	@echo "Building $(APP_NAME) for multiple platforms..."
+	@mkdir -p $(BUILD_DIR)
+	
+	# Linux AMD64
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 ./$(CMD_DIR)
+	
+	# Linux ARM64
+	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-arm64 ./$(CMD_DIR)
+	
+	# macOS AMD64
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-darwin-amd64 ./$(CMD_DIR)
+	
+	# macOS ARM64 (Apple Silicon)
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-darwin-arm64 ./$(CMD_DIR)
+	
+	# Windows AMD64
+	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-windows-amd64.exe ./$(CMD_DIR)
+	
+	@echo "Multi-platform build complete!"
+	@ls -la $(BUILD_DIR)/
+
+# Install dependencies
+.PHONY: deps
+deps:
+	@echo "Installing dependencies..."
+	$(GOGET) -u ./...
+	$(GOMOD) tidy
+	$(GOMOD) download
+
+# Format code
+.PHONY: fmt
+fmt:
+	@echo "Formatting code..."
+	$(GOFMT) ./...
+	@echo "Code formatted!"
+
+# Run tests
+.PHONY: test
+test:
+	@echo "Running tests..."
+	$(GOTEST) -v -race -coverprofile=coverage.out ./$(INTERNAL_DIR)/...
+	@echo "Tests completed!"
+
+# Run tests with coverage
+.PHONY: test-coverage
+test-coverage: test
+	@echo "Generating coverage report..."
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+
+# Run benchmarks
+.PHONY: bench
+bench:
+	@echo "Running benchmarks..."
+	$(GOTEST) -bench=. -benchmem ./$(INTERNAL_DIR)/...
+
+# Clean build artifacts
+.PHONY: clean
+clean:
+	@echo "Cleaning build artifacts..."
+	$(GOCLEAN)
+	rm -rf $(BUILD_DIR)
+	rm -f coverage.out coverage.html
+	@echo "Clean complete!"
+
+# Install the application
+.PHONY: install
+install: build
+	@echo "Installing $(APP_NAME)..."
+	sudo cp $(BUILD_DIR)/$(APP_NAME) /usr/local/bin/
+	@echo "$(APP_NAME) installed to /usr/local/bin/"
+
+# Uninstall the application
+.PHONY: uninstall
+uninstall:
+	@echo "Uninstalling $(APP_NAME)..."
+	sudo rm -f /usr/local/bin/$(APP_NAME)
+	@echo "$(APP_NAME) uninstalled!"
+
+# Run the application
+.PHONY: run
+run: build
+	@echo "Running $(APP_NAME)..."
+	./$(BUILD_DIR)/$(APP_NAME)
+
+# Run with Redis in Docker
+.PHONY: run-with-redis
+run-with-redis:
+	@echo "Starting Redis in Docker..."
+	docker run -d --name task-cli-redis -p 6379:6379 redis:7-alpine
+	@echo "Redis started on port 6379"
+	@echo "Run 'make stop-redis' to stop Redis"
+
+# Stop Redis Docker container
+.PHONY: stop-redis
+stop-redis:
+	@echo "Stopping Redis..."
+	docker stop task-cli-redis || true
+	docker rm task-cli-redis || true
+	@echo "Redis stopped!"
+
+# Development mode - watch for changes and rebuild
+.PHONY: dev
+dev:
+	@echo "Starting development mode..."
+	@echo "Watching for changes in $(CMD_DIR) and $(INTERNAL_DIR)..."
+	@while true; do \
+		$(MAKE) build; \
+		echo "Waiting for changes... (Press Ctrl+C to stop)"; \
+		inotifywait -qre modify,create,delete $(CMD_DIR) $(INTERNAL_DIR) 2>/dev/null || sleep 2; \
+	done
+
+# Lint code
+.PHONY: lint
+lint:
+	@echo "Running linter..."
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./$(CMD_DIR)/... ./$(INTERNAL_DIR)/...; \
+	else \
+		echo "golangci-lint not installed. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+	fi
+
+# Security scan
+.PHONY: security
+security:
+	@echo "Running security scan..."
+	@if command -v gosec >/dev/null 2>&1; then \
+		gosec ./$(CMD_DIR)/... ./$(INTERNAL_DIR)/...; \
+	else \
+		echo "gosec not installed. Install with: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest"; \
+	fi
+
+# Generate documentation
+.PHONY: docs
+docs:
+	@echo "Generating documentation..."
+	@mkdir -p docs
+	$(GOCMD) doc -all ./$(INTERNAL_DIR)/... > docs/api.md
+	@echo "Documentation generated in docs/"
+
+# Create release package
+.PHONY: release
+release: clean build-all
+	@echo "Creating release package..."
+	@mkdir -p release
+	@for binary in $(BUILD_DIR)/*; do \
+		if [ -f "$$binary" ]; then \
+			platform=$$(basename "$$binary" | sed 's/$(APP_NAME)-//'); \
+			mkdir -p "release/$(APP_NAME)-$(VERSION)-$$platform"; \
+			cp "$$binary" "release/$(APP_NAME)-$(VERSION)-$$platform/"; \
+			cp README.md "release/$(APP_NAME)-$(VERSION)-$$platform/" 2>/dev/null || true; \
+			cp LICENSE "release/$(APP_NAME)-$(VERSION)-$$platform/" 2>/dev/null || true; \
+			cd release && tar -czf "$(APP_NAME)-$(VERSION)-$$platform.tar.gz" "$(APP_NAME)-$(VERSION)-$$platform" && cd ..; \
+		fi \
+	done
+	@echo "Release packages created in release/"
+
+# Show help
+.PHONY: help
+help:
+	@echo "Task CLI Makefile"
+	@echo "=================="
+	@echo ""
+	@echo "Available targets:"
+	@echo "  all              - Clean, install deps, format, test, and build"
+	@echo "  build            - Build the application"
+	@echo "  build-all        - Build for multiple platforms"
+	@echo "  deps             - Install dependencies"
+	@echo "  fmt              - Format code"
+	@echo "  test             - Run tests"
+	@echo "  test-coverage    - Run tests with coverage report"
+	@echo "  bench            - Run benchmarks"
+	@echo "  clean            - Clean build artifacts"
+	@echo "  install          - Install the application to /usr/local/bin"
+	@echo "  uninstall        - Uninstall the application"
+	@echo "  run              - Build and run the application"
+	@echo "  run-with-redis   - Start Redis in Docker"
+	@echo "  stop-redis       - Stop Redis Docker container"
+	@echo "  dev              - Development mode with file watching"
+	@echo "  lint             - Run linter (requires golangci-lint)"
+	@echo "  security         - Run security scan (requires gosec)"
+	@echo "  docs             - Generate documentation"
+	@echo "  release          - Create release packages"
+	@echo "  help             - Show this help message"
+	@echo ""
+	@echo "Variables:"
+	@echo "  VERSION          - Application version (default: $(VERSION))"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make build VERSION=1.1.0"
+	@echo "  make test"
+	@echo "  make run-with-redis && make run"
+
+# Default help target
+.DEFAULT_GOAL := help
