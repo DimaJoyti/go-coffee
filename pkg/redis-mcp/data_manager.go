@@ -2,7 +2,6 @@ package redismcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"

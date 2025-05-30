@@ -10,13 +10,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
+	aisimple "github.com/DimaJoyti/go-coffee/pkg/ai-simple"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 )
 
 // QueryParser parses natural language queries into Redis commands
 type QueryParser struct {
-	aiService *ai.Service
+	aiService aisimple.Service
 	logger    *logger.Logger
 	patterns  map[string]*QueryPattern
 }
@@ -32,7 +32,7 @@ type QueryPattern struct {
 }
 
 // NewQueryParser creates a new query parser
-func NewQueryParser(aiService *ai.Service, logger *logger.Logger) *QueryParser {
+func NewQueryParser(aiService aisimple.Service, logger *logger.Logger) *QueryParser {
 	parser := &QueryParser{
 		aiService: aiService,
 		logger:    logger,

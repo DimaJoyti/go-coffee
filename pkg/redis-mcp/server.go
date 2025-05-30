@@ -2,18 +2,14 @@ package redismcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 )
 
@@ -21,7 +17,7 @@ import (
 type MCPServer struct {
 	redis       *redis.Client
 	logger      *logger.Logger
-	aiService   *ai.Service
+	aiService   interface{}
 	queryParser *QueryParser
 	dataManager *DataManager
 	router      *gin.Engine
@@ -71,7 +67,7 @@ type ParsedQuery struct {
 }
 
 // NewMCPServer creates a new Redis MCP server
-func NewMCPServer(redisClient *redis.Client, aiService *ai.Service, logger *logger.Logger) *MCPServer {
+func NewMCPServer(redisClient *redis.Client, aiService interface{}, logger *logger.Logger) *MCPServer {
 	server := &MCPServer{
 		redis:     redisClient,
 		logger:    logger,
@@ -80,7 +76,16 @@ func NewMCPServer(redisClient *redis.Client, aiService *ai.Service, logger *logg
 	}
 
 	// Initialize components
-	server.queryParser = NewQueryParser(aiService, logger)
+	if ai, ok := aiService.(interface {
+		GenerateText(ctx context.Context, prompt string) (string, error)
+		ProcessMessage(ctx context.Context, message string, userID string) (string, error)
+		GetCoffeeRecommendation(ctx context.Context, preferences map[string]interface{}) (string, error)
+		AnalyzeSpending(ctx context.Context, userID string) (string, error)
+		GetMarketInsights(ctx context.Context) (string, error)
+		Close() error
+	}); ok {
+		server.queryParser = NewQueryParser(ai, logger)
+	}
 	server.dataManager = NewDataManager(redisClient, logger)
 
 	// Setup routes
