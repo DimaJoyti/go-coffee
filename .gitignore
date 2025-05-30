@@ -31,7 +31,6 @@ go.work.sum
 terraform.rc
 
 # IDE and editor files
-.vscode/
 .idea/
 *.swp
 *.swo

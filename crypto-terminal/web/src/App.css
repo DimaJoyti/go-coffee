@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for the crypto terminal */
+
+.App {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* Custom components */
+@layer components {
+  .card {
+    @apply bg-slate-800 border border-slate-700 rounded-lg shadow-lg;
+  }
+  
+  .card-header {
+    @apply px-6 py-4 border-b border-slate-700;
+  }
+  
+  .card-content {
+    @apply p-6;
+  }
+  
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+  
+  .btn-secondary {
+    @apply bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+  
+  .btn-success {
+    @apply bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+  
+  .input-field {
+    @apply bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+  
+  .select-field {
+    @apply bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+  
+  .table-header {
+    @apply bg-slate-700 text-slate-300 font-medium text-sm uppercase tracking-wider;
+  }
+  
+  .table-row {
+    @apply border-b border-slate-700 hover:bg-slate-700/50 transition-colors duration-150;
+  }
+  
+  .table-cell {
+    @apply px-6 py-4 whitespace-nowrap text-sm;
+  }
+  
+  .price-positive {
+    @apply text-green-400;
+  }
+  
+  .price-negative {
+    @apply text-red-400;
+  }
+  
+  .price-neutral {
+    @apply text-slate-300;
+  }
+  
+  .sidebar-item {
+    @apply flex items-center px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors duration-200;
+  }
+  
+  .sidebar-item.active {
+    @apply text-white bg-slate-700;
+  }
+  
+  .metric-card {
+    @apply bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6;
+  }
+  
+  .metric-value {
+    @apply text-2xl font-bold text-white;
+  }
+  
+  .metric-label {
+    @apply text-sm text-slate-400 uppercase tracking-wide;
+  }
+  
+  .metric-change {
+    @apply text-sm font-medium;
+  }
+  
+  .chart-container {
+    @apply bg-slate-800 border border-slate-700 rounded-lg p-4;
+  }
+  
+  .loading-overlay {
+    @apply absolute inset-0 bg-slate-900/50 flex items-center justify-center rounded-lg;
+  }
+  
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-active {
+    @apply bg-green-100 text-green-800;
+  }
+  
+  .status-inactive {
+    @apply bg-red-100 text-red-800;
+  }
+  
+  .status-pending {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  
+  .alert-card {
+    @apply bg-slate-800 border-l-4 border-blue-500 rounded-lg p-4;
+  }
+  
+  .alert-card.success {
+    @apply border-green-500;
+  }
+  
+  .alert-card.warning {
+    @apply border-yellow-500;
+  }
+  
+  .alert-card.error {
+    @apply border-red-500;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .border-gradient {
+    border-image: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%) 1;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .animate-bounce-slow {
+    animation: bounce 2s infinite;
+  }
+}
+
+/* Chart styles */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #334155;
+}
+
+.recharts-text {
+  fill: #94a3b8;
+}
+
+.recharts-legend-item-text {
+  color: #e2e8f0 !important;
+}
+
+/* WebSocket connection indicator */
+.ws-indicator {
+  @apply fixed top-4 right-4 z-50 flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium;
+}
+
+.ws-connected {
+  @apply bg-green-600 text-white;
+}
+
+.ws-disconnected {
+  @apply bg-red-600 text-white;
+}
+
+.ws-connecting {
+  @apply bg-yellow-600 text-white;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .card-content {
+    @apply p-4;
+  }
+  
+  .table-cell {
+    @apply px-3 py-2;
+  }
+  
+  .metric-card {
+    @apply p-4;
+  }
+}
+
+/* Dark mode enhancements */
+@media (prefers-color-scheme: dark) {
+  .App {
+    color-scheme: dark;
+  }
+}
+
+/* Print styles */
+@media print {
+  .sidebar,
+  .ws-indicator,
+  button {
+    display: none !important;
+  }
+  
+  .card {
+    @apply border border-gray-300 shadow-none;
+  }
+}
