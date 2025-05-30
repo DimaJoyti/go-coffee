@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common" // New import for common models
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/content"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/kafka"
@@ -180,7 +181,7 @@ func (s *Service) collectAndProcessSubreddit(ctx context.Context, subreddit stri
 }
 
 // processPost processes a single Reddit post
-func (s *Service) processPost(ctx context.Context, post *RedditPost) error {
+func (s *Service) processPost(ctx context.Context, post *common.RedditPost) error {
 	// Check if already processed
 	cacheKey := fmt.Sprintf("reddit:processed:post:%s", post.ID)
 	if exists, _ := s.cache.Exists(ctx, cacheKey); exists {
@@ -230,7 +231,7 @@ func (s *Service) processPost(ctx context.Context, post *RedditPost) error {
 }
 
 // collectPostComments collects and processes comments for a post
-func (s *Service) collectPostComments(ctx context.Context, post *RedditPost) {
+func (s *Service) collectPostComments(ctx context.Context, post *common.RedditPost) {
 	comments, err := s.client.GetPostComments(ctx, post.Subreddit, post.ID, "top", 50)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to get comments for post %s: %v", post.ID, err))
@@ -247,7 +248,7 @@ func (s *Service) collectPostComments(ctx context.Context, post *RedditPost) {
 }
 
 // processComment processes a single Reddit comment
-func (s *Service) processComment(ctx context.Context, comment *RedditComment, postID string) error {
+func (s *Service) processComment(ctx context.Context, comment *common.RedditComment, postID string) error {
 	// Check if already processed
 	cacheKey := fmt.Sprintf("reddit:processed:comment:%s", comment.ID)
 	if exists, _ := s.cache.Exists(ctx, cacheKey); exists {
@@ -317,11 +318,11 @@ func (s *Service) performTrendAnalysis(ctx context.Context) error {
 
 	// This would implement comprehensive trend analysis
 	// For now, it's a simplified version
-	trendData := TrendAnalysis{
+	trendData := common.TrendAnalysis{
 		ID:          generateTrendID(),
 		Timeframe:   "hourly",
 		GeneratedAt: time.Now(),
-		Metrics: TrendMetrics{
+		Metrics: common.TrendMetrics{
 			PostCount:      int(s.stats.PostsCollected),
 			CommentCount:   int(s.stats.CommentsCollected),
 			EngagementRate: 0.75, // Placeholder

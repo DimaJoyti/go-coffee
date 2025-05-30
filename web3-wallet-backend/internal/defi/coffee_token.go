@@ -3,16 +3,15 @@ package defi
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // Coffee Token contract addresses (to be deployed)
@@ -36,7 +35,7 @@ type CoffeeTokenClient struct {
 	bscClient     *blockchain.EthereumClient
 	polygonClient *blockchain.EthereumClient
 	logger        *logger.Logger
-	
+
 	// Contract ABI
 	tokenABI abi.ABI
 }
@@ -63,7 +62,7 @@ func NewCoffeeTokenClient(
 
 // GetTokenInfo retrieves Coffee Token information
 func (ctc *CoffeeTokenClient) GetTokenInfo(ctx context.Context, chain Chain) (*CoffeeToken, error) {
-	ctc.logger.Info("Getting Coffee Token info", "chain", chain)
+	ctc.logger.Info("Getting Coffee Token info", zap.String("chain", string(chain)))
 
 	// Get token address for chain
 	tokenAddress := ctc.getTokenAddress(chain)
@@ -73,15 +72,19 @@ func (ctc *CoffeeTokenClient) GetTokenInfo(ctx context.Context, chain Chain) (*C
 
 	// In a real implementation, you would query the contract for current data
 	// For now, return mock data
+	totalSupply, _ := decimal.NewFromString(CoffeeTokenTotalSupply)
+	circulatingSupply, _ := decimal.NewFromString("750000000")
+	rewardsPool, _ := decimal.NewFromString("50000000")
+
 	coffeeToken := &CoffeeToken{
 		Address:           tokenAddress,
 		Chain:             chain,
-		TotalSupply:       decimal.NewFromString(CoffeeTokenTotalSupply),
-		CirculatingSupply: decimal.NewFromString("750000000"), // 75% circulating
+		TotalSupply:       totalSupply,
+		CirculatingSupply: circulatingSupply, // 75% circulating
 		Price:             decimal.NewFromFloat(0.05),          // $0.05 per COFFEE
 		MarketCap:         decimal.NewFromFloat(37500000),      // $37.5M market cap
 		StakingAPY:        decimal.NewFromFloat(0.12),          // 12% staking APY
-		RewardsPool:       decimal.NewFromString("50000000"),   // 50M tokens in rewards pool
+		RewardsPool:       rewardsPool,   // 50M tokens in rewards pool
 	}
 
 	return coffeeToken, nil
@@ -89,9 +92,9 @@ func (ctc *CoffeeTokenClient) GetTokenInfo(ctx context.Context, chain Chain) (*C
 
 // GetBalance retrieves Coffee Token balance for an address
 func (ctc *CoffeeTokenClient) GetBalance(ctx context.Context, chain Chain, address string) (decimal.Decimal, error) {
-	ctc.logger.Info("Getting Coffee Token balance", "chain", chain, "address", address)
+	ctc.logger.Info("Getting Coffee Token balance", zap.String("chain", string(chain)), zap.String("address", address))
 
-	client, err := ctc.getBlockchainClient(chain)
+	_, err := ctc.getBlockchainClient(chain)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -110,13 +113,13 @@ func (ctc *CoffeeTokenClient) GetBalance(ctx context.Context, chain Chain, addre
 
 // Transfer transfers Coffee Tokens
 func (ctc *CoffeeTokenClient) Transfer(ctx context.Context, chain Chain, from, to string, amount decimal.Decimal, privateKey string) (string, error) {
-	ctc.logger.Info("Transferring Coffee Tokens", 
-		"chain", chain, 
-		"from", from, 
-		"to", to, 
-		"amount", amount)
+	ctc.logger.Info("Transferring Coffee Tokens",
+		zap.String("chain", string(chain)),
+		zap.String("from", from),
+		zap.String("to", to),
+		zap.String("amount", amount.String()))
 
-	client, err := ctc.getBlockchainClient(chain)
+	_, err := ctc.getBlockchainClient(chain)
 	if err != nil {
 		return "", err
 	}
@@ -133,17 +136,17 @@ func (ctc *CoffeeTokenClient) Transfer(ctx context.Context, chain Chain, from, t
 
 	// For now, return mock transaction hash
 	txHash := "0x" + strings.Repeat("c", 64)
-	ctc.logger.Info("Coffee Token transfer successful", "txHash", txHash)
+	ctc.logger.Info("Coffee Token transfer successful", zap.String("txHash", txHash))
 
 	return txHash, nil
 }
 
 // Stake stakes Coffee Tokens for rewards
 func (ctc *CoffeeTokenClient) Stake(ctx context.Context, userID string, chain Chain, amount decimal.Decimal) (*CoffeeStaking, error) {
-	ctc.logger.Info("Staking Coffee Tokens", 
-		"userID", userID, 
-		"chain", chain, 
-		"amount", amount)
+	ctc.logger.Info("Staking Coffee Tokens",
+		zap.String("userID", userID),
+		zap.String("chain", string(chain)),
+		zap.String("amount", amount.String()))
 
 	// Create staking position
 	staking := &CoffeeStaking{
@@ -162,14 +165,14 @@ func (ctc *CoffeeTokenClient) Stake(ctx context.Context, userID string, chain Ch
 	// 2. Transfer tokens to staking contract
 	// 3. Update staking records in database
 
-	ctc.logger.Info("Coffee Token staking successful", "stakingID", staking.ID)
+	ctc.logger.Info("Coffee Token staking successful", zap.String("stakingID", staking.ID))
 
 	return staking, nil
 }
 
 // Unstake unstakes Coffee Tokens
 func (ctc *CoffeeTokenClient) Unstake(ctx context.Context, stakingID string) (decimal.Decimal, error) {
-	ctc.logger.Info("Unstaking Coffee Tokens", "stakingID", stakingID)
+	ctc.logger.Info("Unstaking Coffee Tokens", zap.String("stakingID", stakingID))
 
 	// In a real implementation, you would:
 	// 1. Get staking position from database
@@ -180,16 +183,16 @@ func (ctc *CoffeeTokenClient) Unstake(ctx context.Context, stakingID string) (de
 	// For now, return mock unstaked amount
 	unstakedAmount := decimal.NewFromFloat(1100.0) // Original + rewards
 
-	ctc.logger.Info("Coffee Token unstaking successful", 
-		"stakingID", stakingID, 
-		"amount", unstakedAmount)
+	ctc.logger.Info("Coffee Token unstaking successful",
+		zap.String("stakingID", stakingID),
+		zap.String("amount", unstakedAmount.String()))
 
 	return unstakedAmount, nil
 }
 
 // ClaimRewards claims staking rewards
 func (ctc *CoffeeTokenClient) ClaimRewards(ctx context.Context, stakingID string) (decimal.Decimal, error) {
-	ctc.logger.Info("Claiming Coffee Token rewards", "stakingID", stakingID)
+	ctc.logger.Info("Claiming Coffee Token rewards", zap.String("stakingID", stakingID))
 
 	// In a real implementation, you would:
 	// 1. Get staking position from database
@@ -200,16 +203,16 @@ func (ctc *CoffeeTokenClient) ClaimRewards(ctx context.Context, stakingID string
 	// For now, return mock rewards
 	rewards := decimal.NewFromFloat(50.0) // 50 COFFEE tokens
 
-	ctc.logger.Info("Coffee Token rewards claimed", 
-		"stakingID", stakingID, 
-		"rewards", rewards)
+	ctc.logger.Info("Coffee Token rewards claimed",
+		zap.String("stakingID", stakingID),
+		zap.String("rewards", rewards.String()))
 
 	return rewards, nil
 }
 
 // GetStakingPosition retrieves staking position
 func (ctc *CoffeeTokenClient) GetStakingPosition(ctx context.Context, stakingID string) (*CoffeeStaking, error) {
-	ctc.logger.Info("Getting Coffee Token staking position", "stakingID", stakingID)
+	ctc.logger.Info("Getting Coffee Token staking position", zap.String("stakingID", stakingID))
 
 	// In a real implementation, you would query the database
 	// For now, return mock staking position
@@ -229,7 +232,7 @@ func (ctc *CoffeeTokenClient) GetStakingPosition(ctx context.Context, stakingID 
 
 // GetUserStakingPositions retrieves all staking positions for a user
 func (ctc *CoffeeTokenClient) GetUserStakingPositions(ctx context.Context, userID string) ([]CoffeeStaking, error) {
-	ctc.logger.Info("Getting user Coffee Token staking positions", "userID", userID)
+	ctc.logger.Info("Getting user Coffee Token staking positions", zap.String("userID", userID))
 
 	// In a real implementation, you would query the database
 	// For now, return mock staking positions
@@ -261,7 +264,7 @@ func (ctc *CoffeeTokenClient) GetUserStakingPositions(ctx context.Context, userI
 
 // CalculatePendingRewards calculates pending rewards for a staking position
 func (ctc *CoffeeTokenClient) CalculatePendingRewards(ctx context.Context, stakingID string) (decimal.Decimal, error) {
-	ctc.logger.Info("Calculating pending Coffee Token rewards", "stakingID", stakingID)
+	ctc.logger.Info("Calculating pending Coffee Token rewards", zap.String("stakingID", stakingID))
 
 	// Get staking position
 	staking, err := ctc.GetStakingPosition(ctx, stakingID)
@@ -326,6 +329,6 @@ func (ctc *CoffeeTokenClient) loadABI() {
 	var err error
 	ctc.tokenABI, err = abi.JSON(strings.NewReader(tokenABIJSON))
 	if err != nil {
-		ctc.logger.Error("Failed to parse token ABI", "error", err)
+		ctc.logger.Error("Failed to parse token ABI", zap.Error(err))
 	}
 }

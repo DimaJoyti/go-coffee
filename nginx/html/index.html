@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fintech Platform - API Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .card p {
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+
+        .card a {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: opacity 0.3s ease;
+        }
+
+        .card a:hover {
+            opacity: 0.9;
+        }
+
+        .status {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .status h3 {
+            color: #667eea;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-item span:first-child {
+            font-weight: 500;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #28a745;
+        }
+
+        .status-indicator.warning {
+            background: #ffc107;
+        }
+
+        .status-indicator.error {
+            background: #dc3545;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 3rem;
+            opacity: 0.8;
+        }
+
+        .api-endpoints {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin-top: 2rem;
+        }
+
+        .api-endpoints h3 {
+            color: #667eea;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .endpoint {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .method {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            margin-right: 1rem;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .method.get { background: #28a745; }
+        .method.post { background: #007bff; }
+        .method.put { background: #ffc107; color: #333; }
+        .method.delete { background: #dc3545; }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏦 Fintech Platform</h1>
+            <p>Enterprise-grade financial services API with Web3 integration</p>
+        </div>
+
+        <div class="cards">
+            <div class="card">
+                <h3>📚 API Documentation</h3>
+                <p>Comprehensive API documentation with interactive examples and authentication guides.</p>
+                <a href="/docs" target="_blank">View Documentation</a>
+            </div>
+
+            <div class="card">
+                <h3>📊 Monitoring Dashboard</h3>
+                <p>Real-time monitoring, metrics, and performance analytics for all platform services.</p>
+                <a href="/grafana" target="_blank">Open Dashboard</a>
+            </div>
+
+            <div class="card">
+                <h3>🔍 Metrics & Alerts</h3>
+                <p>Prometheus metrics collection and alerting for system health monitoring.</p>
+                <a href="/prometheus" target="_blank">View Metrics</a>
+            </div>
+
+            <div class="card">
+                <h3>🧪 API Testing</h3>
+                <p>Interactive API testing interface with Swagger UI for all endpoints.</p>
+                <a href="http://localhost:8081" target="_blank">Test APIs</a>
+            </div>
+
+            <div class="card">
+                <h3>🗄️ Database Admin</h3>
+                <p>PostgreSQL database administration interface for data management.</p>
+                <a href="http://localhost:5050" target="_blank">Database Admin</a>
+            </div>
+
+            <div class="card">
+                <h3>⚡ Cache Admin</h3>
+                <p>Redis cache administration and monitoring interface.</p>
+                <a href="http://localhost:8001" target="_blank">Redis Admin</a>
+            </div>
+        </div>
+
+        <div class="status">
+            <h3>🚀 Service Status</h3>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span>Fintech API</span>
+                    <div class="status-indicator" id="api-status"></div>
+                </div>
+                <div class="status-item">
+                    <span>Database</span>
+                    <div class="status-indicator" id="db-status"></div>
+                </div>
+                <div class="status-item">
+                    <span>Cache</span>
+                    <div class="status-indicator" id="cache-status"></div>
+                </div>
+                <div class="status-item">
+                    <span>Monitoring</span>
+                    <div class="status-indicator" id="monitoring-status"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-endpoints">
+            <h3>🔗 Core API Endpoints</h3>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span>/health - System health check</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span>/api/v1/accounts/register - Create new account</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span>/api/v1/accounts/login - User authentication</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span>/api/v1/accounts/me - Get current account</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span>/api/v1/payments - Create payment</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span>/api/v1/payments - List payments</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span>/api/v1/yield/positions - Create yield position</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span>/api/v1/yield/protocols - List DeFi protocols</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span>/api/v1/trading/orders - Create trading order</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span>/api/v1/trading/portfolio - Get portfolio</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method post">POST</span>
+                <span>/api/v1/cards - Create payment card</span>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method get">GET</span>
+                <span>/api/v1/cards - List cards</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2024 Fintech Platform. Built with Go, PostgreSQL, Redis, and modern fintech best practices.</p>
+            <p>Version 1.0.0 | Environment: Development</p>
+        </div>
+    </div>
+
+    <script>
+        // Check service health
+        async function checkServiceHealth() {
+            const services = [
+                { id: 'api-status', url: '/health' },
+                { id: 'db-status', url: '/health' }, // API health includes DB check
+                { id: 'cache-status', url: '/health' }, // API health includes cache check
+                { id: 'monitoring-status', url: '/prometheus/api/v1/query?query=up' }
+            ];
+
+            for (const service of services) {
+                try {
+                    const response = await fetch(service.url);
+                    const indicator = document.getElementById(service.id);
+                    
+                    if (response.ok) {
+                        indicator.className = 'status-indicator';
+                    } else {
+                        indicator.className = 'status-indicator warning';
+                    }
+                } catch (error) {
+                    const indicator = document.getElementById(service.id);
+                    indicator.className = 'status-indicator error';
+                }
+            }
+        }
+
+        // Check health on page load
+        checkServiceHealth();
+
+        // Refresh health status every 30 seconds
+        setInterval(checkServiceHealth, 30000);
+
+        // Add some interactivity
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('click', function() {
+                const link = this.querySelector('a');
+                if (link) {
+                    window.open(link.href, link.target || '_self');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

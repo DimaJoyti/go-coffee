@@ -15,6 +15,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -27,53 +28,53 @@ func main() {
 	}
 
 	// Initialize logger
-	logger := logger.New(cfg.Logger.Level, cfg.Logger.Format)
+	logger := logger.NewLogger(cfg.Logging)
 	defer logger.Sync()
 
 	// Initialize Redis client
-	redisClient, err := redis.NewClient(cfg.Redis)
+	redisClient, err := redis.NewClientFromConfig(&cfg.Redis)
 	if err != nil {
-		logger.Fatal("Failed to create Redis client", "error", err)
+		logger.Fatal("Failed to create Redis client", zap.Error(err))
 	}
 	defer redisClient.Close()
 
 	// Initialize blockchain clients
 	ethClient, err := blockchain.NewEthereumClient(cfg.Blockchain.Ethereum, logger)
 	if err != nil {
-		logger.Fatal("Failed to create Ethereum client", "error", err)
+		logger.Fatal("Failed to create Ethereum client", zap.Error(err))
 	}
 	defer ethClient.Close()
 
 	bscClient, err := blockchain.NewEthereumClient(cfg.Blockchain.BSC, logger)
 	if err != nil {
-		logger.Fatal("Failed to create BSC client", "error", err)
+		logger.Fatal("Failed to create BSC client", zap.Error(err))
 	}
 	defer bscClient.Close()
 
 	polygonClient, err := blockchain.NewEthereumClient(cfg.Blockchain.Polygon, logger)
 	if err != nil {
-		logger.Fatal("Failed to create Polygon client", "error", err)
+		logger.Fatal("Failed to create Polygon client", zap.Error(err))
 	}
 	defer polygonClient.Close()
 
 	// Initialize Solana client
 	solanaClient, err := blockchain.NewSolanaClient(cfg.Blockchain.Solana, logger)
 	if err != nil {
-		logger.Fatal("Failed to create Solana client", "error", err)
+		logger.Fatal("Failed to create Solana client", zap.Error(err))
 	}
 	defer solanaClient.Close()
 
 	// Initialize Solana DeFi clients
 	raydiumClient, err := defi.NewRaydiumClient(cfg.Blockchain.Solana.RPCURL, logger)
 	if err != nil {
-		logger.Fatal("Failed to create Raydium client", "error", err)
+		logger.Fatal("Failed to create Raydium client", zap.Error(err))
 	}
 	defer raydiumClient.Close()
 
 	jupiterClient := defi.NewJupiterClient(logger)
 
 	// Initialize DeFi service
-	defiService := defi.NewService(
+	_ = defi.NewService(
 		ethClient,
 		bscClient,
 		polygonClient,
@@ -100,13 +101,13 @@ func main() {
 	// Start gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Services.DeFiService.GRPCPort))
 	if err != nil {
-		logger.Fatal("Failed to listen", "error", err)
+		logger.Fatal("Failed to listen", zap.Error(err))
 	}
 
 	go func() {
-		logger.Info("Starting DeFi gRPC server", "port", cfg.Services.DeFiService.GRPCPort)
+		logger.Info("Starting DeFi gRPC server", zap.Int("port", cfg.Services.DeFiService.GRPCPort))
 		if err := grpcServer.Serve(lis); err != nil {
-			logger.Fatal("Failed to serve gRPC", "error", err)
+			logger.Fatal("Failed to serve gRPC", zap.Error(err))
 		}
 	}()
 

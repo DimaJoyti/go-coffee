@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/shopspring/decimal"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // Chainlink price feed addresses on Ethereum mainnet
@@ -29,7 +30,7 @@ var ChainlinkPriceFeeds = map[string]string{
 type ChainlinkClient struct {
 	client *blockchain.EthereumClient
 	logger *logger.Logger
-	
+
 	// Contract ABI
 	aggregatorABI abi.ABI
 }
@@ -49,7 +50,7 @@ func NewChainlinkClient(client *blockchain.EthereumClient, logger *logger.Logger
 
 // GetTokenPrice retrieves token price from Chainlink price feed
 func (cc *ChainlinkClient) GetTokenPrice(ctx context.Context, tokenAddress string) (decimal.Decimal, error) {
-	cc.logger.Info("Getting token price from Chainlink", "tokenAddress", tokenAddress)
+	cc.logger.Info("Getting token price from Chainlink", zap.String("tokenAddress", tokenAddress))
 
 	// Map token address to price feed
 	priceFeedAddress, err := cc.getPriceFeedAddress(tokenAddress)
@@ -63,26 +64,26 @@ func (cc *ChainlinkClient) GetTokenPrice(ctx context.Context, tokenAddress strin
 		return decimal.Zero, err
 	}
 
-	cc.logger.Info("Retrieved token price", 
-		"tokenAddress", tokenAddress, 
-		"price", price,
-		"priceFeed", priceFeedAddress)
+	cc.logger.Info("Retrieved token price",
+		zap.String("tokenAddress", tokenAddress),
+		zap.String("price", price.String()),
+		zap.String("priceFeed", priceFeedAddress))
 
 	return price, nil
 }
 
 // GetLatestRoundData retrieves the latest round data from a price feed
 func (cc *ChainlinkClient) GetLatestRoundData(ctx context.Context, priceFeedAddress string) (*ChainlinkRoundData, error) {
-	cc.logger.Info("Getting latest round data from Chainlink", "priceFeed", priceFeedAddress)
+	cc.logger.Info("Getting latest round data from Chainlink", zap.String("priceFeed", priceFeedAddress))
 
 	// In a real implementation, you would call latestRoundData() on the price feed contract
 	// For now, return mock data
 	roundData := &ChainlinkRoundData{
-		RoundID:         big.NewInt(18446744073709562300),
+		RoundID:         big.NewInt(1844674407370956230),
 		Answer:          big.NewInt(250000000000), // $2500.00 with 8 decimals
 		StartedAt:       big.NewInt(time.Now().Unix()),
 		UpdatedAt:       big.NewInt(time.Now().Unix()),
-		AnsweredInRound: big.NewInt(18446744073709562300),
+		AnsweredInRound: big.NewInt(1844674407370956230),
 	}
 
 	return roundData, nil
@@ -90,9 +91,9 @@ func (cc *ChainlinkClient) GetLatestRoundData(ctx context.Context, priceFeedAddr
 
 // GetHistoricalPrice retrieves historical price data
 func (cc *ChainlinkClient) GetHistoricalPrice(ctx context.Context, tokenAddress string, timestamp time.Time) (decimal.Decimal, error) {
-	cc.logger.Info("Getting historical price from Chainlink", 
-		"tokenAddress", tokenAddress, 
-		"timestamp", timestamp)
+	cc.logger.Info("Getting historical price from Chainlink",
+		zap.String("tokenAddress", tokenAddress),
+		zap.Time("timestamp", timestamp))
 
 	// Map token address to price feed
 	priceFeedAddress, err := cc.getPriceFeedAddress(tokenAddress)
@@ -118,7 +119,7 @@ func (cc *ChainlinkClient) GetHistoricalPrice(ctx context.Context, tokenAddress 
 
 // GetPriceFeedInfo retrieves information about a price feed
 func (cc *ChainlinkClient) GetPriceFeedInfo(ctx context.Context, priceFeedAddress string) (*ChainlinkPriceFeedInfo, error) {
-	cc.logger.Info("Getting price feed info from Chainlink", "priceFeed", priceFeedAddress)
+	cc.logger.Info("Getting price feed info from Chainlink", zap.String("priceFeed", priceFeedAddress))
 
 	// In a real implementation, you would call various methods on the price feed contract
 	// For now, return mock data
@@ -134,16 +135,16 @@ func (cc *ChainlinkClient) GetPriceFeedInfo(ctx context.Context, priceFeedAddres
 
 // GetMultiplePrices retrieves prices for multiple tokens
 func (cc *ChainlinkClient) GetMultiplePrices(ctx context.Context, tokenAddresses []string) (map[string]decimal.Decimal, error) {
-	cc.logger.Info("Getting multiple token prices from Chainlink", "count", len(tokenAddresses))
+	cc.logger.Info("Getting multiple token prices from Chainlink", zap.Int("count", len(tokenAddresses)))
 
 	prices := make(map[string]decimal.Decimal)
 
 	for _, tokenAddress := range tokenAddresses {
 		price, err := cc.GetTokenPrice(ctx, tokenAddress)
 		if err != nil {
-			cc.logger.Warn("Failed to get price for token", 
-				"tokenAddress", tokenAddress, 
-				"error", err)
+			cc.logger.Warn("Failed to get price for token",
+				zap.String("tokenAddress", tokenAddress),
+				zap.Error(err))
 			continue
 		}
 		prices[tokenAddress] = price
@@ -154,7 +155,7 @@ func (cc *ChainlinkClient) GetMultiplePrices(ctx context.Context, tokenAddresses
 
 // SubscribeToPriceFeed subscribes to price feed updates (WebSocket)
 func (cc *ChainlinkClient) SubscribeToPriceFeed(ctx context.Context, priceFeedAddress string, callback func(*ChainlinkRoundData)) error {
-	cc.logger.Info("Subscribing to price feed updates", "priceFeed", priceFeedAddress)
+	cc.logger.Info("Subscribing to price feed updates", zap.String("priceFeed", priceFeedAddress))
 
 	// In a real implementation, you would:
 	// 1. Subscribe to AnswerUpdated events
@@ -173,7 +174,7 @@ func (cc *ChainlinkClient) SubscribeToPriceFeed(ctx context.Context, priceFeedAd
 			case <-ticker.C:
 				roundData, err := cc.GetLatestRoundData(ctx, priceFeedAddress)
 				if err != nil {
-					cc.logger.Error("Failed to get latest round data", "error", err)
+					cc.logger.Error("Failed to get latest round data", zap.Error(err))
 					continue
 				}
 				callback(roundData)
@@ -246,7 +247,7 @@ func (cc *ChainlinkClient) loadABI() {
 	var err error
 	cc.aggregatorABI, err = abi.JSON(strings.NewReader(aggregatorABIJSON))
 	if err != nil {
-		cc.logger.Error("Failed to parse aggregator ABI", "error", err)
+		cc.logger.Error("Failed to parse aggregator ABI", zap.Error(err))
 	}
 }
 

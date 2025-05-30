@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package security;
 
-option go_package = "github.com/yourusername/web3-wallet-backend/api/proto/security";
+option go_package = "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/security";
 
 // SecurityService provides security operations
 service SecurityService {

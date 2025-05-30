@@ -1,0 +1,166 @@
+# Multi-stage build for Fintech Platform
+FROM golang:1.21-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build different targets
+ARG TARGET=fintech-api
+
+# Build the fintech API
+FROM builder AS fintech-api-builder
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o fintech-api ./cmd/fintech-api/main.go
+
+# Build the content analysis service
+FROM builder AS content-analysis-builder
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o content-analysis-service ./cmd/content-analysis-service/main.go
+
+# Build job processor
+FROM builder AS job-processor-builder
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o job-processor ./cmd/job-processor/main.go
+
+# Build webhook processor
+FROM builder AS webhook-processor-builder
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o webhook-processor ./cmd/webhook-processor/main.go
+
+# Final stage for fintech-api
+FROM alpine:latest AS fintech-api
+
+# Install ca-certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates curl
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=fintech-api-builder /app/fintech-api .
+
+# Copy configuration files
+COPY --from=builder /app/config ./config
+
+# Create directories for logs
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose ports
+EXPOSE 8080 9090
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run the application
+CMD ["./fintech-api"]
+
+# Final stage for content-analysis-service
+FROM alpine:latest AS content-analysis-service
+
+# Install ca-certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates curl
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=content-analysis-builder /app/content-analysis-service .
+
+# Copy configuration files
+COPY --from=builder /app/config ./config
+
+# Create directories for logs
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8085
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8085/health || exit 1
+
+# Run the application
+CMD ["./content-analysis-service"]
+
+# Final stage for job-processor
+FROM alpine:latest AS job-processor
+
+# Install ca-certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=job-processor-builder /app/job-processor .
+
+# Copy configuration files
+COPY --from=builder /app/config ./config
+
+# Create directories for logs
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Run the application
+CMD ["./job-processor"]
+
+# Final stage for webhook-processor
+FROM alpine:latest AS webhook-processor
+
+# Install ca-certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=webhook-processor-builder /app/webhook-processor .
+
+# Copy configuration files
+COPY --from=builder /app/config ./config
+
+# Create directories for logs
+RUN mkdir -p /app/logs && \
+    chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Run the application
+CMD ["./webhook-processor"]

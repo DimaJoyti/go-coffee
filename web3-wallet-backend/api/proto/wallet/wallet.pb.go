@@ -284,7 +284,7 @@ func _WalletService_CreateWallet_Handler(srv interface{}, ctx context.Context, d
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WalletServiceServer).CreateWallet(ctx, req.(*CreateWalletRequest))
 	}
-	return interceptor(ctx, info, handler)
+	return interceptor(ctx, in, info, handler)
 }
 
 func _WalletService_GetBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -302,7 +302,7 @@ func _WalletService_GetBalance_Handler(srv interface{}, ctx context.Context, dec
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WalletServiceServer).GetBalance(ctx, req.(*WalletRequest))
 	}
-	return interceptor(ctx, info, handler)
+	return interceptor(ctx, in, info, handler)
 }
 
 func _WalletService_SendTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -320,5 +320,5 @@ func _WalletService_SendTransaction_Handler(srv interface{}, ctx context.Context
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WalletServiceServer).SendTransaction(ctx, req.(*WalletRequest))
 	}
-	return interceptor(ctx, info, handler)
+	return interceptor(ctx, in, info, handler)
 }

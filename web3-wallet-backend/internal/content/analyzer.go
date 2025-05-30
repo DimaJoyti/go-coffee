@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/reddit"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common" // New import for common models
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
@@ -33,7 +33,7 @@ func NewAnalyzer(cfg config.ContentAnalysisConfig, logger *logger.Logger, aiServ
 }
 
 // AnalyzePost analyzes a Reddit post for classification, sentiment, and topics
-func (a *Analyzer) AnalyzePost(ctx context.Context, post *reddit.RedditPost) (*reddit.ContentClassification, error) {
+func (a *Analyzer) AnalyzePost(ctx context.Context, post *common.RedditPost) (*common.ContentClassification, error) {
 	a.logger.Info(fmt.Sprintf("Analyzing post: %s", post.ID))
 
 	// Check cache first
@@ -53,7 +53,7 @@ func (a *Analyzer) AnalyzePost(ctx context.Context, post *reddit.RedditPost) (*r
 	}
 
 	// Perform analysis
-	classification := &reddit.ContentClassification{
+	classification := &common.ContentClassification{
 		ID:          generateID(),
 		ContentID:   post.ID,
 		ContentType: "post",
@@ -96,7 +96,7 @@ func (a *Analyzer) AnalyzePost(ctx context.Context, post *reddit.RedditPost) (*r
 }
 
 // AnalyzeComment analyzes a Reddit comment
-func (a *Analyzer) AnalyzeComment(ctx context.Context, comment *reddit.RedditComment) (*reddit.ContentClassification, error) {
+func (a *Analyzer) AnalyzeComment(ctx context.Context, comment *common.RedditComment) (*common.ContentClassification, error) {
 	a.logger.Info(fmt.Sprintf("Analyzing comment: %s", comment.ID))
 
 	// Check cache first
@@ -116,7 +116,7 @@ func (a *Analyzer) AnalyzeComment(ctx context.Context, comment *reddit.RedditCom
 	}
 
 	// Perform analysis
-	classification := &reddit.ContentClassification{
+	classification := &common.ContentClassification{
 		ID:          generateID(),
 		ContentID:   comment.ID,
 		ContentType: "comment",
@@ -159,7 +159,7 @@ func (a *Analyzer) AnalyzeComment(ctx context.Context, comment *reddit.RedditCom
 }
 
 // classifyContent classifies content into categories
-func (a *Analyzer) classifyContent(ctx context.Context, content string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) classifyContent(ctx context.Context, content string, classification *common.ContentClassification) error {
 	prompt := a.buildClassificationPrompt(content)
 
 	req := &ai.GenerateRequest{
@@ -187,7 +187,7 @@ func (a *Analyzer) classifyContent(ctx context.Context, content string, classifi
 }
 
 // analyzeSentiment analyzes sentiment of content
-func (a *Analyzer) analyzeSentiment(ctx context.Context, content string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) analyzeSentiment(ctx context.Context, content string, classification *common.ContentClassification) error {
 	prompt := a.buildSentimentPrompt(content)
 
 	req := &ai.GenerateRequest{
@@ -214,7 +214,7 @@ func (a *Analyzer) analyzeSentiment(ctx context.Context, content string, classif
 }
 
 // extractTopics extracts topics from content
-func (a *Analyzer) extractTopics(ctx context.Context, content string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) extractTopics(ctx context.Context, content string, classification *common.ContentClassification) error {
 	prompt := a.buildTopicExtractionPrompt(content)
 
 	req := &ai.GenerateRequest{
@@ -338,7 +338,7 @@ func (a *Analyzer) parseClassificationResponse(response string, classification *
 }
 
 // parseSentimentResponse parses AI sentiment analysis response
-func (a *Analyzer) parseSentimentResponse(response string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) parseSentimentResponse(response string, classification *common.ContentClassification) error {
 	// Try to extract JSON from response
 	jsonStart := strings.Index(response, "{")
 	jsonEnd := strings.LastIndex(response, "}") + 1
@@ -360,7 +360,7 @@ func (a *Analyzer) parseSentimentResponse(response string, classification *reddi
 		return a.parseSentimentFallback(response, classification)
 	}
 
-	classification.Sentiment = reddit.SentimentAnalysis{
+	classification.Sentiment = common.SentimentAnalysis{
 		Label:        result.Label,
 		Score:        result.Score,
 		Magnitude:    result.Magnitude,
@@ -371,7 +371,7 @@ func (a *Analyzer) parseSentimentResponse(response string, classification *reddi
 }
 
 // parseTopicsResponse parses AI topic extraction response
-func (a *Analyzer) parseTopicsResponse(response string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) parseTopicsResponse(response string, classification *common.ContentClassification) error {
 	// Try to extract JSON from response
 	jsonStart := strings.Index(response, "{")
 	jsonEnd := strings.LastIndex(response, "}") + 1
@@ -409,7 +409,7 @@ func (a *Analyzer) parseTopicsResponse(response string, classification *reddit.C
 }
 
 // Fallback parsing methods for when JSON parsing fails
-func (a *Analyzer) parseClassificationFallback(response string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) parseClassificationFallback(response string, classification *common.ContentClassification) error {
 	// Simple keyword-based classification
 	response = strings.ToLower(response)
 
@@ -430,10 +430,10 @@ func (a *Analyzer) parseClassificationFallback(response string, classification *
 	return nil
 }
 
-func (a *Analyzer) parseSentimentFallback(response string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) parseSentimentFallback(response string, classification *common.ContentClassification) error {
 	response = strings.ToLower(response)
-
-	sentiment := reddit.SentimentAnalysis{
+ 
+	sentiment := common.SentimentAnalysis{
 		Label:        "neutral",
 		Score:        0.5,
 		Magnitude:    0.5,
@@ -453,7 +453,7 @@ func (a *Analyzer) parseSentimentFallback(response string, classification *reddi
 	return nil
 }
 
-func (a *Analyzer) parseTopicsFallback(response string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) parseTopicsFallback(response string, classification *common.ContentClassification) error {
 	// Extract simple topics from response
 	words := strings.Fields(strings.ToLower(response))
 	topicMap := make(map[string]int)

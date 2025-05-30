@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/crypto"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 // Service provides security operations
 type Service struct {
-	keyManager *crypto.KeyManager
-	logger     *logger.Logger
-	jwtSecret  string
-	jwtExpiry  time.Duration
+	keyManager    *crypto.KeyManager
+	logger        *logger.Logger
+	jwtSecret     string
+	jwtExpiry     time.Duration
 	refreshExpiry time.Duration
 }
 

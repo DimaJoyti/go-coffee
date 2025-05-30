@@ -65,16 +65,16 @@ docs/
 └── TELEGRAM_BOT.md             # Documentation
 ```
 
-## 🚀 Швидкий Старт
+## 🚀 Quick Start
 
-### 1. Створення Telegram Бота
+### 1. Creating Telegram Bot
 
-1. Знайдіть **@BotFather** в Telegram
-2. Відправте `/newbot`
-3. Дотримуйтесь інструкцій
-4. Збережіть отриманий токен
+1. Find **@BotFather** in Telegram
+2. Send `/newbot`
+3. Follow the instructions
+4. Save the received token
 
-### 2. Налаштування Environment Variables
+### 2. Setting up Environment Variables
 
 ```bash
 # Windows PowerShell
@@ -86,79 +86,79 @@ export TELEGRAM_BOT_TOKEN="your_bot_token_here"
 export GEMINI_API_KEY="your_gemini_api_key"
 ```
 
-### 3. Запуск через Docker
+### 3. Running with Docker
 
 ```bash
-# Перейдіть в директорію проекту
+# Navigate to project directory
 cd web3-wallet-backend
 
-# Запустіть скрипт
+# Run the script
 ./scripts/start-telegram-bot.sh start
 
-# Або вручну
+# Or manually
 cd deployments/telegram-bot
 docker-compose up -d
 ```
 
-### 4. Запуск для розробки
+### 4. Running for Development
 
 ```bash
-# Встановіть залежності
+# Install dependencies
 go mod tidy
 
-# Запустіть Redis
+# Start Redis
 docker run -d -p 6379:6379 redis:alpine
 
-# Запустіть Ollama (опціонально)
+# Start Ollama (optional)
 docker run -d -p 11434:11434 ollama/ollama
 docker exec -it ollama ollama pull llama3.1
 
-# Запустіть бота
+# Start the bot
 go run cmd/telegram-bot/main.go
 ```
 
-## 🎯 Основні Команди Бота
+## 🎯 Main Bot Commands
 
-| Команда | Функція |
-|---------|---------|
-| `/start` | Початок роботи та налаштування гаманця |
-| `/wallet` | Управління Web3 гаманцем |
-| `/balance` | Перевірка балансу криптовалют |
-| `/coffee` | Замовлення кави з AI |
-| `/menu` | Перегляд меню |
-| `/orders` | Історія замовлень |
-| `/pay` | Криптоплатежі |
-| `/settings` | Налаштування |
-| `/help` | Допомога |
+| Command | Function |
+|---------|----------|
+| `/start` | Start working and wallet setup |
+| `/wallet` | Web3 wallet management |
+| `/balance` | Check cryptocurrency balance |
+| `/coffee` | Order coffee with AI |
+| `/menu` | View menu |
+| `/orders` | Order history |
+| `/pay` | Crypto payments |
+| `/settings` | Settings |
+| `/help` | Help |
 
-## 💬 Приклади Використання
+## 💬 Usage Examples
 
-### Замовлення Кави
+### Coffee Ordering
 
 ```
-👤 Користувач: "Хочу латте з додатковим молоком"
-🤖 Бот: "✅ Зрозумів! Латте Medium з додатковим молоком - $6.00"
-     [✅ Підтвердити] [✏️ Змінити] [❌ Скасувати]
+👤 User: "I want a latte with extra milk"
+🤖 Bot: "✅ Got it! Medium Latte with extra milk - $6.00"
+     [✅ Confirm] [✏️ Change] [❌ Cancel]
 
-👤 Користувач: [Підтвердити]
-🤖 Бот: "🎉 Замовлення підтверджено! Оберіть спосіб оплати:"
+👤 User: [Confirm]
+🤖 Bot: "🎉 Order confirmed! Choose payment method:"
      [₿ Bitcoin] [Ξ Ethereum] [💵 USDC] [💵 USDT]
 ```
 
-### Створення Гаманця
+### Wallet Creation
 
 ```
-👤 Користувач: /wallet
-🤖 Бот: "🔐 Управління гаманцем"
-     [🆕 Створити новий] [📥 Імпортувати]
+👤 User: /wallet
+🤖 Bot: "🔐 Wallet Management"
+     [🆕 Create New] [📥 Import]
 
-👤 Користувач: [Створити новий]
-🤖 Бот: "✅ Гаманець створено успішно!
-     Адреса: 0x1234...
-     ⚠️ Збережіть seed фразу: abandon abandon..."
+👤 User: [Create New]
+🤖 Bot: "✅ Wallet created successfully!
+     Address: 0x1234...
+     ⚠️ Save seed phrase: abandon abandon..."
 ```
 
-## 🏗️ Архітектура
+## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -174,7 +174,7 @@ go run cmd/telegram-bot/main.go
         └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
-## 🔧 Конфігурація
+## 🔧 Configuration
 
 ### config/config.yaml
 
@@ -197,26 +197,26 @@ ai:
     model: "llama3.1"
 ```
 
-## 🧪 Тестування
+## 🧪 Testing
 
 ```bash
-# Unit тести
+# Unit tests
 go test ./internal/telegram/...
 go test ./internal/ai/...
 
-# Інтеграційні тести
+# Integration tests
 go test ./tests/integration/...
 
-# Тестування бота
-# 1. Запустіть бота
-# 2. Знайдіть його в Telegram
-# 3. Відправте /start
-# 4. Протестуйте команди
+# Bot testing
+# 1. Start the bot
+# 2. Find it in Telegram
+# 3. Send /start
+# 4. Test commands
 ```
 
-## 📊 Моніторинг
+## 📊 Monitoring
 
-### Доступні URL після запуску
+### Available URLs after startup
 
 - **Grafana**: <http://localhost:3000> (admin/admin)
 - **Prometheus**: <http://localhost:9090>
@@ -224,31 +224,31 @@ go test ./tests/integration/...
 - **PostgreSQL**: localhost:5432
 - **Ollama**: <http://localhost:11434>
 
-### Логи
+### Logs
 
 ```bash
-# Перегляд логів бота
+# View bot logs
 docker-compose logs -f telegram-bot
 
-# Або через скрипт
+# Or via script
 ./scripts/start-telegram-bot.sh logs
 ```
 
-## 🔒 Безпека
+## 🔒 Security
 
-### Важливі моменти
+### Important Points
 
-1. **Ніколи не діліться** TELEGRAM_BOT_TOKEN
-2. **Зберігайте в безпеці** GEMINI_API_KEY
-3. **Seed фрази** зберігаються тільки у користувача
-4. **Приватні ключі** не зберігаються на сервері
+1. **Never share** TELEGRAM_BOT_TOKEN
+2. **Keep secure** GEMINI_API_KEY
+3. **Seed phrases** are stored only with the user
+4. **Private keys** are not stored on the server
 
-### Рекомендації
+### Recommendations
 
-- Використовуйте `.env` файли для секретів
-- Налаштуйте HTTPS для webhook'ів
-- Регулярно оновлюйте залежності
-- Моніторьте логи на підозрілу активність
+- Use `.env` files for secrets
+- Configure HTTPS for webhooks
+- Regularly update dependencies
+- Monitor logs for suspicious activity
 
 ## 🚀 Production Deployment
 
@@ -274,7 +274,7 @@ spec:
               key: bot-token
 ```
 
-### Environment Variables для Production
+### Environment Variables for Production
 
 ```bash
 TELEGRAM_BOT_TOKEN=your_production_token
@@ -284,61 +284,61 @@ DB_HOST=your_production_db
 REDIS_HOST=your_production_redis
 ```
 
-## 🛠️ Розширення
+## 🛠️ Extensions
 
-### Додавання нових команд
+### Adding New Commands
 
-1. Додайте команду в `config.yaml`
-2. Створіть обробник в `handlers.go`
-3. Додайте логіку в `bot.go`
+1. Add command to `config.yaml`
+2. Create handler in `handlers.go`
+3. Add logic to `bot.go`
 
-### Додавання нових AI провайдерів
+### Adding New AI Providers
 
-1. Створіть клієнт в `internal/ai/`
-2. Реалізуйте `AIProviderInterface`
-3. Додайте в `service.go`
+1. Create client in `internal/ai/`
+2. Implement `AIProviderInterface`
+3. Add to `service.go`
 
-### Додавання нових криптовалют
+### Adding New Cryptocurrencies
 
-1. Оновіть `models/wallet.go`
-2. Додайте підтримку в `wallet` сервіс
-3. Оновіть UI в `callbacks.go`
+1. Update `models/wallet.go`
+2. Add support in `wallet` service
+3. Update UI in `callbacks.go`
 
 ## 🆘 Troubleshooting
 
-### Поширені проблеми
+### Common Issues
 
-1. **Бот не відповідає**
-   - Перевірте TELEGRAM_BOT_TOKEN
-   - Перевірте інтернет з'єднання
-   - Подивіться логи: `docker-compose logs telegram-bot`
+1. **Bot not responding**
+   - Check TELEGRAM_BOT_TOKEN
+   - Check internet connection
+   - View logs: `docker-compose logs telegram-bot`
 
-2. **AI не працює**
-   - Перевірте GEMINI_API_KEY
-   - Переконайтеся що Ollama запущений
-   - Перевірте квоти API
+2. **AI not working**
+   - Check GEMINI_API_KEY
+   - Make sure Ollama is running
+   - Check API quotas
 
-3. **База даних недоступна**
-   - Перевірте PostgreSQL: `docker-compose ps`
-   - Перевірте підключення: `docker-compose logs postgres`
+3. **Database unavailable**
+   - Check PostgreSQL: `docker-compose ps`
+   - Check connection: `docker-compose logs postgres`
 
-4. **Redis недоступний**
-   - Перевірте Redis: `docker-compose ps redis`
-   - Перевірте порт 6379
+4. **Redis unavailable**
+   - Check Redis: `docker-compose ps redis`
+   - Check port 6379
 
-## 📞 Підтримка
+## 📞 Support
 
-- **GitHub Issues**: [Створити issue](https://github.com/DimaJoyti/go-coffee/issues)
+- **GitHub Issues**: [Create issue](https://github.com/DimaJoyti/go-coffee/issues)
 - **Documentation**: [docs/TELEGRAM_BOT.md](docs/TELEGRAM_BOT.md)
 - **Email**: <support@web3coffee.com>
 
-## 🎉 Готово
+## 🎉 Ready
 
-Ваш Web3 Coffee Telegram бот готовий до використання!
+Your Web3 Coffee Telegram bot is ready to use!
 
-**Наступні кроки:**
+**Next steps:**
 
-1. Запустіть бота: `./scripts/start-telegram-bot.sh start`
-2. Знайдіть бота в Telegram
-3. Відправте `/start`
-4. Насолоджуйтесь замовленням кави з криптоплатежами! ☕️💎
+1. Start the bot: `./scripts/start-telegram-bot.sh start`
+2. Find the bot in Telegram
+3. Send `/start`
+4. Enjoy ordering coffee with crypto payments! ☕️💎

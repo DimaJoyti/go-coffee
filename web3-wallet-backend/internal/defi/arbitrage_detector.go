@@ -1,3 +1,8 @@
+// Package defi provides DeFi-related functionality including arbitrage detection,
+// yield farming, and liquidity management across multiple blockchain networks.
+//
+// This package implements Clean Architecture principles with clear separation
+// between business logic, data access, and external integrations.
 package defi
 
 import (
@@ -10,57 +15,143 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
-// ArbitrageDetector detects arbitrage opportunities across multiple DEXs
+// ArbitrageDetectorInterface defines the contract for arbitrage detection services.
+// This interface follows the Dependency Inversion Principle, allowing for easy
+// testing and different implementations.
+type ArbitrageDetectorInterface interface {
+	// Start begins the arbitrage detection process
+	Start(ctx context.Context) error
+
+	// Stop stops the arbitrage detection process
+	Stop()
+
+	// GetOpportunities returns current arbitrage opportunities
+	GetOpportunities(ctx context.Context) ([]*ArbitrageDetection, error)
+
+	// DetectArbitrageForToken detects arbitrage opportunities for a specific token
+	DetectArbitrageForToken(ctx context.Context, token Token) ([]*ArbitrageDetection, error)
+
+	// SetConfiguration updates detector configuration
+	SetConfiguration(config ArbitrageConfig) error
+
+	// GetMetrics returns performance metrics
+	GetMetrics() ArbitrageMetrics
+}
+
+// PriceProvider defines the interface for getting token prices from exchanges
+type PriceProvider interface {
+	GetPrice(ctx context.Context, token Token) (decimal.Decimal, error)
+	GetExchangeInfo() Exchange
+	IsHealthy(ctx context.Context) bool
+}
+
+// ArbitrageConfig holds configuration for the arbitrage detector
+type ArbitrageConfig struct {
+	MinProfitMargin decimal.Decimal `json:"min_profit_margin" yaml:"min_profit_margin"`
+	MaxGasCost      decimal.Decimal `json:"max_gas_cost" yaml:"max_gas_cost"`
+	ScanInterval    time.Duration   `json:"scan_interval" yaml:"scan_interval"`
+	MaxOpportunities int            `json:"max_opportunities" yaml:"max_opportunities"`
+	EnabledChains   []string        `json:"enabled_chains" yaml:"enabled_chains"`
+}
+
+// ArbitrageMetrics holds performance metrics for the arbitrage detector
+type ArbitrageMetrics struct {
+	TotalOpportunities   int64         `json:"total_opportunities"`
+	ProfitableOpportunities int64      `json:"profitable_opportunities"`
+	AverageProfitMargin  decimal.Decimal `json:"average_profit_margin"`
+	LastScanDuration     time.Duration `json:"last_scan_duration"`
+	ErrorCount           int64         `json:"error_count"`
+	LastError            string        `json:"last_error,omitempty"`
+	Uptime               time.Duration `json:"uptime"`
+}
+
+// ArbitrageDetector detects arbitrage opportunities across multiple DEXs.
+// It implements the ArbitrageDetectorInterface and follows Clean Architecture principles.
 type ArbitrageDetector struct {
-	logger        *logger.Logger
-	cache         redis.Client
-	uniswapClient *UniswapClient
-	oneInchClient *OneInchClient
+	// Dependencies (injected)
+	logger         *logger.Logger
+	cache          redis.Client
+	priceProviders []PriceProvider
 
 	// Configuration
-	minProfitMargin decimal.Decimal
-	maxGasCost      decimal.Decimal
-	scanInterval    time.Duration
+	config ArbitrageConfig
 
-	// State
+	// State management
 	exchanges     []Exchange
 	watchedTokens []Token
 	opportunities map[string]*ArbitrageDetection
-	mutex         sync.RWMutex
+	metrics       ArbitrageMetrics
+	startTime     time.Time
 
-	// Channels
+	// Concurrency control
+	mutex sync.RWMutex
+
+	// Channels for async processing
 	opportunityChan chan *ArbitrageDetection
 	stopChan        chan struct{}
+
+	// Internal state
+	isRunning bool
 }
 
-// NewArbitrageDetector creates a new arbitrage detector
+// NewArbitrageDetector creates a new arbitrage detector with dependency injection.
+// This constructor follows Clean Architecture principles by accepting interfaces
+// rather than concrete implementations.
 func NewArbitrageDetector(
 	logger *logger.Logger,
 	cache redis.Client,
-	uniswapClient *UniswapClient,
-	oneInchClient *OneInchClient,
+	priceProviders []PriceProvider,
 ) *ArbitrageDetector {
+	config := ArbitrageConfig{
+		MinProfitMargin:  decimal.NewFromFloat(0.005), // 0.5% minimum profit
+		MaxGasCost:       decimal.NewFromFloat(0.01),  // Max $10 gas cost
+		ScanInterval:     time.Second * 30,            // Scan every 30 seconds
+		MaxOpportunities: 100,
+		EnabledChains:    []string{"ethereum", "bsc", "polygon"},
+	}
+
 	return &ArbitrageDetector{
 		logger:          logger.Named("arbitrage-detector"),
 		cache:           cache,
-		uniswapClient:   uniswapClient,
-		oneInchClient:   oneInchClient,
-		minProfitMargin: decimal.NewFromFloat(0.005), // 0.5% minimum profit
-		maxGasCost:      decimal.NewFromFloat(0.01),  // Max $10 gas cost
-		scanInterval:    time.Second * 30,            // Scan every 30 seconds
+		priceProviders:  priceProviders,
+		config:          config,
 		exchanges:       initializeExchanges(),
 		watchedTokens:   initializeWatchedTokens(),
 		opportunities:   make(map[string]*ArbitrageDetection),
+		metrics:         ArbitrageMetrics{},
 		opportunityChan: make(chan *ArbitrageDetection, 100),
 		stopChan:        make(chan struct{}),
+		isRunning:       false,
 	}
+}
+
+// NewArbitrageDetectorWithConfig creates a new arbitrage detector with custom configuration
+func NewArbitrageDetectorWithConfig(
+	logger *logger.Logger,
+	cache redis.Client,
+	priceProviders []PriceProvider,
+	config ArbitrageConfig,
+) *ArbitrageDetector {
+	detector := NewArbitrageDetector(logger, cache, priceProviders)
+	detector.config = config
+	return detector
 }
 
 // Start begins the arbitrage detection process
 func (ad *ArbitrageDetector) Start(ctx context.Context) error {
+	ad.mutex.Lock()
+	defer ad.mutex.Unlock()
+
+	if ad.isRunning {
+		return fmt.Errorf("arbitrage detector is already running")
+	}
+
 	ad.logger.Info("Starting arbitrage detector")
+	ad.startTime = time.Now()
+	ad.isRunning = true
 
 	// Start the main detection loop
 	go ad.detectionLoop(ctx)
@@ -69,6 +160,33 @@ func (ad *ArbitrageDetector) Start(ctx context.Context) error {
 	go ad.processOpportunities(ctx)
 
 	return nil
+}
+
+// SetConfiguration updates detector configuration
+func (ad *ArbitrageDetector) SetConfiguration(config ArbitrageConfig) error {
+	ad.mutex.Lock()
+	defer ad.mutex.Unlock()
+
+	ad.config = config
+	ad.logger.Info("Configuration updated",
+		zap.String("min_profit_margin", config.MinProfitMargin.String()),
+		zap.String("max_gas_cost", config.MaxGasCost.String()),
+		zap.Duration("scan_interval", config.ScanInterval))
+
+	return nil
+}
+
+// GetMetrics returns performance metrics
+func (ad *ArbitrageDetector) GetMetrics() ArbitrageMetrics {
+	ad.mutex.RLock()
+	defer ad.mutex.RUnlock()
+
+	metrics := ad.metrics
+	if ad.isRunning {
+		metrics.Uptime = time.Since(ad.startTime)
+	}
+
+	return metrics
 }
 
 // Stop stops the arbitrage detection process
@@ -94,7 +212,7 @@ func (ad *ArbitrageDetector) GetOpportunities(ctx context.Context) ([]*Arbitrage
 
 // DetectArbitrageForToken detects arbitrage opportunities for a specific token
 func (ad *ArbitrageDetector) DetectArbitrageForToken(ctx context.Context, token Token) ([]*ArbitrageDetection, error) {
-	ad.logger.Debug("Detecting arbitrage for token", "token", token.Symbol)
+	ad.logger.Debug("Detecting arbitrage for token", zap.String("token", token.Symbol))
 
 	var opportunities []*ArbitrageDetection
 
@@ -135,17 +253,29 @@ func (ad *ArbitrageDetector) DetectArbitrageForToken(ctx context.Context, token 
 
 // detectionLoop runs the main detection loop
 func (ad *ArbitrageDetector) detectionLoop(ctx context.Context) {
-	ticker := time.NewTicker(ad.scanInterval)
+	ticker := time.NewTicker(ad.config.ScanInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			ad.mutex.Lock()
+			ad.isRunning = false
+			ad.mutex.Unlock()
 			return
 		case <-ad.stopChan:
+			ad.mutex.Lock()
+			ad.isRunning = false
+			ad.mutex.Unlock()
 			return
 		case <-ticker.C:
+			start := time.Now()
 			ad.scanForOpportunities(ctx)
+
+			// Update metrics
+			ad.mutex.Lock()
+			ad.metrics.LastScanDuration = time.Since(start)
+			ad.mutex.Unlock()
 		}
 	}
 }
@@ -158,8 +288,8 @@ func (ad *ArbitrageDetector) scanForOpportunities(ctx context.Context) {
 		opportunities, err := ad.DetectArbitrageForToken(ctx, token)
 		if err != nil {
 			ad.logger.Error("Failed to detect arbitrage for token",
-				"token", token.Symbol,
-				"error", err)
+				zap.String("token", token.Symbol),
+				zap.Error(err))
 			continue
 		}
 
@@ -196,75 +326,88 @@ func (ad *ArbitrageDetector) handleOpportunity(ctx context.Context, opp *Arbitra
 	// Store opportunity
 	ad.opportunities[opp.ID] = opp
 
+	// Update metrics
+	ad.metrics.TotalOpportunities++
+	if opp.NetProfit.GreaterThan(decimal.Zero) {
+		ad.metrics.ProfitableOpportunities++
+
+		// Update average profit margin
+		if ad.metrics.ProfitableOpportunities == 1 {
+			ad.metrics.AverageProfitMargin = opp.ProfitMargin
+		} else {
+			// Calculate running average
+			currentSum := ad.metrics.AverageProfitMargin.Mul(decimal.NewFromInt(ad.metrics.ProfitableOpportunities - 1))
+			newSum := currentSum.Add(opp.ProfitMargin)
+			ad.metrics.AverageProfitMargin = newSum.Div(decimal.NewFromInt(ad.metrics.ProfitableOpportunities))
+		}
+	}
+
 	// Cache opportunity for external access
 	cacheKey := fmt.Sprintf("arbitrage:opportunity:%s", opp.ID)
 	if err := ad.cache.Set(ctx, cacheKey, opp, time.Minute*5); err != nil {
-		ad.logger.Error("Failed to cache opportunity", "error", err)
+		ad.logger.Error("Failed to cache opportunity", zap.Error(err))
+		ad.metrics.ErrorCount++
+		ad.metrics.LastError = fmt.Sprintf("Cache error: %v", err)
 	}
 
 	ad.logger.Info("Arbitrage opportunity detected",
-		"id", opp.ID,
-		"token", opp.Token.Symbol,
-		"profit_margin", opp.ProfitMargin,
-		"net_profit", opp.NetProfit,
-		"source", opp.SourceExchange.Name,
-		"target", opp.TargetExchange.Name)
+		zap.String("id", opp.ID),
+		zap.String("token", opp.Token.Symbol),
+		zap.String("profit_margin", opp.ProfitMargin.String()),
+		zap.String("net_profit", opp.NetProfit.String()),
+		zap.String("source", opp.SourceExchange.Name),
+		zap.String("target", opp.TargetExchange.Name),
+		zap.String("confidence", opp.Confidence.String()),
+		zap.String("risk", string(opp.Risk)))
 }
 
-// getPricesFromExchanges gets token prices from all configured exchanges
+// getPricesFromExchanges gets token prices from all configured price providers
 func (ad *ArbitrageDetector) getPricesFromExchanges(ctx context.Context, token Token) (map[string]decimal.Decimal, error) {
 	prices := make(map[string]decimal.Decimal)
 
-	// Get price from Uniswap
-	if uniswapPrice, err := ad.getUniswapPrice(ctx, token); err == nil {
-		prices["uniswap"] = uniswapPrice
+	// Get prices from all configured price providers
+	for _, provider := range ad.priceProviders {
+		// Check if provider is healthy before requesting price
+		if !provider.IsHealthy(ctx) {
+			ad.logger.Warn("Price provider is unhealthy, skipping",
+				zap.String("exchange", provider.GetExchangeInfo().Name))
+			continue
+		}
+
+		price, err := provider.GetPrice(ctx, token)
+		if err != nil {
+			ad.logger.Error("Failed to get price from provider",
+				zap.String("exchange", provider.GetExchangeInfo().Name),
+				zap.String("token", token.Symbol),
+				zap.Error(err))
+
+			// Update error metrics
+			ad.mutex.Lock()
+			ad.metrics.ErrorCount++
+			ad.metrics.LastError = fmt.Sprintf("Price fetch error from %s: %v",
+				provider.GetExchangeInfo().Name, err)
+			ad.mutex.Unlock()
+			continue
+		}
+
+		exchangeInfo := provider.GetExchangeInfo()
+		prices[exchangeInfo.ID] = price
+
+		ad.logger.Debug("Got price from provider",
+			zap.String("exchange", exchangeInfo.Name),
+			zap.String("token", token.Symbol),
+			zap.String("price", price.String()))
 	}
 
-	// Get price from 1inch (aggregated)
-	if oneInchPrice, err := ad.getOneInchPrice(ctx, token); err == nil {
-		prices["1inch"] = oneInchPrice
+	if len(prices) == 0 {
+		return nil, fmt.Errorf("no prices available for token %s", token.Symbol)
 	}
-
-	// Add more exchanges as needed
 
 	return prices, nil
 }
 
-// getUniswapPrice gets token price from Uniswap
-func (ad *ArbitrageDetector) getUniswapPrice(ctx context.Context, token Token) (decimal.Decimal, error) {
-	// Use USDC as base currency for price comparison
-	usdcAddress := "0xA0b86a33E6441b8C4505B6B8C0E4F7c3C4b5C8E1"
-
-	quote, err := ad.uniswapClient.GetSwapQuote(ctx, &GetSwapQuoteRequest{
-		TokenIn:  token.Address,
-		TokenOut: usdcAddress,
-		AmountIn: decimal.NewFromFloat(1.0),
-		Chain:    token.Chain,
-	})
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	return quote.AmountOut, nil
-}
-
-// getOneInchPrice gets token price from 1inch
-func (ad *ArbitrageDetector) getOneInchPrice(ctx context.Context, token Token) (decimal.Decimal, error) {
-	// Use USDC as base currency for price comparison
-	usdcAddress := "0xA0b86a33E6441b8C4505B6B8C0E4F7c3C4b5C8E1"
-
-	quote, err := ad.oneInchClient.GetSwapQuote(ctx, &GetSwapQuoteRequest{
-		TokenIn:  token.Address,
-		TokenOut: usdcAddress,
-		AmountIn: decimal.NewFromFloat(1.0),
-		Chain:    token.Chain,
-	})
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	return quote.AmountOut, nil
-}
+// Note: getUniswapPrice and getOneInchPrice methods have been replaced
+// by the PriceProvider interface pattern for better architecture
 
 // calculateArbitrageOpportunity calculates if there's a profitable arbitrage opportunity
 func (ad *ArbitrageDetector) calculateArbitrageOpportunity(
@@ -276,7 +419,7 @@ func (ad *ArbitrageDetector) calculateArbitrageOpportunity(
 	profitMargin := targetPrice.Sub(sourcePrice).Div(sourcePrice)
 
 	// Check if profit margin meets minimum threshold
-	if profitMargin.LessThan(ad.minProfitMargin) {
+	if profitMargin.LessThan(ad.config.MinProfitMargin) {
 		return nil
 	}
 

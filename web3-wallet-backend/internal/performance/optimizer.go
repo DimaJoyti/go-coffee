@@ -2,6 +2,7 @@ package performance
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sync"
 	"time"

@@ -1,0 +1,39 @@
+# Enhanced Inventory Manager Agent Configuration with Redis MCP
+inventory_system:
+  api_key: "your_monday_api_key_here"
+  board_id: "your_monday_board_id_here"
+
+notifier_agent:
+  url: "http://localhost:8001"
+
+task_manager_agent:
+  url: "http://localhost:8002"
+
+kafka:
+  broker_address: "localhost:9092"
+  output_topic_inventory_update: "inventory_updates"
+  output_topic_low_stock: "low_stock_alerts"
+
+# Redis MCP Configuration
+redis_mcp:
+  server_url: "http://localhost:8090"
+  agent_id: "inventory-manager-enhanced"
+
+# Low stock thresholds for different ingredients
+low_stock_thresholds:
+  coffee_beans: 20
+  milk: 15
+  sugar: 10
+  oat_milk: 8
+  almond_milk: 8
+  coconut_milk: 5
+  vanilla_syrup: 5
+  caramel_syrup: 5
+  chocolate_syrup: 5
+  whipped_cream: 10
+  cinnamon: 3
+  nutmeg: 2
+  cardamom: 2
+  espresso_cups: 50
+  latte_cups: 30
+  cappuccino_cups: 25

@@ -1,0 +1,293 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: fintech-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: fintech-platform
+  labels:
+    app: postgres
+    component: database
+spec:
+  serviceName: postgres-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        component: database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: PGDATA
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: PGDATA
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-init
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: postgres-init
+        configMap:
+          name: postgres-init-scripts
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: fintech-platform
+  labels:
+    app: postgres
+    component: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+    name: postgres
+  selector:
+    app: postgres
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: fintech-platform
+data:
+  01-init-database.sql: |
+    -- Create schemas
+    CREATE SCHEMA IF NOT EXISTS accounts;
+    CREATE SCHEMA IF NOT EXISTS payments;
+    CREATE SCHEMA IF NOT EXISTS yield;
+    CREATE SCHEMA IF NOT EXISTS trading;
+    CREATE SCHEMA IF NOT EXISTS cards;
+    CREATE SCHEMA IF NOT EXISTS audit;
+    
+    -- Create extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+    
+    -- Create accounts tables
+    CREATE TABLE IF NOT EXISTS accounts.accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(50),
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL,
+        date_of_birth DATE,
+        nationality VARCHAR(3),
+        country VARCHAR(3) NOT NULL,
+        state VARCHAR(100),
+        city VARCHAR(100),
+        address TEXT,
+        postal_code VARCHAR(20),
+        account_type VARCHAR(20) NOT NULL CHECK (account_type IN ('personal', 'business', 'enterprise')),
+        account_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (account_status IN ('active', 'inactive', 'suspended', 'closed', 'pending')),
+        kyc_status VARCHAR(20) NOT NULL DEFAULT 'not_started' CHECK (kyc_status IN ('not_started', 'pending', 'in_review', 'approved', 'rejected', 'expired')),
+        kyc_level VARCHAR(20) NOT NULL DEFAULT 'none' CHECK (kyc_level IN ('none', 'basic', 'standard', 'enhanced')),
+        risk_score DECIMAL(3,2) DEFAULT 0.00,
+        compliance_flags TEXT[],
+        two_factor_enabled BOOLEAN DEFAULT FALSE,
+        two_factor_method VARCHAR(20),
+        last_login_at TIMESTAMP WITH TIME ZONE,
+        last_login_ip INET,
+        failed_login_count INTEGER DEFAULT 0,
+        account_limits JSONB,
+        notification_preferences JSONB,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        deleted_at TIMESTAMP WITH TIME ZONE
+    );
+    
+    CREATE TABLE IF NOT EXISTS accounts.sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        account_id UUID NOT NULL REFERENCES accounts.accounts(id) ON DELETE CASCADE,
+        device_id VARCHAR(255),
+        ip_address INET,
+        user_agent TEXT,
+        location VARCHAR(255),
+        session_token VARCHAR(255) UNIQUE NOT NULL,
+        refresh_token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    CREATE TABLE IF NOT EXISTS accounts.security_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        account_id UUID REFERENCES accounts.accounts(id) ON DELETE CASCADE,
+        event_type VARCHAR(50) NOT NULL,
+        severity VARCHAR(20) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+        description TEXT NOT NULL,
+        ip_address INET,
+        user_agent TEXT,
+        location VARCHAR(255),
+        resolved BOOLEAN DEFAULT FALSE,
+        resolved_at TIMESTAMP WITH TIME ZONE,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    CREATE TABLE IF NOT EXISTS accounts.kyc_documents (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        account_id UUID NOT NULL REFERENCES accounts.accounts(id) ON DELETE CASCADE,
+        document_type VARCHAR(50) NOT NULL,
+        document_url TEXT NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
+        uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        verified_at TIMESTAMP WITH TIME ZONE,
+        expires_at TIMESTAMP WITH TIME ZONE,
+        metadata JSONB DEFAULT '{}'
+    );
+    
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts.accounts(email);
+    CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts.accounts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts.accounts(account_status);
+    CREATE INDEX IF NOT EXISTS idx_accounts_kyc_status ON accounts.accounts(kyc_status);
+    CREATE INDEX IF NOT EXISTS idx_sessions_token ON accounts.sessions(session_token);
+    CREATE INDEX IF NOT EXISTS idx_sessions_account_id ON accounts.sessions(account_id);
+    CREATE INDEX IF NOT EXISTS idx_security_events_account_id ON accounts.security_events(account_id);
+    CREATE INDEX IF NOT EXISTS idx_kyc_documents_account_id ON accounts.kyc_documents(account_id);
+    
+    -- Create updated_at trigger function
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+    
+    -- Create triggers for updated_at
+    CREATE TRIGGER update_accounts_updated_at BEFORE UPDATE ON accounts.accounts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    CREATE TRIGGER update_sessions_updated_at BEFORE UPDATE ON accounts.sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+---
+# PostgreSQL Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: fintech-platform
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: postgres-backup
+            image: postgres:15-alpine
+            command:
+            - /bin/bash
+            - -c
+            - |
+              BACKUP_FILE="/backup/fintech_platform_$(date +%Y%m%d_%H%M%S).sql"
+              pg_dump -h postgres-service -U postgres -d fintech_platform > $BACKUP_FILE
+              echo "Backup completed: $BACKUP_FILE"
+              # Upload to cloud storage (implement based on your provider)
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: postgres-backup-pvc
+          restartPolicy: OnFailure
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-backup-pvc
+  namespace: fintech-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard

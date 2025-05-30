@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -16,6 +17,13 @@ type redisClient struct {
 
 // NewClient creates a new Redis client
 func NewClient(config *Config) (Client, error) {
+	// Set default addresses if not provided
+	if len(config.Addresses) == 0 && config.Host != "" {
+		config.Addresses = []string{fmt.Sprintf("%s:%d", config.Host, config.Port)}
+	}
+	if len(config.Addresses) == 0 {
+		config.Addresses = []string{"localhost:6379"}
+	}
 	var client redis.UniversalClient
 
 	if config.EnableCluster {
@@ -137,76 +145,81 @@ func (c *redisClient) Close() error {
 	return c.client.Close()
 }
 
+// Ping checks the Redis connection
+func (c *redisClient) Ping(ctx context.Context) error {
+	return c.client.Ping(ctx).Err()
+}
+
 // redisPipeline implements the Pipeline interface
 type redisPipeline struct {
 	pipeline redis.Pipeliner
 }
 
 // Get gets a value from Redis
-func (p *redisPipeline) Get(ctx context.Context, key string) *StringCmd {
+func (p *redisPipeline) Get(ctx context.Context, key string) StringCmd {
 	return &redisStringCmd{
 		cmd: p.pipeline.Get(ctx, key),
 	}
 }
 
 // Set sets a value in Redis
-func (p *redisPipeline) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *StatusCmd {
+func (p *redisPipeline) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) StatusCmd {
 	return &redisStatusCmd{
 		cmd: p.pipeline.Set(ctx, key, value, expiration),
 	}
 }
 
 // Del deletes keys from Redis
-func (p *redisPipeline) Del(ctx context.Context, keys ...string) *IntCmd {
+func (p *redisPipeline) Del(ctx context.Context, keys ...string) IntCmd {
 	return &redisIntCmd{
 		cmd: p.pipeline.Del(ctx, keys...),
 	}
 }
 
 // Exists checks if keys exist in Redis
-func (p *redisPipeline) Exists(ctx context.Context, keys ...string) *IntCmd {
+func (p *redisPipeline) Exists(ctx context.Context, keys ...string) IntCmd {
 	return &redisIntCmd{
 		cmd: p.pipeline.Exists(ctx, keys...),
 	}
 }
 
 // Incr increments a key in Redis
-func (p *redisPipeline) Incr(ctx context.Context, key string) *IntCmd {
+func (p *redisPipeline) Incr(ctx context.Context, key string) IntCmd {
 	return &redisIntCmd{
 		cmd: p.pipeline.Incr(ctx, key),
 	}
 }
 
 // HGet gets a field from a hash in Redis
-func (p *redisPipeline) HGet(ctx context.Context, key, field string) *StringCmd {
+func (p *redisPipeline) HGet(ctx context.Context, key, field string) StringCmd {
 	return &redisStringCmd{
 		cmd: p.pipeline.HGet(ctx, key, field),
 	}
 }
 
 // HSet sets fields in a hash in Redis
-func (p *redisPipeline) HSet(ctx context.Context, key string, values ...interface{}) *IntCmd {
+func (p *redisPipeline) HSet(ctx context.Context, key string, values ...interface{}) IntCmd {
 	return &redisIntCmd{
 		cmd: p.pipeline.HSet(ctx, key, values...),
 	}
 }
 
 // HGetAll gets all fields from a hash in Redis
-func (p *redisPipeline) HGetAll(ctx context.Context, key string) *StringStringMapCmd {
+func (p *redisPipeline) HGetAll(ctx context.Context, key string) StringStringMapCmd {
 	return &redisStringStringMapCmd{
 		cmd: p.pipeline.HGetAll(ctx, key),
 	}
 }
 
 // HDel deletes fields from a hash in Redis
-func (p *redisPipeline) HDel(ctx context.Context, key string, fields ...string) *IntCmd {
+func (p *redisPipeline) HDel(ctx context.Context, key string, fields ...string) IntCmd {
 	return &redisIntCmd{
 		cmd: p.pipeline.HDel(ctx, key, fields...),
 	}
 }
 
 // Expire sets an expiration on a key in Redis
-func (p *redisPipeline) Expire(ctx context.Context, key string, expiration time.Duration) *BoolCmd {
+func (p *redisPipeline) Expire(ctx context.Context, key string, expiration time.Duration) BoolCmd {
 	return &redisBoolCmd{
 		cmd: p.pipeline.Expire(ctx, key, expiration),
 	}
@@ -227,4 +240,37 @@ func (p *redisPipeline) Exec(ctx context.Context) ([]Cmder, error) {
 	}
 
 	return result, nil
+}
+
+// NewClientFromConfig creates a new Redis client from config.RedisConfig
+func NewClientFromConfig(cfg *config.RedisConfig) (Client, error) {
+	redisConfig := &Config{
+		Host:                   cfg.Host,
+		Port:                   cfg.Port,
+		Password:               cfg.Password,
+		DB:                     cfg.DB,
+		PoolSize:               cfg.PoolSize,
+		MinIdleConns:           cfg.MinIdleConns,
+		DialTimeout:            cfg.DialTimeout,
+		ReadTimeout:            cfg.ReadTimeout,
+		WriteTimeout:           cfg.WriteTimeout,
+		PoolTimeout:            cfg.PoolTimeout,
+		IdleTimeout:            cfg.IdleTimeout,
+		IdleCheckFrequency:     cfg.IdleCheckFrequency,
+		MaxRetries:             cfg.MaxRetries,
+		MinRetryBackoff:        cfg.MinRetryBackoff,
+		MaxRetryBackoff:        cfg.MaxRetryBackoff,
+		EnableCluster:          cfg.EnableCluster,
+		RouteByLatency:         cfg.RouteByLatency,
+		RouteRandomly:          cfg.RouteRandomly,
+		EnableReadFromReplicas: cfg.EnableReadFromReplicas,
+	}
+
+	// Copy addresses if provided
+	if len(cfg.Addresses) > 0 {
+		redisConfig.Addresses = make([]string, len(cfg.Addresses))
+		copy(redisConfig.Addresses, cfg.Addresses)
+	}
+
+	return NewClient(redisConfig)
 }
