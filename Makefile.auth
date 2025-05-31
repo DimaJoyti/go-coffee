@@ -1,0 +1,207 @@
+# Auth Service Makefile
+
+.PHONY: help build run test clean docker-build docker-run docker-stop docker-clean deps lint format check install-tools
+
+# Variables
+SERVICE_NAME := auth-service
+DOCKER_IMAGE := go-coffee/auth-service
+DOCKER_TAG := latest
+COMPOSE_FILE := docker-compose.auth.yml
+
+# Default target
+help: ## Show this help message
+	@echo "Auth Service - Available commands:"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# Development commands
+build: ## Build the auth service binary
+	@echo "🔨 Building auth service..."
+	@go build -o bin/auth-service ./cmd/auth-service
+	@echo "✅ Build completed"
+
+run: ## Run the auth service locally
+	@echo "🚀 Starting auth service..."
+	@JWT_SECRET=dev-secret-key ./bin/auth-service
+
+run-dev: ## Run with development settings
+	@echo "🚀 Starting auth service in development mode..."
+	@ENVIRONMENT=development \
+	 LOG_LEVEL=debug \
+	 JWT_SECRET=dev-secret-key \
+	 REDIS_URL=redis://localhost:6379 \
+	 ./bin/auth-service
+
+test: ## Run tests
+	@echo "🧪 Running tests..."
+	@go test -v -race -coverprofile=coverage.out ./internal/auth/...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "✅ Tests completed. Coverage report: coverage.html"
+
+test-integration: ## Run integration tests
+	@echo "🧪 Running integration tests..."
+	@go test -v -tags=integration ./internal/auth/...
+
+benchmark: ## Run benchmarks
+	@echo "📊 Running benchmarks..."
+	@go test -bench=. -benchmem ./internal/auth/...
+
+# Code quality
+lint: ## Run linter
+	@echo "🔍 Running linter..."
+	@golangci-lint run ./internal/auth/... ./cmd/auth-service/...
+
+format: ## Format code
+	@echo "🎨 Formatting code..."
+	@go fmt ./internal/auth/... ./cmd/auth-service/...
+	@goimports -w ./internal/auth ./cmd/auth-service
+
+check: lint test ## Run all checks (lint + test)
+
+# Dependencies
+deps: ## Download dependencies
+	@echo "📦 Downloading dependencies..."
+	@go mod download
+	@go mod tidy
+
+deps-update: ## Update dependencies
+	@echo "📦 Updating dependencies..."
+	@go get -u ./...
+	@go mod tidy
+
+# Docker commands
+docker-build: ## Build Docker image
+	@echo "🐳 Building Docker image..."
+	@docker build -f cmd/auth-service/Dockerfile -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@echo "✅ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)"
+
+docker-run: ## Run with Docker Compose
+	@echo "🐳 Starting auth service with Docker Compose..."
+	@docker-compose -f $(COMPOSE_FILE) up -d
+	@echo "✅ Auth service started. Check logs with: make docker-logs"
+
+docker-run-build: ## Build and run with Docker Compose
+	@echo "🐳 Building and starting auth service..."
+	@docker-compose -f $(COMPOSE_FILE) up -d --build
+	@echo "✅ Auth service started"
+
+docker-stop: ## Stop Docker containers
+	@echo "🛑 Stopping auth service..."
+	@docker-compose -f $(COMPOSE_FILE) down
+	@echo "✅ Auth service stopped"
+
+docker-restart: ## Restart Docker containers
+	@echo "🔄 Restarting auth service..."
+	@docker-compose -f $(COMPOSE_FILE) restart
+	@echo "✅ Auth service restarted"
+
+docker-logs: ## Show Docker logs
+	@docker-compose -f $(COMPOSE_FILE) logs -f auth-service
+
+docker-logs-all: ## Show all Docker logs
+	@docker-compose -f $(COMPOSE_FILE) logs -f
+
+docker-clean: ## Clean Docker containers and images
+	@echo "🧹 Cleaning Docker resources..."
+	@docker-compose -f $(COMPOSE_FILE) down -v --rmi all
+	@docker system prune -f
+	@echo "✅ Docker cleanup completed"
+
+# Database/Redis commands
+redis-cli: ## Connect to Redis CLI
+	@docker-compose -f $(COMPOSE_FILE) exec auth-redis redis-cli
+
+redis-monitor: ## Monitor Redis commands
+	@docker-compose -f $(COMPOSE_FILE) exec auth-redis redis-cli monitor
+
+redis-info: ## Show Redis info
+	@docker-compose -f $(COMPOSE_FILE) exec auth-redis redis-cli info
+
+redis-flush: ## Flush Redis database (WARNING: deletes all data)
+	@echo "⚠️  This will delete all data in Redis. Are you sure? [y/N]" && read ans && [ $${ans:-N} = y ]
+	@docker-compose -f $(COMPOSE_FILE) exec auth-redis redis-cli flushall
+	@echo "✅ Redis database flushed"
+
+# Monitoring
+health: ## Check service health
+	@echo "🏥 Checking auth service health..."
+	@curl -f http://localhost:8080/health || echo "❌ Service is not healthy"
+
+metrics: ## Show Prometheus metrics
+	@echo "📊 Opening Prometheus metrics..."
+	@open http://localhost:9090 || echo "Prometheus available at: http://localhost:9090"
+
+grafana: ## Open Grafana dashboard
+	@echo "📈 Opening Grafana dashboard..."
+	@open http://localhost:3000 || echo "Grafana available at: http://localhost:3000 (admin/admin)"
+
+jaeger: ## Open Jaeger tracing
+	@echo "🔍 Opening Jaeger tracing..."
+	@open http://localhost:16686 || echo "Jaeger available at: http://localhost:16686"
+
+# API testing
+test-api: ## Test API endpoints
+	@echo "🧪 Testing API endpoints..."
+	@echo "Testing health endpoint..."
+	@curl -s http://localhost:8080/health | jq .
+	@echo "\nTesting registration..."
+	@curl -s -X POST http://localhost:8080/api/v1/auth/register \
+		-H "Content-Type: application/json" \
+		-d '{"email":"test@example.com","password":"TestPass123!"}' | jq .
+
+test-register: ## Test user registration
+	@curl -X POST http://localhost:8080/api/v1/auth/register \
+		-H "Content-Type: application/json" \
+		-d '{"email":"test@example.com","password":"TestPass123!","role":"user"}' | jq .
+
+test-login: ## Test user login
+	@curl -X POST http://localhost:8080/api/v1/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"test@example.com","password":"TestPass123!"}' | jq .
+
+# Installation
+install-tools: ## Install development tools
+	@echo "🛠️  Installing development tools..."
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install golang.org/x/tools/cmd/goimports@latest
+	@go install github.com/swaggo/swag/cmd/swag@latest
+	@echo "✅ Development tools installed"
+
+# Cleanup
+clean: ## Clean build artifacts
+	@echo "🧹 Cleaning build artifacts..."
+	@rm -rf bin/
+	@rm -f coverage.out coverage.html
+	@go clean -cache
+	@echo "✅ Cleanup completed"
+
+clean-all: clean docker-clean ## Clean everything
+
+# Environment setup
+setup: deps install-tools ## Setup development environment
+	@echo "🚀 Setting up development environment..."
+	@mkdir -p bin logs
+	@echo "✅ Development environment ready"
+
+# Production deployment
+deploy-staging: ## Deploy to staging
+	@echo "🚀 Deploying to staging..."
+	@echo "This would deploy to staging environment"
+
+deploy-prod: ## Deploy to production
+	@echo "🚀 Deploying to production..."
+	@echo "This would deploy to production environment"
+
+# Show service status
+status: ## Show service status
+	@echo "📊 Auth Service Status:"
+	@echo "========================"
+	@docker-compose -f $(COMPOSE_FILE) ps
+	@echo ""
+	@echo "🏥 Health Check:"
+	@curl -s http://localhost:8080/health | jq . || echo "❌ Service not responding"
+
+# Generate documentation
+docs: ## Generate API documentation
+	@echo "📚 Generating API documentation..."
+	@swag init -g cmd/auth-service/main.go -o docs/
+	@echo "✅ Documentation generated in docs/"
