@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -11,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -45,7 +42,7 @@ func main() {
 	// Initialize Redis client
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		logger.Fatal("Failed to parse Redis URL", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to parse Redis URL")
 	}
 
 	redisClient := redis.NewClient(opt)
@@ -56,7 +53,7 @@ func main() {
 
 	_, err = redisClient.Ping(ctx).Result()
 	if err != nil {
-		logger.Fatal("Failed to connect to Redis", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to connect to Redis")
 	}
 
 	logger.Info("✅ Connected to Redis successfully")
@@ -64,7 +61,7 @@ func main() {
 	// Initialize AI service for kitchen optimization
 	aiService, err := initializeAIService(redisClient, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize AI service", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to initialize AI service")
 	}
 
 	logger.Info("✅ AI service initialized successfully")
@@ -95,14 +92,14 @@ func main() {
 	// Start gRPC server
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		logger.Fatal("Failed to listen", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to listen")
 	}
 
 	// Start server in goroutine
 	go func() {
-		logger.Info("🌐 Kitchen Service listening", zap.String("port", port))
+		logger.WithField("port", port).Info("🌐 Kitchen Service listening")
 		if err := grpcServer.Serve(listener); err != nil {
-			logger.Fatal("Failed to serve gRPC", zap.Error(err))
+			logger.WithError(err).Fatal("Failed to serve gRPC")
 		}
 	}()
 
@@ -123,40 +120,19 @@ func main() {
 
 	// Close Redis connection
 	if err := redisClient.Close(); err != nil {
-		logger.Error("Error closing Redis connection", zap.Error(err))
+		logger.WithError(err).Error("Error closing Redis connection")
 	}
 
 	logger.Info("✅ Kitchen Service stopped gracefully")
 }
 
 // initializeAIService creates and configures the AI service for kitchen operations
-func initializeAIService(redisClient *redis.Client, logger *logger.Logger) (*redismcp.AIService, error) {
-	// Get AI configuration from environment
-	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
-	ollamaBaseURL := os.Getenv("OLLAMA_BASE_URL")
-	if ollamaBaseURL == "" {
-		ollamaBaseURL = "http://localhost:11434"
-	}
+func initializeAIService(redisClient *redis.Client, logger *logger.Logger) (*redismcp.AIAgent, error) {
+	// Create AI agent for kitchen operations
+	aiAgent := redismcp.NewAIAgent(redisClient, logger)
 
-	// Create AI service configuration
-	config := &redismcp.AIConfig{
-		Gemini: redismcp.GeminiConfig{
-			APIKey: geminiAPIKey,
-			Model:  "gemini-pro",
-		},
-		Ollama: redismcp.OllamaConfig{
-			BaseURL: ollamaBaseURL,
-			Model:   "llama2",
-		},
-	}
-
-	// Initialize AI service
-	aiService, err := redismcp.NewAIService(config, redisClient, logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AI service: %w", err)
-	}
-
-	return aiService, nil
+	logger.Info("AI agent initialized for kitchen operations")
+	return aiAgent, nil
 }
 
 // loggingInterceptor provides request logging for gRPC
@@ -175,16 +151,15 @@ func loggingInterceptor(logger *logger.Logger) grpc.UnaryServerInterceptor {
 		// Log the request
 		duration := time.Since(start)
 		if err != nil {
-			logger.Error("gRPC request failed",
-				zap.String("method", info.FullMethod),
-				zap.Duration("duration", duration),
-				zap.Error(err),
-			)
+			logger.WithFields(map[string]interface{}{
+				"method":   info.FullMethod,
+				"duration": duration,
+			}).WithError(err).Error("gRPC request failed")
 		} else {
-			logger.Info("gRPC request completed",
-				zap.String("method", info.FullMethod),
-				zap.Duration("duration", duration),
-			)
+			logger.WithFields(map[string]interface{}{
+				"method":   info.FullMethod,
+				"duration": duration,
+			}).Info("gRPC request completed")
 		}
 
 		return resp, err
@@ -232,14 +207,13 @@ func initializeSampleKitchenData(client *redis.Client, logger *logger.Logger) {
 	for equipmentKey, data := range equipment {
 		for field, value := range data {
 			if err := client.HSet(ctx, equipmentKey, field, value).Err(); err != nil {
-				logger.Error("Failed to set equipment data",
-					zap.Error(err),
-					zap.String("equipment", equipmentKey),
-					zap.String("field", field),
-				)
+				logger.WithFields(map[string]interface{}{
+					"equipment": equipmentKey,
+					"field":     field,
+				}).WithError(err).Error("Failed to set equipment data")
 			}
 		}
-		logger.Info("✅ Equipment data set", zap.String("equipment", equipmentKey))
+		logger.WithField("equipment", equipmentKey).Info("✅ Equipment data set")
 	}
 
 	// Sample kitchen staff
@@ -266,14 +240,13 @@ func initializeSampleKitchenData(client *redis.Client, logger *logger.Logger) {
 	for staffKey, data := range staff {
 		for field, value := range data {
 			if err := client.HSet(ctx, staffKey, field, value).Err(); err != nil {
-				logger.Error("Failed to set staff data",
-					zap.Error(err),
-					zap.String("staff", staffKey),
-					zap.String("field", field),
-				)
+				logger.WithFields(map[string]interface{}{
+					"staff": staffKey,
+					"field": field,
+				}).WithError(err).Error("Failed to set staff data")
 			}
 		}
-		logger.Info("✅ Staff data set", zap.String("staff", staffKey))
+		logger.WithField("staff", staffKey).Info("✅ Staff data set")
 	}
 
 	// Sample kitchen performance metrics
@@ -290,10 +263,7 @@ func initializeSampleKitchenData(client *redis.Client, logger *logger.Logger) {
 			Score:  value,
 			Member: metric,
 		}).Err(); err != nil {
-			logger.Error("Failed to add kitchen metrics",
-				zap.Error(err),
-				zap.String("metric", metric),
-			)
+			logger.WithField("metric", metric).WithError(err).Error("Failed to add kitchen metrics")
 		}
 	}
 	logger.Info("✅ Kitchen metrics data set")
@@ -308,10 +278,7 @@ func initializeSampleKitchenData(client *redis.Client, logger *logger.Logger) {
 
 	for optimization, suggestion := range optimizations {
 		if err := client.HSet(ctx, "kitchen:ai:optimizations", optimization, suggestion).Err(); err != nil {
-			logger.Error("Failed to set AI optimization",
-				zap.Error(err),
-				zap.String("optimization", optimization),
-			)
+			logger.WithField("optimization", optimization).WithError(err).Error("Failed to set AI optimization")
 		}
 	}
 	logger.Info("✅ AI optimization suggestions set")

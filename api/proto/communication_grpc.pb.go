@@ -4,7 +4,7 @@
 // - protoc             v4.25.3
 // source: communication.proto
 
-package communication
+package proto
 
 import (
 	context "context"

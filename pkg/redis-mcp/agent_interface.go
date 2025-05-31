@@ -10,8 +10,25 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/pkg/logger"
+	"github.com/go-redis/redis/v8"
 )
+
+// AIAgent represents an AI agent that can interact with Redis
+type AIAgent struct {
+	redisClient *redis.Client
+	logger      *logger.Logger
+	agentID     string
+}
+
+// NewAIAgent creates a new AI agent
+func NewAIAgent(redisClient *redis.Client, logger *logger.Logger) *AIAgent {
+	return &AIAgent{
+		redisClient: redisClient,
+		logger:      logger,
+		agentID:     "kitchen-ai-agent",
+	}
+}
 
 // AgentRedisInterface provides Redis MCP interface for AI agents
 type AgentRedisInterface struct {

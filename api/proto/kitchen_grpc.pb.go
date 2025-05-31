@@ -4,7 +4,7 @@
 // - protoc             v4.25.3
 // source: kitchen.proto
 
-package kitchen
+package proto
 
 import (
 	context "context"

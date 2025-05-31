@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	aisearch "github.com/DimaJoyti/go-coffee/internal/ai-search"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -46,7 +47,7 @@ func main() {
 	log.Printf("✅ Connected to Redis 8 successfully")
 
 	// Initialize Redis 8 AI Search Engine
-	searchEngine := NewRedis8AISearchEngine(redisClient)
+	searchEngine := aisearch.NewRedis8AISearchEngine(redisClient)
 
 	// Start server in a goroutine
 	go func() {

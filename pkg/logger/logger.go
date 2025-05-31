@@ -183,6 +183,11 @@ func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 	return newLogger
 }
 
+// WithError returns a new logger with an error field
+func (l *Logger) WithError(err error) *Logger {
+	return l.WithField("error", err.Error())
+}
+
 // New creates a new logger with service name (for compatibility)
 func New(serviceName string) *Logger {
 	config := DefaultConfig()

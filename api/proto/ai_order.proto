@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ai_order;
 
-option go_package = "github.com/DimaJoyti/go-coffee/api/proto/ai_order";
+option go_package = "github.com/DimaJoyti/go-coffee/api/proto";
 
 import "google/protobuf/timestamp.proto";
 

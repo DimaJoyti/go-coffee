@@ -2,7 +2,6 @@ package redismcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -10,15 +9,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/pkg/logger"
 )
 
 // QueryParser parses natural language queries into Redis commands
 type QueryParser struct {
-	aiService *ai.Service
-	logger    *logger.Logger
-	patterns  map[string]*QueryPattern
+	logger   *logger.Logger
+	patterns map[string]*QueryPattern
 }
 
 // QueryPattern represents a pattern for matching queries
@@ -32,11 +29,10 @@ type QueryPattern struct {
 }
 
 // NewQueryParser creates a new query parser
-func NewQueryParser(aiService *ai.Service, logger *logger.Logger) *QueryParser {
+func NewQueryParser(logger *logger.Logger) *QueryParser {
 	parser := &QueryParser{
-		aiService: aiService,
-		logger:    logger,
-		patterns:  make(map[string]*QueryPattern),
+		logger:   logger,
+		patterns: make(map[string]*QueryPattern),
 	}
 
 	parser.initializePatterns()
@@ -135,21 +131,18 @@ func (p *QueryParser) Parse(ctx context.Context, query string, context map[strin
 	return p.parseWithAI(ctx, query, context)
 }
 
-// parseWithAI uses AI to parse complex queries
+// parseWithAI uses AI to parse complex queries (placeholder implementation)
 func (p *QueryParser) parseWithAI(ctx context.Context, query string, context map[string]interface{}) (*ParsedQuery, error) {
-	prompt := p.buildAIPrompt(query, context)
-	
-	response, err := p.aiService.GenerateText(ctx, prompt)
-	if err != nil {
-		return nil, fmt.Errorf("AI parsing failed: %w", err)
-	}
+	p.logger.Warn("AI parsing not implemented, using fallback", zap.String("query", query))
 
-	var parsedQuery ParsedQuery
-	if err := json.Unmarshal([]byte(response), &parsedQuery); err != nil {
-		return nil, fmt.Errorf("failed to parse AI response: %w", err)
-	}
-
-	return &parsedQuery, nil
+	// Fallback to a generic search query
+	return &ParsedQuery{
+		Type:       QueryTypeSearch,
+		Operation:  "SCAN",
+		Key:        "*",
+		RedisCmd:   []interface{}{"SCAN", "0", "MATCH", "*", "COUNT", "100"},
+		Confidence: 0.3,
+	}, nil
 }
 
 // buildAIPrompt creates a prompt for AI query parsing

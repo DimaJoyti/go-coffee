@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package kitchen;
 
-option go_package = "github.com/DimaJoyti/go-coffee/api/proto/kitchen";
+option go_package = "github.com/DimaJoyti/go-coffee/api/proto";
 
 import "google/protobuf/timestamp.proto";
 

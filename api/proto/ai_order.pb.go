@@ -4,7 +4,7 @@
 // 	protoc        v4.25.3
 // source: ai_order.proto
 
-package ai_order
+package proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

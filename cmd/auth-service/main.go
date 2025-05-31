@@ -14,7 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -114,7 +113,7 @@ func main() {
 	// Initialize Redis client
 	redisClient, err := initializeRedis(config, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize Redis", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to initialize Redis")
 	}
 	defer redisClient.Close()
 
@@ -185,7 +184,7 @@ func main() {
 
 	// Shutdown HTTP server
 	if err := httpServer.Shutdown(ctx); err != nil {
-		logger.Error("HTTP server shutdown error", zap.Error(err))
+		logger.WithError(err).Error("HTTP server shutdown error")
 	}
 
 	// Shutdown gRPC server
@@ -283,12 +282,12 @@ type MockSecurityService struct {
 }
 
 func (m *MockSecurityService) LogSecurityEvent(ctx context.Context, userID string, eventType domain.SecurityEventType, severity domain.SecuritySeverity, description string, metadata map[string]string) error {
-	m.logger.Info("Security event logged",
-		zap.String("user_id", userID),
-		zap.String("event_type", string(eventType)),
-		zap.String("severity", string(severity)),
-		zap.String("description", description),
-	)
+	m.logger.WithFields(map[string]interface{}{
+		"user_id":     userID,
+		"event_type":  string(eventType),
+		"severity":    string(severity),
+		"description": description,
+	}).Info("Security event logged")
 	return nil
 }
 
@@ -319,13 +318,16 @@ func (m *MockSecurityService) CheckAccountSecurity(ctx context.Context, userID s
 
 func (m *MockSecurityService) LockAccount(ctx context.Context, userID string, reason string) error {
 	// Placeholder implementation
-	m.logger.Info("Account locked", zap.String("user_id", userID), zap.String("reason", reason))
+	m.logger.WithFields(map[string]interface{}{
+		"user_id": userID,
+		"reason":  reason,
+	}).Info("Account locked")
 	return nil
 }
 
 func (m *MockSecurityService) UnlockAccount(ctx context.Context, userID string) error {
 	// Placeholder implementation
-	m.logger.Info("Account unlocked", zap.String("user_id", userID))
+	m.logger.WithField("user_id", userID).Info("Account unlocked")
 	return nil
 }
 
@@ -382,9 +384,9 @@ func startHTTPServer(config *Config, authService *application.AuthServiceImpl, l
 	}
 
 	go func() {
-		logger.Info("🌐 HTTP Server listening", zap.Int("port", config.Server.HTTPPort))
+		logger.WithField("port", config.Server.HTTPPort).Info("🌐 HTTP Server listening")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start HTTP server", zap.Error(err))
+			logger.WithError(err).Fatal("Failed to start HTTP server")
 		}
 	}()
 
@@ -395,7 +397,7 @@ func startHTTPServer(config *Config, authService *application.AuthServiceImpl, l
 func startGRPCServer(config *Config, authService *application.AuthServiceImpl, logger *logger.Logger) *grpc.Server {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", config.Server.Host, config.Server.GRPCPort))
 	if err != nil {
-		logger.Fatal("Failed to listen for gRPC", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to listen for gRPC")
 	}
 
 	grpcServer := grpc.NewServer()
@@ -409,9 +411,9 @@ func startGRPCServer(config *Config, authService *application.AuthServiceImpl, l
 	}
 
 	go func() {
-		logger.Info("🌐 gRPC Server listening", zap.Int("port", config.Server.GRPCPort))
+		logger.WithField("port", config.Server.GRPCPort).Info("🌐 gRPC Server listening")
 		if err := grpcServer.Serve(listener); err != nil {
-			logger.Fatal("Failed to serve gRPC", zap.Error(err))
+			logger.WithError(err).Fatal("Failed to serve gRPC")
 		}
 	}()
 
@@ -430,7 +432,7 @@ func handleRegister(authService *application.AuthServiceImpl, logger *logger.Log
 
 		resp, err := authService.Register(c.Request.Context(), &req)
 		if err != nil {
-			logger.Error("Registration failed", zap.Error(err))
+			logger.WithError(err).Error("Registration failed")
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -449,7 +451,7 @@ func handleLogin(authService *application.AuthServiceImpl, logger *logger.Logger
 
 		resp, err := authService.Login(c.Request.Context(), &req)
 		if err != nil {
-			logger.Error("Login failed", zap.Error(err))
+			logger.WithError(err).Error("Login failed")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
@@ -471,7 +473,7 @@ func handleLogout(authService *application.AuthServiceImpl, logger *logger.Logge
 
 		resp, err := authService.Logout(c.Request.Context(), userID, &req)
 		if err != nil {
-			logger.Error("Logout failed", zap.Error(err))
+			logger.WithError(err).Error("Logout failed")
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -490,7 +492,7 @@ func handleRefreshToken(authService *application.AuthServiceImpl, logger *logger
 
 		resp, err := authService.RefreshToken(c.Request.Context(), &req)
 		if err != nil {
-			logger.Error("Token refresh failed", zap.Error(err))
+			logger.WithError(err).Error("Token refresh failed")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
@@ -509,7 +511,7 @@ func handleValidateToken(authService *application.AuthServiceImpl, logger *logge
 
 		resp, err := authService.ValidateToken(c.Request.Context(), &req)
 		if err != nil {
-			logger.Error("Token validation failed", zap.Error(err))
+			logger.WithError(err).Error("Token validation failed")
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -531,7 +533,7 @@ func handleChangePassword(authService *application.AuthServiceImpl, logger *logg
 
 		resp, err := authService.ChangePassword(c.Request.Context(), userID, &req)
 		if err != nil {
-			logger.Error("Password change failed", zap.Error(err))
+			logger.WithError(err).Error("Password change failed")
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -548,7 +550,7 @@ func handleGetUserInfo(authService *application.AuthServiceImpl, logger *logger.
 		req := &application.GetUserInfoRequest{UserID: userID}
 		resp, err := authService.GetUserInfo(c.Request.Context(), req)
 		if err != nil {
-			logger.Error("Get user info failed", zap.Error(err))
+			logger.WithError(err).Error("Get user info failed")
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
