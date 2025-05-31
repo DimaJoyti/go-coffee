@@ -10,8 +10,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/pkg/logger"
 	redismcp "github.com/DimaJoyti/go-coffee/pkg/redis-mcp"
 )
 
@@ -25,12 +24,6 @@ func main() {
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
 		redisURL = "redis://localhost:6379"
-	}
-
-	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
-	ollamaBaseURL := os.Getenv("OLLAMA_BASE_URL")
-	if ollamaBaseURL == "" {
-		ollamaBaseURL = "http://localhost:11434"
 	}
 
 	serverPort := os.Getenv("SERVER_PORT")
@@ -57,25 +50,8 @@ func main() {
 
 	logger.Info("✅ Connected to Redis successfully")
 
-	// Initialize AI service
-	aiService, err := ai.NewService(&ai.Config{
-		Gemini: ai.GeminiConfig{
-			APIKey: geminiAPIKey,
-			Model:  "gemini-pro",
-		},
-		Ollama: ai.OllamaConfig{
-			BaseURL: ollamaBaseURL,
-			Model:   "llama2",
-		},
-	}, logger)
-	if err != nil {
-		log.Fatalf("Failed to initialize AI service: %v", err)
-	}
-
-	logger.Info("✅ AI service initialized successfully")
-
 	// Initialize Redis MCP server
-	mcpServer := redismcp.NewMCPServer(redisClient, aiService, logger)
+	mcpServer := redismcp.NewMCPServer(redisClient, logger)
 
 	// Start server in a goroutine
 	go func() {

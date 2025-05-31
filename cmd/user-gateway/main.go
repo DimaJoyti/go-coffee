@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,14 +10,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DimaJoyti/go-coffee/internal/user"
-	pb_ai_order "github.com/DimaJoyti/go-coffee/api/proto/ai_order"
-	pb_kitchen "github.com/DimaJoyti/go-coffee/api/proto/kitchen"
-	pb_communication "github.com/DimaJoyti/go-coffee/api/proto/communication"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
 )
 
@@ -59,19 +54,19 @@ func main() {
 	// Initialize gRPC clients
 	aiOrderClient, err := initializeAIOrderClient(aiOrderAddr, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize AI Order client", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to initialize AI Order client")
 	}
 	defer aiOrderClient.Close()
 
 	kitchenClient, err := initializeKitchenClient(kitchenAddr, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize Kitchen client", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to initialize Kitchen client")
 	}
 	defer kitchenClient.Close()
 
 	commClient, err := initializeCommunicationClient(commHubAddr, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize Communication client", zap.Error(err))
+		logger.WithError(err).Fatal("Failed to initialize Communication client")
 	}
 	defer commClient.Close()
 
@@ -95,9 +90,9 @@ func main() {
 
 	// Start HTTP server in goroutine
 	go func() {
-		logger.Info("🌐 User Gateway listening", zap.String("port", port))
+		logger.WithField("port", port).Info("🌐 User Gateway listening")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start HTTP server", zap.Error(err))
+			logger.WithError(err).Fatal("Failed to start HTTP server")
 		}
 	}()
 
@@ -115,7 +110,7 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown", zap.Error(err))
+		logger.WithError(err).Error("Server forced to shutdown")
 	}
 
 	logger.Info("✅ User Gateway stopped gracefully")
@@ -123,76 +118,48 @@ func main() {
 
 // initializeAIOrderClient creates a gRPC client for AI Order Service
 func initializeAIOrderClient(addr string, logger *logger.Logger) (*grpc.ClientConn, error) {
-	logger.Info("Connecting to AI Order Service", zap.String("address", addr))
+	logger.WithField("address", addr).Info("Connecting to AI Order Service")
 
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to AI Order Service: %w", err)
 	}
 
-	// Test connection
-	client := pb_ai_order.NewAIOrderServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Try a simple call to verify connection
-	_, err = client.ListOrders(ctx, &pb_ai_order.ListOrdersRequest{
-		PageSize: 1,
-	})
-	if err != nil {
-		logger.Warn("AI Order Service connection test failed", zap.Error(err))
-		// Don't fail startup, service might not be ready yet
-	}
+	// Simple connection test
+	state := conn.GetState()
+	logger.WithField("state", state.String()).Info("AI Order Service connection state")
 
 	return conn, nil
 }
 
 // initializeKitchenClient creates a gRPC client for Kitchen Service
 func initializeKitchenClient(addr string, logger *logger.Logger) (*grpc.ClientConn, error) {
-	logger.Info("Connecting to Kitchen Service", zap.String("address", addr))
+	logger.WithField("address", addr).Info("Connecting to Kitchen Service")
 
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Kitchen Service: %w", err)
 	}
 
-	// Test connection
-	client := pb_kitchen.NewKitchenServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Try a simple call to verify connection
-	_, err = client.GetQueue(ctx, &pb_kitchen.GetQueueRequest{
-		LocationId: "test",
-	})
-	if err != nil {
-		logger.Warn("Kitchen Service connection test failed", zap.Error(err))
-		// Don't fail startup, service might not be ready yet
-	}
+	// Simple connection test
+	state := conn.GetState()
+	logger.WithField("state", state.String()).Info("Kitchen Service connection state")
 
 	return conn, nil
 }
 
 // initializeCommunicationClient creates a gRPC client for Communication Hub
 func initializeCommunicationClient(addr string, logger *logger.Logger) (*grpc.ClientConn, error) {
-	logger.Info("Connecting to Communication Hub", zap.String("address", addr))
+	logger.WithField("address", addr).Info("Connecting to Communication Hub")
 
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Communication Hub: %w", err)
 	}
 
-	// Test connection
-	client := pb_communication.NewCommunicationServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Try a simple call to verify connection
-	_, err = client.GetActiveServices(ctx, &pb_communication.GetActiveServicesRequest{})
-	if err != nil {
-		logger.Warn("Communication Hub connection test failed", zap.Error(err))
-		// Don't fail startup, service might not be ready yet
-	}
+	// Simple connection test
+	state := conn.GetState()
+	logger.WithField("state", state.String()).Info("Communication Hub connection state")
 
 	return conn, nil
 }

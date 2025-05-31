@@ -1,177 +1,246 @@
+version: '3.8'
+
 services:
-  # PostgreSQL database for accounts service
+  # Infrastructure Services
+  redis:
+    image: redis:8-alpine
+    container_name: go-coffee-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - go-coffee-network
+
   postgres:
-    image: postgres:16-alpine
-    container_name: postgres
+    image: postgres:15-alpine
+    container_name: go-coffee-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: coffee_accounts
+      POSTGRES_DB: go_coffee
+      POSTGRES_USER: go_coffee_user
+      POSTGRES_PASSWORD: go_coffee_password
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - coffee-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U go_coffee_user -d go_coffee"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - go-coffee-network
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: go-coffee-prometheus
     ports:
-      - "2181:2181"
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
     networks:
-      - coffee-network
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "2181"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - go-coffee-network
 
-  kafka:
-    image: confluentinc/cp-kafka:latest
-    container_name: kafka
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-    networks:
-      - coffee-network
-    healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  kafka-setup:
-    image: confluentinc/cp-kafka:latest
-    container_name: kafka-setup
-    depends_on:
-      kafka:
-        condition: service_healthy
-    command: >
-      bash -c "
-        echo 'Waiting for Kafka to be ready...' &&
-        kafka-topics --bootstrap-server kafka:9092 --list &&
-        echo 'Creating topics...' &&
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic coffee_orders --partitions 3 --replication-factor 1 &&
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic processed_orders --partitions 3 --replication-factor 1 &&
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic account_events --partitions 3 --replication-factor 1 &&
-        echo 'Topics created.' &&
-        kafka-topics --bootstrap-server kafka:9092 --list
-      "
-    networks:
-      - coffee-network
-
-  producer:
-    build:
-      context: ./producer
-      dockerfile: Dockerfile
-    container_name: producer
-    depends_on:
-      kafka-setup:
-        condition: service_completed_successfully
+  grafana:
+    image: grafana/grafana:latest
+    container_name: go-coffee-grafana
     ports:
       - "3000:3000"
     environment:
-      SERVER_PORT: 3000
-      KAFKA_BROKERS: '["kafka:9092"]'
-      KAFKA_TOPIC: coffee_orders
-      KAFKA_RETRY_MAX: 5
-      KAFKA_REQUIRED_ACKS: all
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
     networks:
-      - coffee-network
+      - go-coffee-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: go-coffee-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - go-coffee-network
+
+  # Go Coffee Microservices
+  ai-search:
+    build:
+      context: .
+      dockerfile: deployments/ai-search/Dockerfile
+    container_name: go-coffee-ai-search
+    ports:
+      - "8092:8092"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  streams:
-    build:
-      context: ./streams
-      dockerfile: Dockerfile
-    container_name: streams
-    depends_on:
-      kafka-setup:
-        condition: service_completed_successfully
-    environment:
-      KAFKA_BROKERS: '["kafka:9092"]'
-      KAFKA_INPUT_TOPIC: coffee_orders
-      KAFKA_OUTPUT_TOPIC: processed_orders
-      KAFKA_APPLICATION_ID: coffee-streams-app
-      KAFKA_AUTO_OFFSET_RESET: earliest
-      KAFKA_PROCESSING_GUARANTEE: at_least_once
+      test: ["CMD", "curl", "-f", "http://localhost:8092/api/v1/ai-search/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
-      - coffee-network
+      - go-coffee-network
 
-  consumer:
+  auth-service:
     build:
-      context: ./consumer
-      dockerfile: Dockerfile
-    container_name: consumer
-    depends_on:
-      kafka-setup:
-        condition: service_completed_successfully
+      context: .
+      dockerfile: deployments/auth-service/Dockerfile
+    container_name: go-coffee-auth-service
+    ports:
+      - "8080:8080"
     environment:
-      KAFKA_BROKERS: '["kafka:9092"]'
-      KAFKA_TOPIC: coffee_orders
-      KAFKA_PROCESSED_TOPIC: processed_orders
-      KAFKA_CONSUMER_GROUP: coffee-consumer-group
-      KAFKA_WORKER_POOL_SIZE: 3
-    networks:
-      - coffee-network
-
-  # Accounts service
-  accounts-service:
-    build:
-      context: ./accounts-service
-      dockerfile: Dockerfile
-    container_name: accounts-service
+      - DATABASE_URL=postgres://go_coffee_user:go_coffee_password@postgres:5432/go_coffee?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
+      - LOG_LEVEL=info
     depends_on:
       postgres:
         condition: service_healthy
-      kafka-setup:
-        condition: service_completed_successfully
-    ports:
-      - "4000:4000"
-    environment:
-      SERVER_PORT: 4000
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: coffee_accounts
-      DB_SSLMODE: disable
-      KAFKA_BROKERS: '["kafka:9092"]'
-      KAFKA_TOPIC: account_events
-      KAFKA_RETRY_MAX: 5
-      KAFKA_REQUIRED_ACKS: all
-    networks:
-      - coffee-network
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - go-coffee-network
 
-networks:
-  coffee-network:
-    driver: bridge
+  kitchen-service:
+    build:
+      context: .
+      dockerfile: deployments/kitchen-service/Dockerfile
+    container_name: go-coffee-kitchen-service
+    ports:
+      - "50052:50052"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgres://go_coffee_user:go_coffee_password@postgres:5432/go_coffee?sslmode=disable
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - go-coffee-network
+
+  communication-hub:
+    build:
+      context: .
+      dockerfile: deployments/communication-hub/Dockerfile
+    container_name: go-coffee-communication-hub
+    ports:
+      - "50053:50053"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - go-coffee-network
+
+  user-gateway:
+    build:
+      context: .
+      dockerfile: deployments/user-gateway/Dockerfile
+    container_name: go-coffee-user-gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - AI_ORDER_SERVICE_ADDR=ai-search:8092
+      - KITCHEN_SERVICE_ADDR=kitchen-service:50052
+      - COMMUNICATION_HUB_ADDR=communication-hub:50053
+      - LOG_LEVEL=info
+    depends_on:
+      - ai-search
+      - kitchen-service
+      - communication-hub
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - go-coffee-network
+
+  redis-mcp-server:
+    build:
+      context: .
+      dockerfile: deployments/redis-mcp-server/Dockerfile
+    container_name: go-coffee-redis-mcp-server
+    ports:
+      - "8093:8093"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SERVER_PORT=8093
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8093/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - go-coffee-network
+
+  # Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: go-coffee-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - user-gateway
+      - ai-search
+      - auth-service
+    networks:
+      - go-coffee-network
+
+  # Optional: Ollama for local AI
+  ollama:
+    image: ollama/ollama:latest
+    container_name: go-coffee-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - go-coffee-network
 
 volumes:
+  redis_data:
   postgres_data:
+  prometheus_data:
+  grafana_data:
+  ollama_data:
+
+networks:
+  go-coffee-network:
+    driver: bridge

@@ -28,30 +28,29 @@ func LoggerMiddleware(logger *logger.Logger) gin.HandlerFunc {
 		// Get status code
 		statusCode := c.Writer.Status()
 
-		// Build log fields
-		fields := []zap.Field{
-			zap.String("method", c.Request.Method),
-			zap.String("path", path),
-			zap.String("query", raw),
-			zap.Int("status", statusCode),
-			zap.Duration("latency", latency),
-			zap.String("user_agent", c.Request.UserAgent()),
-			zap.String("client_ip", c.ClientIP()),
+		// Build log data
+		logData := map[string]interface{}{
+			"method":     c.Request.Method,
+			"path":       path,
+			"query":      raw,
+			"status":     statusCode,
+			"latency":    latency.String(),
+			"user_agent": c.Request.UserAgent(),
+			"client_ip":  c.ClientIP(),
 		}
 
 		// Add error if exists
 		if len(c.Errors) > 0 {
-			fields = append(fields, zap.String("errors", c.Errors.String()))
+			logData["errors"] = c.Errors.String()
 		}
 
-		// Log based on status code
 		switch {
 		case statusCode >= 500:
-			logger.Error("HTTP request completed with server error", fields...)
+			logger.Error("HTTP request completed with server error", logData)
 		case statusCode >= 400:
-			logger.Warn("HTTP request completed with client error", fields...)
+			logger.Warn("HTTP request completed with client error", logData)
 		default:
-			logger.Info("HTTP request completed", fields...)
+			logger.Info("HTTP request completed", logData)
 		}
 	}
 }

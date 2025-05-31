@@ -2,26 +2,21 @@ package redismcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/pkg/logger"
 )
 
 // MCPServer represents the Redis MCP server
 type MCPServer struct {
 	redis       *redis.Client
 	logger      *logger.Logger
-	aiService   *ai.Service
 	queryParser *QueryParser
 	dataManager *DataManager
 	router      *gin.Engine
@@ -71,16 +66,15 @@ type ParsedQuery struct {
 }
 
 // NewMCPServer creates a new Redis MCP server
-func NewMCPServer(redisClient *redis.Client, aiService *ai.Service, logger *logger.Logger) *MCPServer {
+func NewMCPServer(redisClient *redis.Client, logger *logger.Logger) *MCPServer {
 	server := &MCPServer{
-		redis:     redisClient,
-		logger:    logger,
-		aiService: aiService,
-		router:    gin.New(),
+		redis:  redisClient,
+		logger: logger,
+		router: gin.New(),
 	}
 
 	// Initialize components
-	server.queryParser = NewQueryParser(aiService, logger)
+	server.queryParser = NewQueryParser(logger)
 	server.dataManager = NewDataManager(redisClient, logger)
 
 	// Setup routes

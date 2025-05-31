@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
 	"regexp"
 	"time"
@@ -401,6 +402,18 @@ func (s *Subscription) compareValues(operator FilterOperator, actual, expected i
 	}
 
 	return false
+}
+
+// ToJSON converts the subscription to JSON
+func (s *Subscription) ToJSON() ([]byte, error) {
+	return json.Marshal(s)
+}
+
+// FromJSON creates a subscription from JSON
+func SubscriptionFromJSON(data []byte) (*Subscription, error) {
+	var subscription Subscription
+	err := json.Unmarshal(data, &subscription)
+	return &subscription, err
 }
 
 // generateSubscriptionID generates a unique subscription ID
