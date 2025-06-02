@@ -115,3 +115,4 @@ go.work.sum
 .cursor
 .continue
 .roo
+web-ui/frontend/.next

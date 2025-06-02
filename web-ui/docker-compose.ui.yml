@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Frontend - Next.js Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8090
+      - NEXT_PUBLIC_WS_URL=ws://backend:8090
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - go-coffee-ui
+
+  # Backend - Go API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
+      - GIN_MODE=debug
+    volumes:
+      - ./backend:/app
+    networks:
+      - go-coffee-ui
+
+  # Redis for caching and real-time data
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - go-coffee-ui
+
+networks:
+  go-coffee-ui:
+    driver: bridge
+
+volumes:
+  redis_data:
