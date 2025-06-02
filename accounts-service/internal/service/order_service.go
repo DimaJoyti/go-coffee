@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/models"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/repository"
 	"github.com/google/uuid"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/models"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/repository"
 )
 
 // OrderService handles business logic for orders
@@ -42,7 +42,7 @@ func (s *OrderService) Create(ctx context.Context, input models.OrderInput) (*mo
 
 	// Calculate total amount and create order items
 	var totalAmount float64
-	var orderItems []*models.OrderItem
+	var orderItems []models.OrderItem
 
 	for _, itemInput := range input.Items {
 		// Get product
@@ -93,7 +93,7 @@ func (s *OrderService) Create(ctx context.Context, input models.OrderInput) (*mo
 			return nil, fmt.Errorf("failed to create order item: %w", err)
 		}
 
-		orderItems = append(orderItems, orderItem)
+		orderItems = append(orderItems, *orderItem)
 	}
 
 	order.Items = orderItems
@@ -115,13 +115,15 @@ func (s *OrderService) GetByID(ctx context.Context, id uuid.UUID) (*models.Order
 	}
 
 	// Load order items
-	items, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
+	itemsPtr, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
 	if err == nil {
-		// Load products for each item
-		for _, item := range items {
+		// Convert []*OrderItem to []OrderItem and load products
+		items := make([]models.OrderItem, len(itemsPtr))
+		for i, item := range itemsPtr {
+			items[i] = *item // Dereference pointer
 			product, err := s.productRepo.GetByID(ctx, item.ProductID)
 			if err == nil {
-				item.Product = product
+				items[i].Product = product
 			}
 		}
 		order.Items = items
@@ -146,8 +148,13 @@ func (s *OrderService) List(ctx context.Context, offset, limit int) ([]*models.O
 		}
 
 		// Load order items
-		items, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
+		itemsPtr, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
 		if err == nil {
+			// Convert []*OrderItem to []OrderItem
+			items := make([]models.OrderItem, len(itemsPtr))
+			for i, item := range itemsPtr {
+				items[i] = *item
+			}
 			order.Items = items
 		}
 	}
@@ -173,8 +180,13 @@ func (s *OrderService) ListByAccount(ctx context.Context, accountID uuid.UUID, o
 		order.Account = account
 
 		// Load order items
-		items, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
+		itemsPtr, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
 		if err == nil {
+			// Convert []*OrderItem to []OrderItem
+			items := make([]models.OrderItem, len(itemsPtr))
+			for i, item := range itemsPtr {
+				items[i] = *item
+			}
 			order.Items = items
 		}
 	}
@@ -198,8 +210,13 @@ func (s *OrderService) ListByStatus(ctx context.Context, status models.OrderStat
 		}
 
 		// Load order items
-		items, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
+		itemsPtr, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
 		if err == nil {
+			// Convert []*OrderItem to []OrderItem
+			items := make([]models.OrderItem, len(itemsPtr))
+			for i, item := range itemsPtr {
+				items[i] = *item
+			}
 			order.Items = items
 		}
 	}
@@ -230,13 +247,15 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id uuid.UUID, status mo
 	}
 
 	// Load order items
-	items, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
+	itemsPtr, err := s.orderItemRepo.ListByOrder(ctx, order.ID)
 	if err == nil {
-		// Load products for each item
-		for _, item := range items {
+		// Convert []*OrderItem to []OrderItem and load products
+		items := make([]models.OrderItem, len(itemsPtr))
+		for i, item := range itemsPtr {
+			items[i] = *item
 			product, err := s.productRepo.GetByID(ctx, item.ProductID)
 			if err == nil {
-				item.Product = product
+				items[i].Product = product
 			}
 		}
 		order.Items = items

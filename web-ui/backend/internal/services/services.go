@@ -44,3 +44,43 @@ func (s *ScrapingService) RefreshMarketData() error {
 func (s *ScrapingService) GetDataSources() ([]map[string]interface{}, error) {
 	return s.brightData.GetDataSources()
 }
+
+func (s *ScrapingService) GetCompetitorData() ([]MarketDataItem, error) {
+	return s.brightData.ScrapeCompetitorPrices()
+}
+
+func (s *ScrapingService) GetMarketNews() ([]MarketDataItem, error) {
+	return s.brightData.ScrapeMarketNews()
+}
+
+func (s *ScrapingService) GetCoffeeFutures() ([]MarketDataItem, error) {
+	return s.brightData.ScrapeCoffeeFutures()
+}
+
+func (s *ScrapingService) GetSocialTrends() ([]MarketDataItem, error) {
+	return s.brightData.ScrapeSocialTrends()
+}
+
+func (s *ScrapingService) GetSessionStats() (interface{}, error) {
+	resp, err := s.brightData.mcpClient.GetSessionStats()
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data, nil
+}
+
+func (s *ScrapingService) ScrapeURL(url, format string) (interface{}, error) {
+	resp, err := s.brightData.ScrapeURL(url, format)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data, nil
+}
+
+func (s *ScrapingService) SearchEngine(query, engine string) (interface{}, error) {
+	resp, err := s.brightData.mcpClient.SearchEngine(query, engine)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data, nil
+}

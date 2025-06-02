@@ -10,10 +10,10 @@ import (
 
 // CreateOrderRequest represents a request to create a new order
 type CreateOrderRequest struct {
-	CustomerID          string                     `json:"customer_id" validate:"required"`
-	Items               []*CreateOrderItemRequest  `json:"items" validate:"required,min=1"`
-	SpecialInstructions string                     `json:"special_instructions,omitempty"`
-	DeliveryAddress     *CreateAddressRequest      `json:"delivery_address,omitempty"`
+	CustomerID          string                    `json:"customer_id" validate:"required"`
+	Items               []*CreateOrderItemRequest `json:"items" validate:"required,min=1"`
+	SpecialInstructions string                    `json:"special_instructions,omitempty"`
+	DeliveryAddress     *CreateAddressRequest     `json:"delivery_address,omitempty"`
 }
 
 // CreateOrderItemRequest represents an item in a create order request
@@ -54,8 +54,8 @@ type GetOrderRequest struct {
 
 // ConfirmOrderRequest represents a request to confirm an order
 type ConfirmOrderRequest struct {
-	OrderID       string                `json:"order_id" validate:"required"`
-	PaymentMethod domain.PaymentMethod  `json:"payment_method,omitempty"`
+	OrderID       string               `json:"order_id" validate:"required"`
+	PaymentMethod domain.PaymentMethod `json:"payment_method,omitempty"`
 }
 
 // UpdateOrderStatusRequest represents a request to update order status
@@ -94,35 +94,35 @@ type CreateOrderResponse struct {
 
 // GetOrderResponse represents a response to get order request
 type GetOrderResponse struct {
-	OrderID             string                  `json:"order_id"`
-	CustomerID          string                  `json:"customer_id"`
-	Items               []*OrderItemResponse    `json:"items"`
-	Status              string                  `json:"status"`
-	Priority            domain.OrderPriority    `json:"priority"`
-	TotalAmount         int64                   `json:"total_amount"`
-	Currency            string                  `json:"currency"`
-	PaymentMethod       domain.PaymentMethod    `json:"payment_method"`
-	EstimatedTime       int32                   `json:"estimated_time"`
-	ActualTime          int32                   `json:"actual_time"`
-	SpecialInstructions string                  `json:"special_instructions,omitempty"`
-	DeliveryAddress     *AddressResponse        `json:"delivery_address,omitempty"`
-	IsDelivery          bool                    `json:"is_delivery"`
-	CreatedAt           time.Time               `json:"created_at"`
-	UpdatedAt           time.Time               `json:"updated_at"`
-	ConfirmedAt         *time.Time              `json:"confirmed_at,omitempty"`
-	CompletedAt         *time.Time              `json:"completed_at,omitempty"`
+	OrderID             string               `json:"order_id"`
+	CustomerID          string               `json:"customer_id"`
+	Items               []*OrderItemResponse `json:"items"`
+	Status              string               `json:"status"`
+	Priority            domain.OrderPriority `json:"priority"`
+	TotalAmount         int64                `json:"total_amount"`
+	Currency            string               `json:"currency"`
+	PaymentMethod       domain.PaymentMethod `json:"payment_method"`
+	EstimatedTime       int32                `json:"estimated_time"`
+	ActualTime          int32                `json:"actual_time"`
+	SpecialInstructions string               `json:"special_instructions,omitempty"`
+	DeliveryAddress     *AddressResponse     `json:"delivery_address,omitempty"`
+	IsDelivery          bool                 `json:"is_delivery"`
+	CreatedAt           time.Time            `json:"created_at"`
+	UpdatedAt           time.Time            `json:"updated_at"`
+	ConfirmedAt         *time.Time           `json:"confirmed_at,omitempty"`
+	CompletedAt         *time.Time           `json:"completed_at,omitempty"`
 }
 
 // OrderItemResponse represents an order item in responses
 type OrderItemResponse struct {
-	ID             string                     `json:"id"`
-	ProductID      string                     `json:"product_id"`
-	Name           string                     `json:"name"`
-	Description    string                     `json:"description,omitempty"`
-	Quantity       int32                      `json:"quantity"`
-	UnitPrice      int64                      `json:"unit_price"`
-	TotalPrice     int64                      `json:"total_price"`
-	Customizations []*CustomizationResponse   `json:"customizations,omitempty"`
+	ID             string                   `json:"id"`
+	ProductID      string                   `json:"product_id"`
+	Name           string                   `json:"name"`
+	Description    string                   `json:"description,omitempty"`
+	Quantity       int32                    `json:"quantity"`
+	UnitPrice      int64                    `json:"unit_price"`
+	TotalPrice     int64                    `json:"total_price"`
+	Customizations []*CustomizationResponse `json:"customizations,omitempty"`
 }
 
 // CustomizationResponse represents a customization in responses
@@ -168,11 +168,11 @@ type CancelOrderResponse struct {
 
 // ListOrdersResponse represents a response to list orders request
 type ListOrdersResponse struct {
-	Orders     []*GetOrderResponse `json:"orders"`
-	Total      int                 `json:"total"`
-	Limit      int                 `json:"limit"`
-	Offset     int                 `json:"offset"`
-	HasMore    bool                `json:"has_more"`
+	Orders  []*GetOrderResponse `json:"orders"`
+	Total   int                 `json:"total"`
+	Limit   int                 `json:"limit"`
+	Offset  int                 `json:"offset"`
+	HasMore bool                `json:"has_more"`
 }
 
 // Filter DTOs
@@ -208,19 +208,19 @@ type PaymentFilters struct {
 
 // UserInfo represents user information from auth service
 type UserInfo struct {
-	UserID    string `json:"user_id"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	Status    string `json:"status"`
+	UserID    string    `json:"user_id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 // UserPreferences represents user preferences from auth service
 type UserPreferences struct {
-	UserID              string            `json:"user_id"`
+	UserID               string               `json:"user_id"`
 	DefaultPaymentMethod domain.PaymentMethod `json:"default_payment_method"`
-	DeliveryAddress     *AddressResponse  `json:"delivery_address,omitempty"`
-	Preferences         map[string]string `json:"preferences"`
+	DeliveryAddress      *AddressResponse     `json:"delivery_address,omitempty"`
+	Preferences          map[string]string    `json:"preferences"`
 }
 
 // Error DTOs
@@ -234,28 +234,28 @@ type ErrorResponse struct {
 
 // ValidationError represents a validation error
 type ValidationError struct {
-	Field   string `json:"field"`
-	Message string `json:"message"`
+	Field   string      `json:"field"`
+	Message string      `json:"message"`
 	Value   interface{} `json:"value,omitempty"`
 }
 
 // ValidationErrorResponse represents a validation error response
 type ValidationErrorResponse struct {
-	Code   string             `json:"code"`
-	Message string            `json:"message"`
-	Errors []*ValidationError `json:"errors"`
+	Code    string             `json:"code"`
+	Message string             `json:"message"`
+	Errors  []*ValidationError `json:"errors"`
 }
 
 // Payment Request DTOs
 
 // CreatePaymentRequest represents a request to create a payment
 type CreatePaymentRequest struct {
-	OrderID       string                `json:"order_id" validate:"required"`
-	PaymentMethod domain.PaymentMethod  `json:"payment_method" validate:"required"`
+	OrderID       string               `json:"order_id" validate:"required"`
+	PaymentMethod domain.PaymentMethod `json:"payment_method" validate:"required"`
 
 	// Card payment fields
-	CardLast4     string `json:"card_last4,omitempty"`
-	CardBrand     string `json:"card_brand,omitempty"`
+	CardLast4 string `json:"card_last4,omitempty"`
+	CardBrand string `json:"card_brand,omitempty"`
 
 	// Crypto payment fields
 	CryptoNetwork domain.CryptoNetwork `json:"crypto_network,omitempty"`
@@ -279,13 +279,13 @@ type RefundPaymentRequest struct {
 
 // CreatePaymentResponse represents a response to create payment request
 type CreatePaymentResponse struct {
-	PaymentID       string     `json:"payment_id"`
-	Status          string     `json:"status"`
-	PaymentAddress  string     `json:"payment_address,omitempty"` // For crypto payments
-	TokensUsed      int64      `json:"tokens_used,omitempty"`     // For loyalty token payments
-	ExchangeRate    float64    `json:"exchange_rate,omitempty"`   // For loyalty token payments
-	ExpiresAt       *time.Time `json:"expires_at,omitempty"`      // For crypto payments
-	CreatedAt       time.Time  `json:"created_at"`
+	PaymentID      string     `json:"payment_id"`
+	Status         string     `json:"status"`
+	PaymentAddress string     `json:"payment_address,omitempty"` // For crypto payments
+	TokensUsed     int64      `json:"tokens_used,omitempty"`     // For loyalty token payments
+	ExchangeRate   float64    `json:"exchange_rate,omitempty"`   // For loyalty token payments
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`      // For crypto payments
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 // ProcessPaymentResponse represents a response to process payment request
@@ -325,8 +325,8 @@ type RefundResult struct {
 
 // PaymentStatusResult represents payment status from processor
 type PaymentStatusResult struct {
-	Status    string `json:"status"`
-	Reference string `json:"reference"`
+	Status    string    `json:"status"`
+	Reference string    `json:"reference"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
@@ -341,12 +341,12 @@ type CryptoAddressResult struct {
 
 // CryptoVerificationResult represents crypto payment verification result
 type CryptoVerificationResult struct {
-	IsValid     bool   `json:"is_valid"`
-	Amount      int64  `json:"amount"`
-	BlockNumber int64  `json:"block_number"`
-	GasUsed     int64  `json:"gas_used"`
-	GasPrice    int64  `json:"gas_price"`
-	Confirmations int  `json:"confirmations"`
+	IsValid       bool  `json:"is_valid"`
+	Amount        int64 `json:"amount"`
+	BlockNumber   int64 `json:"block_number"`
+	GasUsed       int64 `json:"gas_used"`
+	GasPrice      int64 `json:"gas_price"`
+	Confirmations int   `json:"confirmations"`
 }
 
 // CryptoTransactionStatus represents crypto transaction status

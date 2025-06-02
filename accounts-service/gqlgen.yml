@@ -1,0 +1,43 @@
+# Where are all the schema files located?
+schema:
+  - internal/graphql/schema.graphql
+
+# Where should the generated server code go?
+exec:
+  filename: internal/graphql/generated/generated.go
+  package: generated
+
+# Where should any generated models go?
+model:
+  filename: internal/graphql/model/models_gen.go
+  package: model
+
+# Where should the resolver implementations go?
+resolver:
+  layout: follow-schema
+  dir: internal/graphql/resolvers
+  package: resolvers
+  filename_template: "{name}.resolvers.go"
+
+# Optional: turn on use ` + "`" + `gqlgen:"fieldName"` + "`" + ` tags in your models
+struct_tag: json
+
+# Optional: turn on to use []Thing instead of []*Thing
+omit_slice_element_pointers: false
+
+# Optional: set to speed up generation time by not performing a final validation pass.
+skip_validation: true
+
+# This section declares type mapping between the GraphQL and go type systems
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32

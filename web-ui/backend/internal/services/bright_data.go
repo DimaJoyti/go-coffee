@@ -9,9 +9,10 @@ import (
 )
 
 type BrightDataService struct {
-	apiToken string
-	baseURL  string
-	client   *http.Client
+	apiToken  string
+	baseURL   string
+	client    *http.Client
+	mcpClient *BrightDataMCPService
 }
 
 type ScrapingRequest struct {
@@ -40,8 +41,9 @@ type MarketDataItem struct {
 
 func NewBrightDataService() *BrightDataService {
 	return &BrightDataService{
-		apiToken: os.Getenv("BRIGHT_DATA_API_TOKEN"),
-		baseURL:  "https://api.brightdata.com",
+		apiToken:  os.Getenv("BRIGHT_DATA_API_TOKEN"),
+		baseURL:   "https://api.brightdata.com",
+		mcpClient: NewBrightDataMCPService(),
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -106,61 +108,51 @@ func (s *BrightDataService) ScrapeURL(url string, format string) (*ScrapingRespo
 }
 
 func (s *BrightDataService) GetMarketData() ([]MarketDataItem, error) {
-	// Mock market data that would come from various scraped sources
+	var allItems []MarketDataItem
 
-	// Helper function to create float64 pointers
-	floatPtr := func(f float64) *float64 { return &f }
-
-	items := []MarketDataItem{
-		{
-			ID:          "1",
-			Source:      "Starbucks",
-			Title:       "Grande Latte Price Update",
-			Price:       floatPtr(5.45),
-			Change:      floatPtr(0.15),
-			URL:         "https://starbucks.com",
-			LastUpdated: time.Now().Add(-10 * time.Minute),
-			Category:    "competitors",
-		},
-		{
-			ID:          "2",
-			Source:      "Coffee Futures",
-			Title:       "Arabica Coffee Futures Rise 2.3%",
-			Price:       floatPtr(1.85),
-			Change:      floatPtr(2.3),
-			URL:         "https://markets.com",
-			LastUpdated: time.Now().Add(-15 * time.Minute),
-			Category:    "coffee-prices",
-		},
-		{
-			ID:          "3",
-			Source:      "Coffee News Daily",
-			Title:       "New Sustainable Coffee Farming Practices",
-			URL:         "https://coffeenews.com",
-			LastUpdated: time.Now().Add(-30 * time.Minute),
-			Category:    "news",
-		},
-		{
-			ID:          "4",
-			Source:      "Dunkin",
-			Title:       "Medium Coffee Price Analysis",
-			Price:       floatPtr(2.89),
-			Change:      floatPtr(-0.05),
-			URL:         "https://dunkin.com",
-			LastUpdated: time.Now().Add(-20 * time.Minute),
-			Category:    "competitors",
-		},
-		{
-			ID:          "5",
-			Source:      "Twitter",
-			Title:       "Coffee trends gaining momentum #CoffeeLovers",
-			URL:         "https://twitter.com",
-			LastUpdated: time.Now().Add(-5 * time.Minute),
-			Category:    "social",
-		},
+	// Get competitor data
+	competitorItems, err := s.ScrapeCompetitorPrices()
+	if err != nil {
+		fmt.Printf("Warning: Failed to get competitor data: %v\n", err)
+		// Continue with other sources
+	} else {
+		allItems = append(allItems, competitorItems...)
 	}
 
-	return items, nil
+	// Get market news
+	newsItems, err := s.ScrapeMarketNews()
+	if err != nil {
+		fmt.Printf("Warning: Failed to get market news: %v\n", err)
+		// Continue with other sources
+	} else {
+		allItems = append(allItems, newsItems...)
+	}
+
+	// Get coffee futures data
+	futuresItems, err := s.ScrapeCoffeeFutures()
+	if err != nil {
+		fmt.Printf("Warning: Failed to get futures data: %v\n", err)
+		// Continue with other sources
+	} else {
+		allItems = append(allItems, futuresItems...)
+	}
+
+	// Get social media trends
+	socialItems, err := s.ScrapeSocialTrends()
+	if err != nil {
+		fmt.Printf("Warning: Failed to get social trends: %v\n", err)
+		// Continue with other sources
+	} else {
+		allItems = append(allItems, socialItems...)
+	}
+
+	// If we have no data at all, return fallback mock data
+	if len(allItems) == 0 {
+		fmt.Println("Warning: No real data available, returning fallback mock data")
+		return s.getFallbackMarketData(), nil
+	}
+
+	return allItems, nil
 }
 
 func (s *BrightDataService) RefreshMarketData() error {
@@ -219,26 +211,44 @@ func (s *BrightDataService) GetDataSources() ([]map[string]interface{}, error) {
 
 // ScrapeCompetitorPrices scrapes competitor pricing data using MCP integration
 func (s *BrightDataService) ScrapeCompetitorPrices() ([]MarketDataItem, error) {
-	competitors := []string{
-		"https://www.starbucks.com/menu",
-		"https://www.dunkindonuts.com/en/menu",
-		"https://www.costacoffe.com/menu",
+	competitors := []struct {
+		name string
+		url  string
+	}{
+		{"Starbucks", "https://www.starbucks.com/menu/drinks"},
+		{"Dunkin'", "https://www.dunkindonuts.com/en/menu"},
+		{"Costa Coffee", "https://www.costa.co.uk/menu"},
 	}
 
 	var items []MarketDataItem
 
-	for _, url := range competitors {
-		// In a real implementation, we would use MCP to scrape each competitor
-		// For now, we'll use mock data but show the integration structure
+	for i, competitor := range competitors {
+		// Use real MCP to scrape competitor data
+		resp, err := s.mcpClient.ScrapeURL(competitor.url)
+		if err != nil {
+			fmt.Printf("Failed to scrape %s: %v\n", competitor.name, err)
+			continue
+		}
 
-		// Mock data for demonstration
+		// Parse the scraped data
 		item := MarketDataItem{
-			ID:          fmt.Sprintf("comp_%d", len(items)+1),
-			Source:      extractDomain(url),
-			Title:       fmt.Sprintf("Menu prices from %s", extractDomain(url)),
-			URL:         url,
+			ID:          fmt.Sprintf("comp_%d", i+1),
+			Source:      competitor.name,
+			Title:       fmt.Sprintf("Menu prices from %s", competitor.name),
+			URL:         competitor.url,
 			LastUpdated: time.Now(),
 			Category:    "competitors",
+		}
+
+		// Try to extract content from response
+		if resp.Data != nil {
+			if dataMap, ok := resp.Data.(map[string]interface{}); ok {
+				if content, exists := dataMap["content"]; exists {
+					if contentStr, ok := content.(string); ok {
+						item.Content = contentStr
+					}
+				}
+			}
 		}
 
 		items = append(items, item)
@@ -249,29 +259,185 @@ func (s *BrightDataService) ScrapeCompetitorPrices() ([]MarketDataItem, error) {
 
 // ScrapeMarketNews scrapes coffee market news using MCP integration
 func (s *BrightDataService) ScrapeMarketNews() ([]MarketDataItem, error) {
-	// In a real implementation, we would use MCP to search for coffee market news
-	// For now, we'll return mock news data
+	// Search for coffee market news using Bright Data MCP
+	queries := []string{
+		"coffee market prices 2024",
+		"arabica coffee futures",
+		"coffee industry news",
+		"coffee commodity prices",
+	}
 
-	items := []MarketDataItem{
-		{
-			ID:          "news_1",
-			Source:      "Coffee Market News",
-			Title:       "Global Coffee Prices Rise Due to Weather Concerns",
-			URL:         "https://coffeenews.com/article1",
-			LastUpdated: time.Now().Add(-1 * time.Hour),
-			Category:    "news",
-		},
-		{
-			ID:          "news_2",
-			Source:      "Reuters",
-			Title:       "Brazil Coffee Harvest Expected to Increase 15%",
-			URL:         "https://reuters.com/coffee-harvest",
-			LastUpdated: time.Now().Add(-2 * time.Hour),
-			Category:    "news",
-		},
+	var items []MarketDataItem
+
+	for i, query := range queries {
+		// Use real MCP to search for news
+		resp, err := s.mcpClient.SearchEngine(query, "google")
+		if err != nil {
+			fmt.Printf("Failed to search for '%s': %v\n", query, err)
+			continue
+		}
+
+		// Parse search results
+		if resp.Data != nil {
+			if results, ok := resp.Data.([]interface{}); ok {
+				for j, result := range results {
+					if resultMap, ok := result.(map[string]interface{}); ok {
+						item := MarketDataItem{
+							ID:          fmt.Sprintf("news_%d_%d", i+1, j+1),
+							Source:      "Search Results",
+							LastUpdated: time.Now(),
+							Category:    "news",
+						}
+
+						if title, exists := resultMap["title"]; exists {
+							if titleStr, ok := title.(string); ok {
+								item.Title = titleStr
+							}
+						}
+
+						if url, exists := resultMap["url"]; exists {
+							if urlStr, ok := url.(string); ok {
+								item.URL = urlStr
+							}
+						}
+
+						if description, exists := resultMap["description"]; exists {
+							if descStr, ok := description.(string); ok {
+								item.Content = descStr
+							}
+						}
+
+						items = append(items, item)
+					}
+				}
+			}
+		}
 	}
 
 	return items, nil
+}
+
+// ScrapeCoffeeFutures scrapes coffee futures data
+func (s *BrightDataService) ScrapeCoffeeFutures() ([]MarketDataItem, error) {
+	// Search for coffee futures data
+	resp, err := s.mcpClient.SearchEngine("coffee futures prices arabica robusta", "google")
+	if err != nil {
+		return nil, fmt.Errorf("failed to search coffee futures: %w", err)
+	}
+
+	var items []MarketDataItem
+
+	// Parse search results for futures data
+	if resp.Data != nil {
+		if results, ok := resp.Data.([]interface{}); ok {
+			for i, result := range results {
+				if resultMap, ok := result.(map[string]interface{}); ok {
+					item := MarketDataItem{
+						ID:          fmt.Sprintf("futures_%d", i+1),
+						Source:      "Coffee Futures",
+						LastUpdated: time.Now(),
+						Category:    "coffee-prices",
+					}
+
+					if title, exists := resultMap["title"]; exists {
+						if titleStr, ok := title.(string); ok {
+							item.Title = titleStr
+						}
+					}
+
+					if url, exists := resultMap["url"]; exists {
+						if urlStr, ok := url.(string); ok {
+							item.URL = urlStr
+						}
+					}
+
+					items = append(items, item)
+				}
+			}
+		}
+	}
+
+	return items, nil
+}
+
+// ScrapeSocialTrends scrapes social media trends about coffee
+func (s *BrightDataService) ScrapeSocialTrends() ([]MarketDataItem, error) {
+	// Search for coffee trends on social media
+	resp, err := s.mcpClient.SearchEngine("coffee trends social media twitter", "google")
+	if err != nil {
+		return nil, fmt.Errorf("failed to search social trends: %w", err)
+	}
+
+	var items []MarketDataItem
+
+	// Parse search results for social trends
+	if resp.Data != nil {
+		if results, ok := resp.Data.([]interface{}); ok {
+			for i, result := range results {
+				if resultMap, ok := result.(map[string]interface{}); ok {
+					item := MarketDataItem{
+						ID:          fmt.Sprintf("social_%d", i+1),
+						Source:      "Social Media",
+						LastUpdated: time.Now(),
+						Category:    "social",
+					}
+
+					if title, exists := resultMap["title"]; exists {
+						if titleStr, ok := title.(string); ok {
+							item.Title = titleStr
+						}
+					}
+
+					if url, exists := resultMap["url"]; exists {
+						if urlStr, ok := url.(string); ok {
+							item.URL = urlStr
+						}
+					}
+
+					items = append(items, item)
+				}
+			}
+		}
+	}
+
+	return items, nil
+}
+
+// getFallbackMarketData returns mock data as fallback when real data is unavailable
+func (s *BrightDataService) getFallbackMarketData() []MarketDataItem {
+	// Helper function to create float64 pointers
+	floatPtr := func(f float64) *float64 { return &f }
+
+	return []MarketDataItem{
+		{
+			ID:          "fallback_1",
+			Source:      "Starbucks (Fallback)",
+			Title:       "Grande Latte Price Update",
+			Price:       floatPtr(5.45),
+			Change:      floatPtr(0.15),
+			URL:         "https://starbucks.com",
+			LastUpdated: time.Now().Add(-10 * time.Minute),
+			Category:    "competitors",
+		},
+		{
+			ID:          "fallback_2",
+			Source:      "Coffee Futures (Fallback)",
+			Title:       "Arabica Coffee Futures Rise 2.3%",
+			Price:       floatPtr(1.85),
+			Change:      floatPtr(2.3),
+			URL:         "https://markets.com",
+			LastUpdated: time.Now().Add(-15 * time.Minute),
+			Category:    "coffee-prices",
+		},
+		{
+			ID:          "fallback_3",
+			Source:      "Coffee News (Fallback)",
+			Title:       "New Sustainable Coffee Farming Practices",
+			URL:         "https://coffeenews.com",
+			LastUpdated: time.Now().Add(-30 * time.Minute),
+			Category:    "news",
+		},
+	}
 }
 
 // Helper function to extract domain from URL

@@ -71,6 +71,13 @@ export const scrapingAPI = {
   getMarketData: (params?: any) => api.get('/scraping/data', { params }),
   refreshData: () => api.post('/scraping/refresh'),
   getDataSources: () => api.get('/scraping/sources'),
+  getCompetitorData: () => api.get('/scraping/competitors'),
+  getMarketNews: () => api.get('/scraping/news'),
+  getCoffeeFutures: () => api.get('/scraping/futures'),
+  getSocialTrends: () => api.get('/scraping/social'),
+  getSessionStats: () => api.get('/scraping/stats'),
+  scrapeURL: (url: string, format?: string) => api.post('/scraping/url', { url, format }),
+  searchEngine: (query: string, engine?: string) => api.post('/scraping/search', { query, engine }),
 }
 
 export const analyticsAPI = {

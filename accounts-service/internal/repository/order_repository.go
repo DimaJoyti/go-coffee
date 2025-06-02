@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/models"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/models"
 )
 
 // OrderRepository defines the interface for order repository operations

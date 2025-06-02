@@ -6,21 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/config"
 )
 
 // MockKafkaConsumer is a mock implementation of the Consumer interface
 type MockKafkaConsumer struct {
 	mock.Mock
-	handlers map[EventType]EventHandler
+	handlers map[events.EventType]events.EventHandler
 	mu       sync.RWMutex
 }
 
 func NewMockKafkaConsumer() *MockKafkaConsumer {
 	return &MockKafkaConsumer{
-		handlers: make(map[EventType]EventHandler),
+		handlers: make(map[events.EventType]events.EventHandler),
 	}
 }
 
@@ -34,7 +34,7 @@ func (m *MockKafkaConsumer) Close() error {
 	return args.Error(0)
 }
 
-func (m *MockKafkaConsumer) RegisterHandler(eventType EventType, handler EventHandler) {
+func (m *MockKafkaConsumer) RegisterHandler(eventType events.EventType, handler events.EventHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.handlers[eventType] = handler
@@ -42,7 +42,7 @@ func (m *MockKafkaConsumer) RegisterHandler(eventType EventType, handler EventHa
 }
 
 // SimulateEvent simulates receiving an event
-func (m *MockKafkaConsumer) SimulateEvent(event Event) error {
+func (m *MockKafkaConsumer) SimulateEvent(event events.Event) error {
 	m.mu.RLock()
 	handler, ok := m.handlers[event.Type]
 	m.mu.RUnlock()
@@ -59,15 +59,15 @@ func TestKafkaConsumer_RegisterHandler(t *testing.T) {
 	mockConsumer := NewMockKafkaConsumer()
 
 	// Set up expectations
-	mockConsumer.On("RegisterHandler", EventTypeAccountCreated, mock.AnythingOfType("func(kafka.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("func(events.Event) error")).Return()
 
 	// Create a handler
-	handler := func(event Event) error {
+	handler := func(event events.Event) error {
 		return nil
 	}
 
 	// Register the handler
-	mockConsumer.RegisterHandler(EventTypeAccountCreated, handler)
+	mockConsumer.RegisterHandler(events.EventTypeAccountCreated, handler)
 
 	// Verify expectations
 	mockConsumer.AssertExpectations(t)
@@ -81,9 +81,9 @@ func TestKafkaConsumer_SimulateEvent(t *testing.T) {
 	handlerCalled := make(chan bool, 1)
 
 	// Create a handler
-	handler := func(event Event) error {
+	handler := func(event events.Event) error {
 		// Check that the event is correct
-		assert.Equal(t, EventTypeAccountCreated, event.Type)
+		assert.Equal(t, events.EventTypeAccountCreated, event.Type)
 		assert.Equal(t, "test-id", event.ID)
 
 		// Signal that the handler was called
@@ -92,15 +92,15 @@ func TestKafkaConsumer_SimulateEvent(t *testing.T) {
 	}
 
 	// Set up expectations
-	mockConsumer.On("RegisterHandler", EventTypeAccountCreated, mock.AnythingOfType("func(kafka.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("func(events.Event) error")).Return()
 
 	// Register the handler
-	mockConsumer.RegisterHandler(EventTypeAccountCreated, handler)
+	mockConsumer.RegisterHandler(events.EventTypeAccountCreated, handler)
 
 	// Create an event
-	event := Event{
+	event := events.Event{
 		ID:        "test-id",
-		Type:      EventTypeAccountCreated,
+		Type:      events.EventTypeAccountCreated,
 		Timestamp: time.Now(),
 		Payload:   map[string]interface{}{"id": "123", "username": "testuser"},
 	}
@@ -126,27 +126,21 @@ func TestEventHandlers_RegisterHandlers(t *testing.T) {
 	mockConsumer := NewMockKafkaConsumer()
 
 	// Set up expectations for all event types
-	mockConsumer.On("RegisterHandler", EventTypeOrderCreated, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeOrderStatusChanged, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeOrderDeleted, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeProductCreated, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeProductUpdated, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeProductDeleted, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeVendorCreated, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeVendorUpdated, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeVendorDeleted, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeAccountCreated, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeAccountUpdated, mock.AnythingOfType("func(kafka.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", EventTypeAccountDeleted, mock.AnythingOfType("func(kafka.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeOrderCreated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeOrderStatusChanged, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeOrderDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeProductCreated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeProductUpdated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeProductDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeVendorCreated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeVendorUpdated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeVendorDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountUpdated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
 
-	// Create mock services
-	mockAccountService := &MockAccountService{}
-	mockOrderService := &MockOrderService{}
-	mockProductService := &MockProductService{}
-	mockVendorService := &MockVendorService{}
-
-	// Create event handlers
-	eventHandlers := NewEventHandlers(mockAccountService, mockOrderService, mockProductService, mockVendorService)
+	// Create event handlers (simplified, no service dependencies)
+	eventHandlers := NewEventHandlers()
 
 	// Register handlers
 	eventHandlers.RegisterHandlers(mockConsumer)
@@ -154,9 +148,3 @@ func TestEventHandlers_RegisterHandlers(t *testing.T) {
 	// Verify expectations
 	mockConsumer.AssertExpectations(t)
 }
-
-// Mock services for testing
-type MockAccountService struct{}
-type MockOrderService struct{}
-type MockProductService struct{}
-type MockVendorService struct{}

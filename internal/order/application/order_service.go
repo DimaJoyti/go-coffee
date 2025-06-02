@@ -80,7 +80,7 @@ func NewOrderService(
 // CreateOrder creates a new order
 func (s *OrderService) CreateOrder(ctx context.Context, req *CreateOrderRequest) (*CreateOrderResponse, error) {
 	// Validate user
-	userInfo, err := s.authService.ValidateUser(ctx, req.CustomerID)
+	_, err := s.authService.ValidateUser(ctx, req.CustomerID)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to validate user")
 		return nil, fmt.Errorf("invalid user: %w", err)
@@ -122,7 +122,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *CreateOrderRequest)
 	if req.SpecialInstructions != "" {
 		order.SpecialInstructions = req.SpecialInstructions
 	}
-	
+
 	if req.DeliveryAddress != nil {
 		order.DeliveryAddress = &domain.Address{
 			Street:     req.DeliveryAddress.Street,
@@ -157,7 +157,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *CreateOrderRequest)
 		// Don't fail the request for event publishing errors
 	}
 
-	s.logger.WithFields(map[string]interface{}{
+	s.logger.WithFields(map[string]any{
 		"order_id":    order.ID,
 		"customer_id": order.CustomerID,
 		"total":       order.TotalAmount,
@@ -229,7 +229,7 @@ func (s *OrderService) ConfirmOrder(ctx context.Context, req *ConfirmOrderReques
 		s.logger.WithError(err).Error("Failed to publish order confirmed event")
 	}
 
-	s.logger.WithFields(map[string]interface{}{
+	s.logger.WithFields(map[string]any{
 		"order_id":    order.ID,
 		"customer_id": order.CustomerID,
 	}).Info("Order confirmed successfully")
@@ -286,7 +286,7 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, req *UpdateOrderSt
 		s.logger.WithError(err).Error("Failed to publish order status changed event")
 	}
 
-	s.logger.WithFields(map[string]interface{}{
+	s.logger.WithFields(map[string]any{
 		"order_id":   order.ID,
 		"new_status": newStatus.String(),
 		"old_status": previousStatus.String(),
@@ -333,7 +333,7 @@ func (s *OrderService) CancelOrder(ctx context.Context, req *CancelOrderRequest)
 		s.logger.WithError(err).Error("Failed to publish order cancelled event")
 	}
 
-	s.logger.WithFields(map[string]interface{}{
+	s.logger.WithFields(map[string]any{
 		"order_id":    order.ID,
 		"customer_id": order.CustomerID,
 		"reason":      req.Reason,

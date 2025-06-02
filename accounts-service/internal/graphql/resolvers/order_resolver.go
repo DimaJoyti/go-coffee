@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/models"
 	"github.com/google/uuid"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/models"
 )
 
 // Order represents a GraphQL order resolver
@@ -69,7 +69,9 @@ func (r *Order) Account(ctx context.Context) (*Account, error) {
 func (r *Order) Items(ctx context.Context) ([]*OrderItem, error) {
 	if r.order.Items != nil {
 		var itemResolvers []*OrderItem
-		for _, item := range r.order.Items {
+		for i := range r.order.Items {
+			// Get pointer to the item since it's stored by value in r.order.Items
+			item := &r.order.Items[i]
 			itemResolvers = append(itemResolvers, &OrderItem{
 				orderItem: item,
 				resolver:  r.resolver,
@@ -78,8 +80,7 @@ func (r *Order) Items(ctx context.Context) ([]*OrderItem, error) {
 		return itemResolvers, nil
 	}
 
-	// This would be implemented in the order service
-	// For now, we'll return an empty array
+	// Return empty array if no items
 	return []*OrderItem{}, nil
 }
 

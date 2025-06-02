@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,7 +19,44 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// loadEnv loads environment variables from .env file
+func loadEnv(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			os.Setenv(key, value)
+		}
+	}
+
+	return scanner.Err()
+}
+
 func main() {
+	// Load environment variables from .env file
+	envPath := filepath.Join("..", "..", ".env")
+	if err := loadEnv(envPath); err != nil {
+		log.Printf("Warning: Could not load .env file from %s: %v", envPath, err)
+		// Try alternative path
+		if err := loadEnv("../../.env"); err != nil {
+			log.Printf("Warning: Could not load .env file from alternative path: %v", err)
+		}
+	} else {
+		log.Printf("✅ Loaded environment variables from %s", envPath)
+	}
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.DebugMode)
@@ -108,6 +148,13 @@ func main() {
 			scraping.GET("/data", scrapingHandler.GetMarketData)
 			scraping.POST("/refresh", scrapingHandler.RefreshData)
 			scraping.GET("/sources", scrapingHandler.GetDataSources)
+			scraping.GET("/competitors", scrapingHandler.GetCompetitorData)
+			scraping.GET("/news", scrapingHandler.GetMarketNews)
+			scraping.GET("/futures", scrapingHandler.GetCoffeeFutures)
+			scraping.GET("/social", scrapingHandler.GetSocialTrends)
+			scraping.GET("/stats", scrapingHandler.GetSessionStats)
+			scraping.POST("/url", scrapingHandler.ScrapeURL)
+			scraping.POST("/search", scrapingHandler.SearchEngine)
 		}
 
 		// Analytics routes

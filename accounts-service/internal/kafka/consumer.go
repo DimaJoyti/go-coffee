@@ -10,8 +10,9 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/config"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/events"
 	"github.com/IBM/sarama"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/config"
 )
 
 // Consumer represents a Kafka consumer
@@ -23,17 +24,14 @@ type Consumer interface {
 	Close() error
 
 	// RegisterHandler registers a handler for a specific event type
-	RegisterHandler(eventType EventType, handler EventHandler)
+	RegisterHandler(eventType events.EventType, handler events.EventHandler)
 }
-
-// EventHandler is a function that handles an event
-type EventHandler func(event Event) error
 
 // KafkaConsumer implements the Consumer interface using Kafka
 type KafkaConsumer struct {
 	consumer   sarama.ConsumerGroup
 	topics     []string
-	handlers   map[EventType]EventHandler
+	handlers   map[events.EventType]events.EventHandler
 	handlersWG sync.WaitGroup
 	handlersMu sync.RWMutex
 }
@@ -54,7 +52,7 @@ func NewKafkaConsumer(cfg *config.Config) (Consumer, error) {
 	return &KafkaConsumer{
 		consumer: consumerGroup,
 		topics:   []string{cfg.Kafka.Topic},
-		handlers: make(map[EventType]EventHandler),
+		handlers: make(map[events.EventType]events.EventHandler),
 	}, nil
 }
 
@@ -111,7 +109,7 @@ func (c *KafkaConsumer) Close() error {
 }
 
 // RegisterHandler registers a handler for a specific event type
-func (c *KafkaConsumer) RegisterHandler(eventType EventType, handler EventHandler) {
+func (c *KafkaConsumer) RegisterHandler(eventType events.EventType, handler events.EventHandler) {
 	c.handlersMu.Lock()
 	defer c.handlersMu.Unlock()
 	c.handlers[eventType] = handler
@@ -119,7 +117,7 @@ func (c *KafkaConsumer) RegisterHandler(eventType EventType, handler EventHandle
 
 // consumerGroupHandler implements the sarama.ConsumerGroupHandler interface
 type consumerGroupHandler struct {
-	handlers   map[EventType]EventHandler
+	handlers   map[events.EventType]events.EventHandler
 	handlersMu *sync.RWMutex
 	handlersWG *sync.WaitGroup
 }
@@ -138,7 +136,7 @@ func (h *consumerGroupHandler) Cleanup(sarama.ConsumerGroupSession) error {
 func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
 		// Parse the event
-		var event Event
+		var event events.Event
 		if err := json.Unmarshal(message.Value, &event); err != nil {
 			log.Printf("Failed to unmarshal event: %v", err)
 			session.MarkMessage(message, "")
@@ -158,7 +156,7 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 		// Handle the event in a goroutine
 		h.handlersWG.Add(1)
-		go func(msg *sarama.ConsumerMessage, evt Event, hdlr EventHandler) {
+		go func(msg *sarama.ConsumerMessage, evt events.Event, hdlr events.EventHandler) {
 			defer h.handlersWG.Done()
 
 			// Handle the event

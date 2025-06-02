@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/models"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/repository"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/models"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/repository"
 )
 
 // AccountService handles business logic for accounts

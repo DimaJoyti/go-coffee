@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/DimaJoyti/go-coffee/internal/order/domain"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
@@ -34,13 +33,13 @@ type LoyaltyService interface {
 
 // PaymentService implements payment processing use cases
 type PaymentService struct {
-	paymentRepo           PaymentRepository
-	orderRepo             OrderRepository
-	eventPublisher        EventPublisher
-	paymentProcessor      PaymentProcessor
-	cryptoProcessor       CryptoPaymentProcessor
-	loyaltyService        LoyaltyService
-	logger                *logger.Logger
+	paymentRepo      PaymentRepository
+	orderRepo        OrderRepository
+	eventPublisher   EventPublisher
+	paymentProcessor PaymentProcessor
+	cryptoProcessor  CryptoPaymentProcessor
+	loyaltyService   LoyaltyService
+	logger           *logger.Logger
 }
 
 // NewPaymentService creates a new payment service
@@ -144,7 +143,7 @@ func (s *PaymentService) ProcessPayment(ctx context.Context, req *ProcessPayment
 
 	// Update payment with processor details
 	payment.SetProcessorDetails(result.ProcessorID, result.ProcessorRef)
-	
+
 	// Update payment status to completed
 	if err := payment.UpdateStatus(domain.PaymentStatusCompleted); err != nil {
 		return nil, fmt.Errorf("failed to update payment status: %w", err)
@@ -161,7 +160,7 @@ func (s *PaymentService) ProcessPayment(ctx context.Context, req *ProcessPayment
 		s.logger.WithError(err).Error("Failed to publish payment completed event")
 	}
 
-	s.logger.WithFields(map[string]interface{}{
+	s.logger.WithFields(map[string]any{
 		"payment_id": payment.ID,
 		"order_id":   payment.OrderID,
 		"amount":     payment.Amount,
@@ -208,13 +207,13 @@ func (s *PaymentService) RefundPayment(ctx context.Context, req *RefundPaymentRe
 		if err := payment.UpdateStatus(domain.PaymentStatusRefunded); err != nil {
 			return nil, fmt.Errorf("failed to update payment status: %w", err)
 		}
-		
+
 		if err := s.paymentRepo.Update(ctx, payment); err != nil {
 			return nil, fmt.Errorf("failed to save payment: %w", err)
 		}
 	}
 
-	s.logger.WithFields(map[string]interface{}{
+	s.logger.WithFields(map[string]any{
 		"payment_id": payment.ID,
 		"refund_id":  refund.ID,
 		"amount":     req.Amount,
@@ -255,15 +254,17 @@ func (s *PaymentService) handleCryptoPayment(ctx context.Context, payment *domai
 	}
 
 	return &CreatePaymentResponse{
-		PaymentID:       payment.ID,
-		Status:          payment.Status.String(),
-		PaymentAddress:  addressResult.Address,
-		ExpiresAt:       addressResult.ExpiresAt,
-		CreatedAt:       payment.CreatedAt,
+		PaymentID:      payment.ID,
+		Status:         payment.Status.String(),
+		PaymentAddress: addressResult.Address,
+		ExpiresAt:      addressResult.ExpiresAt,
+		CreatedAt:      payment.CreatedAt,
 	}, nil
 }
 
 func (s *PaymentService) handleLoyaltyTokenPayment(ctx context.Context, payment *domain.Payment, req *CreatePaymentRequest) (*CreatePaymentResponse, error) {
+	_ = req // Parameter reserved for future use
+
 	// Get exchange rate
 	exchangeRate, err := s.loyaltyService.GetExchangeRate(ctx)
 	if err != nil {
@@ -341,6 +342,8 @@ func (s *PaymentService) handleCardPayment(ctx context.Context, payment *domain.
 }
 
 func (s *PaymentService) handleTraditionalPayment(ctx context.Context, payment *domain.Payment, req *CreatePaymentRequest) (*CreatePaymentResponse, error) {
+	_ = req // Parameter reserved for future use
+
 	// Save payment
 	if err := s.paymentRepo.Create(ctx, payment); err != nil {
 		return nil, fmt.Errorf("failed to save payment: %w", err)

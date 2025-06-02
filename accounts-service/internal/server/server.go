@@ -9,11 +9,11 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/config"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/graphql/generated"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/graphql/resolvers"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/logging"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/metrics"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/config"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/graphql/generated"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/graphql/resolvers"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/logging"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/metrics"
 )
 
 // HTTPServer represents the HTTP server

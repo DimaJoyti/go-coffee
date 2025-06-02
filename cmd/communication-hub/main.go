@@ -1,6 +1,4 @@
-package main
-
-import (
+paimport (
 	"context"
 	"fmt"
 	"net"
@@ -10,7 +8,23 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
+	"github.com/DimaJoyti/go-coffee/internal/communication"
+	"github.com/DimaJoyti/go-coffee/pkg/logger"
+	redismcp "github.com/DimaJoyti/go-coffee/pkg/redis-mcp"
+) (
+	"context"
+	"fmt"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/go-redis/redis/v8"
+	""
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -44,7 +58,7 @@ func main() {
 	// Initialize Redis client
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		logger.Fatal("Failed to parse Redis URL", zap.Error(err))
+		logger.Fatal("Failed to parse Redis URL: %v", err)
 	}
 
 	redisClient := redis.NewClient(opt)
@@ -55,7 +69,7 @@ func main() {
 
 	_, err = redisClient.Ping(ctx).Result()
 	if err != nil {
-		logger.Fatal("Failed to connect to Redis", zap.Error(err))
+		logger.Fatal("Failed to connect to Redis: %v", err)
 	}
 
 	logger.Info("✅ Connected to Redis successfully")
@@ -63,7 +77,7 @@ func main() {
 	// Initialize AI service for communication optimization
 	aiService, err := initializeAIService(redisClient, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize AI service", zap.Error(err))
+		logger.Fatal("Failed to initialize AI service: %v", err)
 	}
 
 	logger.Info("✅ AI service initialized successfully")
@@ -92,14 +106,14 @@ func main() {
 	// Start gRPC server
 	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		logger.Fatal("Failed to listen", zap.Error(err))
+		logger.Fatal("Failed to listen: %v", err)
 	}
 
 	// Start server in goroutine
 	go func() {
-		logger.Info("🌐 Communication Hub listening", zap.String("port", port))
+		logger.Info("🌐 Communication Hub listening on port %s", port)
 		if err := grpcServer.Serve(listener); err != nil {
-			logger.Fatal("Failed to serve gRPC", zap.Error(err))
+			logger.Fatal("Failed to serve gRPC: %v", err)
 		}
 	}()
 
@@ -128,7 +142,7 @@ func main() {
 
 	// Close Redis connection
 	if err := redisClient.Close(); err != nil {
-		logger.Error("Error closing Redis connection", zap.Error(err))
+		logger.Error("Error closing Redis connection: %v", err)
 	}
 
 	logger.Info("✅ Communication Hub stopped gracefully")
@@ -156,7 +170,7 @@ func initializeAIService(redisClient *redis.Client, logger *logger.Logger) (*red
 	}
 
 	// Initialize AI service
-	aiService, err := redismcp.NewAIService(config, redisClient, logger)
+	aiService, err := redismcp.NewAIService(config, logger, redisClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AI service: %w", err)
 	}
@@ -180,16 +194,11 @@ func loggingInterceptor(logger *logger.Logger) grpc.UnaryServerInterceptor {
 		// Log the request
 		duration := time.Since(start)
 		if err != nil {
-			logger.Error("gRPC unary request failed",
-				zap.String("method", info.FullMethod),
-				zap.Duration("duration", duration),
-				zap.Error(err),
-			)
+			logger.Error("gRPC unary request failed: method=%s, duration=%v, error=%v",
+				info.FullMethod, duration, err)
 		} else {
-			logger.Info("gRPC unary request completed",
-				zap.String("method", info.FullMethod),
-				zap.Duration("duration", duration),
-			)
+			logger.Info("gRPC unary request completed: method=%s, duration=%v",
+				info.FullMethod, duration)
 		}
 
 		return resp, err
@@ -212,16 +221,11 @@ func streamLoggingInterceptor(logger *logger.Logger) grpc.StreamServerIntercepto
 		// Log the request
 		duration := time.Since(start)
 		if err != nil {
-			logger.Error("gRPC stream request failed",
-				zap.String("method", info.FullMethod),
-				zap.Duration("duration", duration),
-				zap.Error(err),
-			)
+			logger.Error("gRPC stream request failed: method=%s, duration=%v, error=%v",
+				info.FullMethod, duration, err)
 		} else {
-			logger.Info("gRPC stream request completed",
-				zap.String("method", info.FullMethod),
-				zap.Duration("duration", duration),
-			)
+			logger.Info("gRPC stream request completed: method=%s, duration=%v",
+				info.FullMethod, duration)
 		}
 
 		return err
@@ -266,14 +270,11 @@ func initializeSampleCommunicationData(client *redis.Client, logger *logger.Logg
 	for serviceKey, data := range services {
 		for field, value := range data {
 			if err := client.HSet(ctx, serviceKey, field, value).Err(); err != nil {
-				logger.Error("Failed to set service data",
-					zap.Error(err),
-					zap.String("service", serviceKey),
-					zap.String("field", field),
-				)
+				logger.Error("Failed to set service data: service=%s, field=%s, error=%v",
+					serviceKey, field, err)
 			}
 		}
-		logger.Info("✅ Service data set", zap.String("service", serviceKey))
+		logger.Info("✅ Service data set for %s", serviceKey)
 	}
 
 	// Sample communication analytics
@@ -290,10 +291,8 @@ func initializeSampleCommunicationData(client *redis.Client, logger *logger.Logg
 			Score:  value,
 			Member: metric,
 		}).Err(); err != nil {
-			logger.Error("Failed to add communication analytics",
-				zap.Error(err),
-				zap.String("metric", metric),
-			)
+			logger.Error("Failed to add communication analytics: metric=%s, error=%v",
+				metric, err)
 		}
 	}
 	logger.Info("✅ Communication analytics data set")
@@ -309,10 +308,8 @@ func initializeSampleCommunicationData(client *redis.Client, logger *logger.Logg
 
 	for insight, value := range insights {
 		if err := client.HSet(ctx, "comm:ai:insights", insight, value).Err(); err != nil {
-			logger.Error("Failed to set AI insight",
-				zap.Error(err),
-				zap.String("insight", insight),
-			)
+			logger.Error("Failed to set AI insight: insight=%s, error=%v",
+				insight, err)
 		}
 	}
 	logger.Info("✅ AI communication insights set")
@@ -328,10 +325,8 @@ func initializeSampleCommunicationData(client *redis.Client, logger *logger.Logg
 
 	for template, content := range templates {
 		if err := client.HSet(ctx, "comm:templates", template, content).Err(); err != nil {
-			logger.Error("Failed to set message template",
-				zap.Error(err),
-				zap.String("template", template),
-			)
+			logger.Error("Failed to set message template: template=%s, error=%v",
+				template, err)
 		}
 	}
 	logger.Info("✅ Message templates set")

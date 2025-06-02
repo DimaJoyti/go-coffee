@@ -6,47 +6,15 @@ import (
 	"log"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/config"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/events"
 	"github.com/IBM/sarama"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/config"
 )
-
-// EventType represents the type of event
-type EventType string
-
-const (
-	// Account events
-	EventTypeAccountCreated EventType = "account.created"
-	EventTypeAccountUpdated EventType = "account.updated"
-	EventTypeAccountDeleted EventType = "account.deleted"
-
-	// Vendor events
-	EventTypeVendorCreated EventType = "vendor.created"
-	EventTypeVendorUpdated EventType = "vendor.updated"
-	EventTypeVendorDeleted EventType = "vendor.deleted"
-
-	// Product events
-	EventTypeProductCreated EventType = "product.created"
-	EventTypeProductUpdated EventType = "product.updated"
-	EventTypeProductDeleted EventType = "product.deleted"
-
-	// Order events
-	EventTypeOrderCreated     EventType = "order.created"
-	EventTypeOrderStatusChanged EventType = "order.status_changed"
-	EventTypeOrderDeleted     EventType = "order.deleted"
-)
-
-// Event represents a Kafka event
-type Event struct {
-	ID        string      `json:"id"`
-	Type      EventType   `json:"type"`
-	Timestamp time.Time   `json:"timestamp"`
-	Payload   interface{} `json:"payload"`
-}
 
 // Producer represents a Kafka producer
 type Producer interface {
 	// Publish publishes an event to Kafka
-	Publish(eventType EventType, payload interface{}) error
+	Publish(eventType events.EventType, payload interface{}) error
 
 	// Close closes the producer
 	Close() error
@@ -79,9 +47,9 @@ func NewKafkaProducer(cfg *config.Config) (Producer, error) {
 }
 
 // Publish publishes an event to Kafka
-func (p *KafkaProducer) Publish(eventType EventType, payload interface{}) error {
+func (p *KafkaProducer) Publish(eventType events.EventType, payload interface{}) error {
 	// Create event
-	event := Event{
+	event := events.Event{
 		ID:        generateID(),
 		Type:      eventType,
 		Timestamp: time.Now(),

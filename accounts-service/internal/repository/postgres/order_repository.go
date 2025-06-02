@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/models"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/repository"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/models"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/repository"
 )
 
 // OrderRepository implements repository.OrderRepository using PostgreSQL

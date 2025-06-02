@@ -10,14 +10,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/config"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/kafka"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/repository/postgres"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/server"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/service"
 	migrate "github.com/golang-migrate/migrate/v4"
 	pgmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/config"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/kafka"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/repository/postgres"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/server"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/service"
 )
 
 func main() {
@@ -87,7 +87,7 @@ func main() {
 	httpServer := server.NewHTTPServer(cfg, resolver)
 
 	// Create event handlers
-	eventHandlers := kafka.NewEventHandlers(accountService, orderService, productService, vendorService)
+	eventHandlers := kafka.NewEventHandlers()
 
 	// Register event handlers
 	eventHandlers.RegisterHandlers(kafkaConsumer)

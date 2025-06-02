@@ -1,8 +1,8 @@
 package resolvers
 
 import (
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/repository"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/service"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/repository"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/service"
 )
 
 // Resolver is the root resolver for GraphQL queries and mutations

@@ -6,10 +6,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/models"
+	"github.com/DimaJoyti/go-coffee/accounts-service/internal/repository"
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/models"
-	"github.com/yourusername/coffee-order-system/accounts-service/internal/repository"
 )
 
 // AccountRepository implements repository.AccountRepository using PostgreSQL

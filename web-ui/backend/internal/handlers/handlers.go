@@ -142,6 +142,139 @@ func (h *ScrapingHandler) GetDataSources(c *gin.Context) {
 	})
 }
 
+func (h *ScrapingHandler) GetCompetitorData(c *gin.Context) {
+	data, err := h.service.GetCompetitorData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get competitor data",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+func (h *ScrapingHandler) GetMarketNews(c *gin.Context) {
+	data, err := h.service.GetMarketNews()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get market news",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+func (h *ScrapingHandler) GetCoffeeFutures(c *gin.Context) {
+	data, err := h.service.GetCoffeeFutures()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get coffee futures data",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+func (h *ScrapingHandler) GetSocialTrends(c *gin.Context) {
+	data, err := h.service.GetSocialTrends()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get social trends",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+func (h *ScrapingHandler) GetSessionStats(c *gin.Context) {
+	stats, err := h.service.GetSessionStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get session stats",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    stats,
+	})
+}
+
+func (h *ScrapingHandler) ScrapeURL(c *gin.Context) {
+	var req struct {
+		URL    string `json:"url" binding:"required"`
+		Format string `json:"format"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format",
+		})
+		return
+	}
+
+	data, err := h.service.ScrapeURL(req.URL, req.Format)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to scrape URL",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+func (h *ScrapingHandler) SearchEngine(c *gin.Context) {
+	var req struct {
+		Query  string `json:"query" binding:"required"`
+		Engine string `json:"engine"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format",
+		})
+		return
+	}
+
+	if req.Engine == "" {
+		req.Engine = "google"
+	}
+
+	data, err := h.service.SearchEngine(req.Query, req.Engine)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to perform search",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
 // Analytics handlers
 func (h *AnalyticsHandler) GetSalesData(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Sales analytics endpoint - to be implemented"})
