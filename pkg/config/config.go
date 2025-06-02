@@ -423,6 +423,11 @@ func AutoLoadEnvFiles() error {
 	return nil
 }
 
+// LoadConfig loads configuration from environment variables (alias for LoadConfigFromEnv)
+func LoadConfig() (*Config, error) {
+	return LoadConfigFromEnv()
+}
+
 // LoadConfigFromEnv завантажує конфігурацію з змінних середовища
 func LoadConfigFromEnv() (*Config, error) {
 	config := &Config{

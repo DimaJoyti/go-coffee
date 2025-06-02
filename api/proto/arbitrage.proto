@@ -1,0 +1,512 @@
+syntax = "proto3";
+
+package arbitrage;
+
+option go_package = "github.com/DimaJoyti/go-coffee/api/proto";
+
+import "google/protobuf/timestamp.proto";
+
+// AI Arbitrage Service for connecting buyers and sellers
+service ArbitrageService {
+  // Create arbitrage opportunity
+  rpc CreateOpportunity(CreateOpportunityRequest) returns (CreateOpportunityResponse);
+  
+  // Get arbitrage opportunities
+  rpc GetOpportunities(GetOpportunitiesRequest) returns (GetOpportunitiesResponse);
+  
+  // Match buyers and sellers
+  rpc MatchParticipants(MatchParticipantsRequest) returns (MatchParticipantsResponse);
+  
+  // Execute arbitrage trade
+  rpc ExecuteTrade(ExecuteTradeRequest) returns (ExecuteTradeResponse);
+  
+  // Get market analysis
+  rpc GetMarketAnalysis(GetMarketAnalysisRequest) returns (GetMarketAnalysisResponse);
+  
+  // Subscribe to real-time opportunities
+  rpc SubscribeToOpportunities(SubscribeOpportunitiesRequest) returns (stream OpportunityEvent);
+  
+  // Get participant profile
+  rpc GetParticipantProfile(GetParticipantProfileRequest) returns (GetParticipantProfileResponse);
+  
+  // Update participant preferences
+  rpc UpdateParticipantPreferences(UpdateParticipantPreferencesRequest) returns (UpdateParticipantPreferencesResponse);
+}
+
+// Market Data Service for real-time price aggregation
+service MarketDataService {
+  // Get current market prices
+  rpc GetMarketPrices(GetMarketPricesRequest) returns (GetMarketPricesResponse);
+  
+  // Subscribe to price updates
+  rpc SubscribeToPrices(SubscribePricesRequest) returns (stream PriceUpdate);
+  
+  // Get historical data
+  rpc GetHistoricalData(GetHistoricalDataRequest) returns (GetHistoricalDataResponse);
+  
+  // Get market depth
+  rpc GetMarketDepth(GetMarketDepthRequest) returns (GetMarketDepthResponse);
+}
+
+// Matching Engine Service for buyer-seller pairing
+service MatchingEngineService {
+  // Create buy order
+  rpc CreateBuyOrder(CreateBuyOrderRequest) returns (CreateBuyOrderResponse);
+  
+  // Create sell order
+  rpc CreateSellOrder(CreateSellOrderRequest) returns (CreateSellOrderResponse);
+  
+  // Cancel order
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  
+  // Get order book
+  rpc GetOrderBook(GetOrderBookRequest) returns (GetOrderBookResponse);
+  
+  // Get order status
+  rpc GetOrderStatus(GetOrderStatusRequest) returns (GetOrderStatusResponse);
+}
+
+// Core data models
+message ArbitrageOpportunity {
+  string id = 1;
+  string asset_symbol = 2;
+  double buy_price = 3;
+  double sell_price = 4;
+  double profit_margin = 5;
+  double volume = 6;
+  string buy_market = 7;
+  string sell_market = 8;
+  OpportunityStatus status = 9;
+  double risk_score = 10;
+  double confidence_score = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp expires_at = 13;
+  AIAnalysis ai_analysis = 14;
+  repeated string tags = 15;
+}
+
+message Participant {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  ParticipantType type = 4;
+  ParticipantStatus status = 5;
+  ParticipantPreferences preferences = 6;
+  RiskProfile risk_profile = 7;
+  TradingStats trading_stats = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp last_active = 10;
+}
+
+message ParticipantPreferences {
+  repeated string preferred_assets = 1;
+  double min_profit_margin = 2;
+  double max_risk_score = 3;
+  double max_trade_amount = 4;
+  repeated string preferred_markets = 5;
+  bool auto_execute = 6;
+  NotificationSettings notifications = 7;
+}
+
+message RiskProfile {
+  RiskTolerance tolerance = 1;
+  double max_exposure = 2;
+  double daily_limit = 3;
+  repeated string restricted_assets = 4;
+  bool require_manual_approval = 5;
+}
+
+message TradingStats {
+  int64 total_trades = 1;
+  double total_profit = 2;
+  double success_rate = 3;
+  double average_profit_margin = 4;
+  double total_volume = 5;
+  google.protobuf.Timestamp last_trade = 6;
+}
+
+message AIAnalysis {
+  double price_prediction = 1;
+  double volatility_score = 2;
+  double market_sentiment = 3;
+  repeated string risk_factors = 4;
+  repeated string opportunities = 5;
+  string recommendation = 6;
+  double confidence = 7;
+}
+
+message MarketPrice {
+  string asset_symbol = 1;
+  string market = 2;
+  double bid_price = 3;
+  double ask_price = 4;
+  double last_price = 5;
+  double volume_24h = 6;
+  double change_24h = 7;
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+message Order {
+  string id = 1;
+  string participant_id = 2;
+  OrderType type = 3;
+  string asset_symbol = 4;
+  double quantity = 5;
+  double price = 6;
+  OrderStatus status = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  string market = 10;
+  double filled_quantity = 11;
+  double average_fill_price = 12;
+}
+
+message Trade {
+  string id = 1;
+  string opportunity_id = 2;
+  string buyer_id = 3;
+  string seller_id = 4;
+  string asset_symbol = 5;
+  double quantity = 6;
+  double buy_price = 7;
+  double sell_price = 8;
+  double profit = 9;
+  TradeStatus status = 10;
+  google.protobuf.Timestamp executed_at = 11;
+  google.protobuf.Timestamp settled_at = 12;
+}
+
+// Enums
+enum OpportunityStatus {
+  OPPORTUNITY_UNKNOWN = 0;
+  OPPORTUNITY_ACTIVE = 1;
+  OPPORTUNITY_MATCHED = 2;
+  OPPORTUNITY_EXECUTING = 3;
+  OPPORTUNITY_COMPLETED = 4;
+  OPPORTUNITY_EXPIRED = 5;
+  OPPORTUNITY_CANCELLED = 6;
+}
+
+enum ParticipantType {
+  PARTICIPANT_UNKNOWN = 0;
+  PARTICIPANT_BUYER = 1;
+  PARTICIPANT_SELLER = 2;
+  PARTICIPANT_BOTH = 3;
+  PARTICIPANT_MARKET_MAKER = 4;
+}
+
+enum ParticipantStatus {
+  PARTICIPANT_STATUS_UNKNOWN = 0;
+  PARTICIPANT_STATUS_ACTIVE = 1;
+  PARTICIPANT_STATUS_INACTIVE = 2;
+  PARTICIPANT_STATUS_SUSPENDED = 3;
+  PARTICIPANT_STATUS_PENDING_VERIFICATION = 4;
+}
+
+enum RiskTolerance {
+  RISK_UNKNOWN = 0;
+  RISK_LOW = 1;
+  RISK_MEDIUM = 2;
+  RISK_HIGH = 3;
+}
+
+enum OrderType {
+  ORDER_UNKNOWN = 0;
+  ORDER_BUY = 1;
+  ORDER_SELL = 2;
+  ORDER_LIMIT = 3;
+  ORDER_MARKET = 4;
+}
+
+enum OrderStatus {
+  ORDER_STATUS_UNKNOWN = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_PARTIAL = 2;
+  ORDER_STATUS_FILLED = 3;
+  ORDER_STATUS_CANCELLED = 4;
+  ORDER_STATUS_REJECTED = 5;
+}
+
+enum TradeStatus {
+  TRADE_UNKNOWN = 0;
+  TRADE_PENDING = 1;
+  TRADE_EXECUTING = 2;
+  TRADE_COMPLETED = 3;
+  TRADE_FAILED = 4;
+  TRADE_CANCELLED = 5;
+}
+
+// Notification settings
+message NotificationSettings {
+  bool email_enabled = 1;
+  bool sms_enabled = 2;
+  bool push_enabled = 3;
+  double min_profit_threshold = 4;
+  bool real_time_alerts = 5;
+}
+
+// Request/Response messages
+message CreateOpportunityRequest {
+  string asset_symbol = 1;
+  double buy_price = 2;
+  double sell_price = 3;
+  double volume = 4;
+  string buy_market = 5;
+  string sell_market = 6;
+  repeated string tags = 7;
+}
+
+message CreateOpportunityResponse {
+  ArbitrageOpportunity opportunity = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message GetOpportunitiesRequest {
+  string asset_symbol = 1;
+  double min_profit_margin = 2;
+  double max_risk_score = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+  repeated string markets = 6;
+}
+
+message GetOpportunitiesResponse {
+  repeated ArbitrageOpportunity opportunities = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+message MatchParticipantsRequest {
+  string opportunity_id = 1;
+  repeated string participant_ids = 2;
+  bool auto_execute = 3;
+}
+
+message MatchParticipantsResponse {
+  repeated ParticipantMatch matches = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message ParticipantMatch {
+  string buyer_id = 1;
+  string seller_id = 2;
+  double match_score = 3;
+  double suggested_quantity = 4;
+  double suggested_price = 5;
+  AIAnalysis match_analysis = 6;
+}
+
+message ExecuteTradeRequest {
+  string opportunity_id = 1;
+  string buyer_id = 2;
+  string seller_id = 3;
+  double quantity = 4;
+  double price = 5;
+  bool force_execute = 6;
+}
+
+message ExecuteTradeResponse {
+  Trade trade = 1;
+  bool success = 2;
+  string message = 3;
+  string transaction_id = 4;
+}
+
+message GetMarketAnalysisRequest {
+  string asset_symbol = 1;
+  repeated string markets = 2;
+  string timeframe = 3;
+}
+
+message GetMarketAnalysisResponse {
+  MarketAnalysis analysis = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message MarketAnalysis {
+  string asset_symbol = 1;
+  double current_price = 2;
+  double predicted_price = 3;
+  double volatility = 4;
+  double sentiment_score = 5;
+  repeated ArbitrageOpportunity opportunities = 6;
+  repeated string risk_factors = 7;
+  repeated PriceLevel support_levels = 8;
+  repeated PriceLevel resistance_levels = 9;
+  google.protobuf.Timestamp analysis_time = 10;
+}
+
+message PriceLevel {
+  double price = 1;
+  double strength = 2;
+  string type = 3;
+}
+
+message SubscribeOpportunitiesRequest {
+  repeated string asset_symbols = 1;
+  double min_profit_margin = 2;
+  repeated string markets = 3;
+  string participant_id = 4;
+}
+
+message OpportunityEvent {
+  string event_type = 1;
+  ArbitrageOpportunity opportunity = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  string participant_id = 4;
+}
+
+message GetParticipantProfileRequest {
+  string participant_id = 1;
+}
+
+message GetParticipantProfileResponse {
+  Participant participant = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message UpdateParticipantPreferencesRequest {
+  string participant_id = 1;
+  ParticipantPreferences preferences = 2;
+}
+
+message UpdateParticipantPreferencesResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Market Data Service messages
+message GetMarketPricesRequest {
+  repeated string asset_symbols = 1;
+  repeated string markets = 2;
+}
+
+message GetMarketPricesResponse {
+  repeated MarketPrice prices = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message SubscribePricesRequest {
+  repeated string asset_symbols = 1;
+  repeated string markets = 2;
+  string participant_id = 3;
+}
+
+message PriceUpdate {
+  MarketPrice price = 1;
+  string update_type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message GetHistoricalDataRequest {
+  string asset_symbol = 1;
+  string market = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+  string interval = 5;
+}
+
+message GetHistoricalDataResponse {
+  repeated HistoricalPrice prices = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message HistoricalPrice {
+  google.protobuf.Timestamp timestamp = 1;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  double volume = 6;
+}
+
+message GetMarketDepthRequest {
+  string asset_symbol = 1;
+  string market = 2;
+  int32 depth = 3;
+}
+
+message GetMarketDepthResponse {
+  repeated OrderBookLevel bids = 1;
+  repeated OrderBookLevel asks = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+message OrderBookLevel {
+  double price = 1;
+  double quantity = 2;
+  int32 order_count = 3;
+}
+
+// Matching Engine Service messages
+message CreateBuyOrderRequest {
+  string participant_id = 1;
+  string asset_symbol = 2;
+  double quantity = 3;
+  double price = 4;
+  OrderType order_type = 5;
+  string market = 6;
+}
+
+message CreateBuyOrderResponse {
+  Order order = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message CreateSellOrderRequest {
+  string participant_id = 1;
+  string asset_symbol = 2;
+  double quantity = 3;
+  double price = 4;
+  OrderType order_type = 5;
+  string market = 6;
+}
+
+message CreateSellOrderResponse {
+  Order order = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;
+  string participant_id = 2;
+}
+
+message CancelOrderResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetOrderBookRequest {
+  string asset_symbol = 1;
+  string market = 2;
+  int32 depth = 3;
+}
+
+message GetOrderBookResponse {
+  repeated Order buy_orders = 1;
+  repeated Order sell_orders = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+message GetOrderStatusRequest {
+  string order_id = 1;
+  string participant_id = 2;
+}
+
+message GetOrderStatusResponse {
+  Order order = 1;
+  bool success = 2;
+  string message = 3;
+}

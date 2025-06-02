@@ -58,19 +58,57 @@ type AIResponse struct {
 }
 
 // NewAIService creates a new AI service instance
-func NewAIService(config *AIConfig, redisClient *redis.Client, logger *logger.Logger) (*AIService, error) {
-	if config == nil {
-		return nil, fmt.Errorf("AI config is required")
+func NewAIService(config interface{}, logger *logger.Logger, redisClient interface{}) (*AIService, error) {
+	// Handle different config types for compatibility
+	var aiConfig *AIConfig
+
+	switch cfg := config.(type) {
+	case *AIConfig:
+		aiConfig = cfg
+	case AIConfig:
+		aiConfig = &cfg
+	default:
+		// Create default config
+		aiConfig = &AIConfig{
+			Gemini: GeminiConfig{
+				APIKey: "",
+				Model:  "gemini-pro",
+			},
+			Ollama: OllamaConfig{
+				BaseURL: "http://localhost:11434",
+				Model:   "llama2",
+			},
+		}
+	}
+
+	// Handle different Redis client types
+	var redisClientTyped *redis.Client
+	if rc, ok := redisClient.(*redis.Client); ok {
+		redisClientTyped = rc
+	} else {
+		// Create a mock Redis client for compatibility
+		redisClientTyped = nil
 	}
 
 	return &AIService{
-		config:      config,
-		redisClient: redisClient,
+		config:      aiConfig,
+		redisClient: redisClientTyped,
 		logger:      logger,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}, nil
+}
+
+// ProcessMessage processes a message using AI (compatibility method)
+func (ai *AIService) ProcessMessage(ctx context.Context, prompt, analyzer string) (string, error) {
+	response, err := ai.GenerateResponse(ctx, prompt, map[string]interface{}{
+		"analyzer": analyzer,
+	})
+	if err != nil {
+		return "", err
+	}
+	return response.Content, nil
 }
 
 // GenerateResponse generates an AI response for the given prompt

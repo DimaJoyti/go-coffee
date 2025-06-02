@@ -1,0 +1,239 @@
+# AI Arbitrage System Makefile
+# Connects buyers and sellers through intelligent AI-powered arbitrage
+
+.PHONY: help build run stop clean test proto docker logs
+
+# Default target
+help: ## Show this help message
+	@echo "🤖 AI Arbitrage System - Connecting Buyers and Sellers"
+	@echo ""
+	@echo "Available commands:"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# Variables
+PROTO_DIR := api/proto
+GO_OUT_DIR := api/proto
+ARBITRAGE_SERVICES := ai-arbitrage-service market-data-service matching-engine-service
+DOCKER_COMPOSE_FILE := docker-compose.ai-arbitrage.yml
+
+# Build targets
+build: ## Build all AI Arbitrage services
+	@echo "🔨 Building AI Arbitrage services..."
+	@for service in $(ARBITRAGE_SERVICES); do \
+		echo "Building $$service..."; \
+		go build -o bin/$$service cmd/$$service/main.go; \
+	done
+	@echo "✅ All AI Arbitrage services built successfully!"
+
+build-arbitrage: ## Build AI Arbitrage Service only
+	@echo "🔨 Building AI Arbitrage Service..."
+	@go build -o bin/ai-arbitrage-service cmd/ai-arbitrage-service/main.go
+	@echo "✅ AI Arbitrage Service built!"
+
+build-market-data: ## Build Market Data Service only
+	@echo "🔨 Building Market Data Service..."
+	@go build -o bin/market-data-service cmd/market-data-service/main.go
+	@echo "✅ Market Data Service built!"
+
+build-matching: ## Build Matching Engine Service only
+	@echo "🔨 Building Matching Engine Service..."
+	@go build -o bin/matching-engine-service cmd/matching-engine-service/main.go
+	@echo "✅ Matching Engine Service built!"
+
+# Protocol Buffers
+proto: ## Generate protobuf code for arbitrage services
+	@echo "🔧 Generating protobuf code for AI Arbitrage..."
+	@protoc --go_out=$(GO_OUT_DIR) --go_opt=paths=source_relative \
+		--go-grpc_out=$(GO_OUT_DIR) --go-grpc_opt=paths=source_relative \
+		$(PROTO_DIR)/arbitrage.proto
+	@echo "✅ Protobuf code generated!"
+
+# Infrastructure
+run-redis: ## Start Redis for AI Arbitrage
+	@echo "🚀 Starting Redis for AI Arbitrage..."
+	@docker run -d --name ai-arbitrage-redis \
+		-p 6379:6379 \
+		-v ai-arbitrage-redis-data:/data \
+		redis:7-alpine redis-server --appendonly yes
+	@echo "✅ Redis started on port 6379"
+
+run-infrastructure: run-redis ## Start all infrastructure services
+	@echo "🏗️ AI Arbitrage infrastructure started!"
+
+# Service management
+run-arbitrage: ## Run AI Arbitrage Service
+	@echo "🤖 Starting AI Arbitrage Service..."
+	@GRPC_PORT=50054 ./bin/ai-arbitrage-service
+
+run-market-data: ## Run Market Data Service
+	@echo "📊 Starting Market Data Service..."
+	@GRPC_PORT=50055 ./bin/market-data-service
+
+run-matching: ## Run Matching Engine Service
+	@echo "🔄 Starting Matching Engine Service..."
+	@GRPC_PORT=50056 ./bin/matching-engine-service
+
+run-all: ## Run all AI Arbitrage services
+	@echo "🚀 Starting all AI Arbitrage services..."
+	@make run-infrastructure
+	@sleep 3
+	@echo "Starting AI Arbitrage Service..."
+	@GRPC_PORT=50054 ./bin/ai-arbitrage-service &
+	@echo "Starting Market Data Service..."
+	@GRPC_PORT=50055 ./bin/market-data-service &
+	@echo "Starting Matching Engine Service..."
+	@GRPC_PORT=50056 ./bin/matching-engine-service &
+	@echo "✅ All services started!"
+	@echo ""
+	@echo "🌐 Service Endpoints:"
+	@echo "  AI Arbitrage Service:    localhost:50054"
+	@echo "  Market Data Service:     localhost:50055"
+	@echo "  Matching Engine Service: localhost:50056"
+	@echo "  Redis:                   localhost:6379"
+
+# Docker
+docker-build: ## Build Docker images for AI Arbitrage services
+	@echo "🐳 Building Docker images..."
+	@docker build -f docker/Dockerfile.ai-arbitrage -t ai-arbitrage-service .
+	@docker build -f docker/Dockerfile.market-data -t market-data-service .
+	@docker build -f docker/Dockerfile.matching-engine -t matching-engine-service .
+	@echo "✅ Docker images built!"
+
+docker-run: ## Run AI Arbitrage services with Docker Compose
+	@echo "🐳 Starting AI Arbitrage services with Docker..."
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo "✅ AI Arbitrage services started with Docker!"
+
+docker-stop: ## Stop Docker services
+	@echo "🛑 Stopping Docker services..."
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down
+	@echo "✅ Docker services stopped!"
+
+docker-logs: ## Show Docker logs
+	@echo "📋 Showing Docker logs..."
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) logs -f
+
+# Testing
+test: ## Run tests for AI Arbitrage services
+	@echo "🧪 Running AI Arbitrage tests..."
+	@go test -v ./internal/ai-arbitrage/...
+	@go test -v ./internal/market-data/...
+	@echo "✅ Tests completed!"
+
+test-integration: ## Run integration tests
+	@echo "🔗 Running integration tests..."
+	@go test -v -tags=integration ./tests/arbitrage/...
+	@echo "✅ Integration tests completed!"
+
+benchmark: ## Run performance benchmarks
+	@echo "⚡ Running performance benchmarks..."
+	@go test -bench=. -benchmem ./internal/ai-arbitrage/...
+	@echo "✅ Benchmarks completed!"
+
+# Development
+dev: ## Start development environment
+	@echo "🛠️ Starting development environment..."
+	@make run-infrastructure
+	@sleep 3
+	@make build
+	@make run-all
+
+demo: ## Run AI Arbitrage demo
+	@echo "🎬 Running AI Arbitrage demo..."
+	@go run cmd/ai-arbitrage-demo/main.go
+
+# API testing
+test-api: ## Test AI Arbitrage API endpoints
+	@echo "🔍 Testing AI Arbitrage API..."
+	@echo "Creating arbitrage opportunity..."
+	@grpcurl -plaintext -d '{"asset_symbol":"COFFEE","buy_price":100.0,"sell_price":105.0,"volume":1000.0,"buy_market":"Exchange_A","sell_market":"Exchange_B"}' \
+		localhost:50054 arbitrage.ArbitrageService/CreateOpportunity
+	@echo ""
+	@echo "Getting opportunities..."
+	@grpcurl -plaintext -d '{"asset_symbol":"COFFEE","min_profit_margin":2.0}' \
+		localhost:50054 arbitrage.ArbitrageService/GetOpportunities
+	@echo ""
+	@echo "Getting market prices..."
+	@grpcurl -plaintext -d '{"asset_symbols":["COFFEE","BTC"]}' \
+		localhost:50055 arbitrage.MarketDataService/GetMarketPrices
+
+# Monitoring
+logs: ## Show service logs
+	@echo "📋 Showing AI Arbitrage service logs..."
+	@tail -f logs/ai-arbitrage-service.log logs/market-data-service.log logs/matching-engine-service.log
+
+health: ## Check service health
+	@echo "🏥 Checking service health..."
+	@grpc_health_probe -addr=localhost:50054 || echo "❌ AI Arbitrage Service unhealthy"
+	@grpc_health_probe -addr=localhost:50055 || echo "❌ Market Data Service unhealthy"
+	@grpc_health_probe -addr=localhost:50056 || echo "❌ Matching Engine Service unhealthy"
+	@echo "✅ Health check completed!"
+
+metrics: ## Show service metrics
+	@echo "📊 Service metrics:"
+	@curl -s http://localhost:9090/metrics | grep arbitrage || echo "No metrics available"
+
+# Cleanup
+stop: ## Stop all AI Arbitrage services
+	@echo "🛑 Stopping AI Arbitrage services..."
+	@pkill -f ai-arbitrage-service || true
+	@pkill -f market-data-service || true
+	@pkill -f matching-engine-service || true
+	@docker stop ai-arbitrage-redis || true
+	@docker rm ai-arbitrage-redis || true
+	@echo "✅ All services stopped!"
+
+clean: ## Clean build artifacts and data
+	@echo "🧹 Cleaning up..."
+	@rm -rf bin/ai-arbitrage-service bin/market-data-service bin/matching-engine-service
+	@docker volume rm ai-arbitrage-redis-data || true
+	@echo "✅ Cleanup completed!"
+
+reset: stop clean ## Reset everything (stop services and clean data)
+	@echo "🔄 AI Arbitrage system reset completed!"
+
+# Documentation
+docs: ## Generate documentation
+	@echo "📚 Generating documentation..."
+	@go doc -all ./internal/ai-arbitrage > docs/ai-arbitrage-api.md
+	@go doc -all ./internal/market-data > docs/market-data-api.md
+	@echo "✅ Documentation generated!"
+
+# Installation
+install-deps: ## Install required dependencies
+	@echo "📦 Installing dependencies..."
+	@go mod tidy
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@go install github.com/grpc-ecosystem/grpc-health-probe@latest
+	@echo "✅ Dependencies installed!"
+
+# Quick start
+quick-start: install-deps proto build run-infrastructure ## Quick start for new developers
+	@echo ""
+	@echo "🎉 AI Arbitrage System Quick Start Complete!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "1. Run 'make run-all' to start all services"
+	@echo "2. Run 'make test-api' to test the API"
+	@echo "3. Run 'make demo' to see the system in action"
+	@echo ""
+	@echo "📖 Documentation: docs/ai-arbitrage-api.md"
+	@echo "🔧 Configuration: .env files"
+	@echo "📊 Monitoring: make logs, make health, make metrics"
+
+# Status
+status: ## Show system status
+	@echo "📊 AI Arbitrage System Status"
+	@echo "=============================="
+	@echo ""
+	@echo "🔧 Services:"
+	@pgrep -f ai-arbitrage-service > /dev/null && echo "  ✅ AI Arbitrage Service (PID: $$(pgrep -f ai-arbitrage-service))" || echo "  ❌ AI Arbitrage Service"
+	@pgrep -f market-data-service > /dev/null && echo "  ✅ Market Data Service (PID: $$(pgrep -f market-data-service))" || echo "  ❌ Market Data Service"
+	@pgrep -f matching-engine-service > /dev/null && echo "  ✅ Matching Engine Service (PID: $$(pgrep -f matching-engine-service))" || echo "  ❌ Matching Engine Service"
+	@echo ""
+	@echo "🗄️ Infrastructure:"
+	@docker ps --filter name=ai-arbitrage-redis --format "table {{.Names}}\t{{.Status}}" | grep -v NAMES || echo "  ❌ Redis not running"
+	@echo ""
+	@echo "📁 Build artifacts:"
+	@ls -la bin/ 2>/dev/null | grep arbitrage || echo "  ❌ No build artifacts found"
