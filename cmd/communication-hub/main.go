@@ -1,4 +1,6 @@
-paimport (
+package main
+
+import (
 	"context"
 	"fmt"
 	"net"
@@ -8,23 +10,6 @@ paimport (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-
-	"github.com/DimaJoyti/go-coffee/internal/communication"
-	"github.com/DimaJoyti/go-coffee/pkg/logger"
-	redismcp "github.com/DimaJoyti/go-coffee/pkg/redis-mcp"
-) (
-	"context"
-	"fmt"
-	"net"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
-	"github.com/go-redis/redis/v8"
-	""
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -279,11 +264,11 @@ func initializeSampleCommunicationData(client *redis.Client, logger *logger.Logg
 
 	// Sample communication analytics
 	analytics := map[string]float64{
-		"total_messages":       1250,
-		"messages_today":       156,
-		"avg_response_time":    0.85,
-		"failed_deliveries":    12,
-		"success_rate":         98.5,
+		"total_messages":    1250,
+		"messages_today":    156,
+		"avg_response_time": 0.85,
+		"failed_deliveries": 12,
+		"success_rate":      98.5,
 	}
 
 	for metric, value := range analytics {

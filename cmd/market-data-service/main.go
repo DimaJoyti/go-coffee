@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -14,11 +13,11 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/DimaJoyti/go-coffee/internal/market-data"
 	pb "github.com/DimaJoyti/go-coffee/api/proto"
+	marketdata "github.com/DimaJoyti/go-coffee/internal/market-data"
 	"github.com/DimaJoyti/go-coffee/pkg/config"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/pkg/redis-mcp"
+	redismcp "github.com/DimaJoyti/go-coffee/pkg/redis-mcp"
 )
 
 const (
@@ -28,15 +27,15 @@ const (
 
 func main() {
 	// Initialize logger
-	logger := logger.NewLogger(serviceName)
-	defer logger.Sync()
+	loggerInstance := logger.New(serviceName)
+	defer loggerInstance.Sync()
 
-	logger.Info("Starting Market Data Service")
+	loggerInstance.Info("Starting Market Data Service")
 
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		logger.Fatal("Failed to load configuration", logger.Error(err))
+		loggerInstance.Fatal("Failed to load configuration: %v", err)
 	}
 
 	// Get port from environment or use default
@@ -48,24 +47,24 @@ func main() {
 	// Initialize Redis client
 	redisClient, err := redismcp.NewRedisClient(cfg.Redis)
 	if err != nil {
-		logger.Fatal("Failed to connect to Redis", logger.Error(err))
+		loggerInstance.Fatal("Failed to connect to Redis: %v", err)
 	}
 	defer redisClient.Close()
 
 	// Initialize market data service
 	marketDataService, err := marketdata.NewService(
 		redisClient,
-		logger,
+		loggerInstance,
 		cfg,
 	)
 	if err != nil {
-		logger.Fatal("Failed to initialize market data service", logger.Error(err))
+		loggerInstance.Fatal("Failed to initialize market data service: %v", err)
 	}
 
 	// Create gRPC server
 	server := grpc.NewServer(
-		grpc.UnaryInterceptor(loggingInterceptor(logger)),
-		grpc.StreamInterceptor(streamLoggingInterceptor(logger)),
+		grpc.UnaryInterceptor(loggingInterceptor(loggerInstance)),
+		grpc.StreamInterceptor(streamLoggingInterceptor(loggerInstance)),
 	)
 
 	// Register services
@@ -82,14 +81,14 @@ func main() {
 	// Create listener
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		logger.Fatal("Failed to listen", logger.Error(err))
+		loggerInstance.Fatal("Failed to listen: %v", err)
 	}
 
 	// Start server in goroutine
 	go func() {
-		logger.Info("Market Data Service listening", logger.String("port", port))
+		loggerInstance.Info("Market Data Service listening on port: %s", port)
 		if err := server.Serve(lis); err != nil {
-			logger.Fatal("Failed to serve", logger.Error(err))
+			loggerInstance.Fatal("Failed to serve: %v", err)
 		}
 	}()
 
@@ -99,7 +98,7 @@ func main() {
 
 	go func() {
 		if err := marketDataService.Start(ctx); err != nil {
-			logger.Error("Failed to start market data service", logger.Error(err))
+			loggerInstance.Error("Failed to start market data service: %v", err)
 		}
 	}()
 
@@ -108,7 +107,7 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
-	logger.Info("Shutting down Market Data Service")
+	loggerInstance.Info("Shutting down Market Data Service")
 
 	// Graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -126,17 +125,17 @@ func main() {
 
 	select {
 	case <-done:
-		logger.Info("Server stopped gracefully")
+		loggerInstance.Info("Server stopped gracefully")
 	case <-shutdownCtx.Done():
-		logger.Warn("Server shutdown timeout, forcing stop")
+		loggerInstance.Warn("Server shutdown timeout, forcing stop")
 		server.Stop()
 	}
 
-	logger.Info("Market Data Service stopped")
+	loggerInstance.Info("Market Data Service stopped")
 }
 
 // loggingInterceptor logs gRPC requests
-func loggingInterceptor(logger *logger.Logger) grpc.UnaryServerInterceptor {
+func loggingInterceptor(loggerInstance *logger.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
@@ -144,30 +143,30 @@ func loggingInterceptor(logger *logger.Logger) grpc.UnaryServerInterceptor {
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
 		start := time.Now()
-		
+
 		resp, err := handler(ctx, req)
-		
+
 		duration := time.Since(start)
-		
+
 		if err != nil {
-			logger.Error("gRPC request failed",
+			loggerInstance.ErrorWithFields("gRPC request failed",
 				logger.String("method", info.FullMethod),
 				logger.Duration("duration", duration),
 				logger.Error(err),
 			)
 		} else {
-			logger.Info("gRPC request completed",
+			loggerInstance.InfoWithFields("gRPC request completed",
 				logger.String("method", info.FullMethod),
 				logger.Duration("duration", duration),
 			)
 		}
-		
+
 		return resp, err
 	}
 }
 
 // streamLoggingInterceptor logs gRPC stream requests
-func streamLoggingInterceptor(logger *logger.Logger) grpc.StreamServerInterceptor {
+func streamLoggingInterceptor(loggerInstance *logger.Logger) grpc.StreamServerInterceptor {
 	return func(
 		srv interface{},
 		stream grpc.ServerStream,
@@ -175,24 +174,24 @@ func streamLoggingInterceptor(logger *logger.Logger) grpc.StreamServerIntercepto
 		handler grpc.StreamHandler,
 	) error {
 		start := time.Now()
-		
+
 		err := handler(srv, stream)
-		
+
 		duration := time.Since(start)
-		
+
 		if err != nil {
-			logger.Error("gRPC stream failed",
+			loggerInstance.ErrorWithFields("gRPC stream failed",
 				logger.String("method", info.FullMethod),
 				logger.Duration("duration", duration),
 				logger.Error(err),
 			)
 		} else {
-			logger.Info("gRPC stream completed",
+			loggerInstance.InfoWithFields("gRPC stream completed",
 				logger.String("method", info.FullMethod),
 				logger.Duration("duration", duration),
 			)
 		}
-		
+
 		return err
 	}
 }

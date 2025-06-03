@@ -233,6 +233,11 @@ func Error(err error) Field {
 	return Field{Key: "error", Value: err.Error()}
 }
 
+// Duration creates a duration field
+func Duration(key string, value time.Duration) Field {
+	return Field{Key: key, Value: value.String()}
+}
+
 // With creates a new logger with the given fields (zap-compatible)
 func (l *Logger) With(fields ...Field) *Logger {
 	newFields := make(map[string]interface{})
@@ -264,4 +269,22 @@ func (l *Logger) Sugar() *Logger {
 func (l *Logger) Sync() error {
 	// Standard logger doesn't need syncing
 	return nil
+}
+
+// InfoWithFields logs an info message with fields
+func (l *Logger) InfoWithFields(msg string, fields ...Field) {
+	logger := l.With(fields...)
+	logger.Info(msg)
+}
+
+// ErrorWithFields logs an error message with fields
+func (l *Logger) ErrorWithFields(msg string, fields ...Field) {
+	logger := l.With(fields...)
+	logger.Error(msg)
+}
+
+// WarnWithFields logs a warn message with fields
+func (l *Logger) WarnWithFields(msg string, fields ...Field) {
+	logger := l.With(fields...)
+	logger.Warn(msg)
 }

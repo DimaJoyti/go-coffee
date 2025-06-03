@@ -856,6 +856,59 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - **Security** - Follow security best practices
 - **Performance** - Consider performance implications
 
+## 🛡️ Enterprise Security Platform
+
+Go Coffee implements a comprehensive, enterprise-grade security architecture designed to protect against modern threats while maintaining high performance.
+
+### 🔐 Security Features
+
+#### **Security Gateway Service**
+- **Web Application Firewall (WAF)** - Protection against OWASP Top 10
+- **Rate Limiting** - Distributed rate limiting with Redis backend
+- **Real-time Threat Detection** - ML-powered threat analysis
+- **API Gateway** - Secure request routing and load balancing
+- **Input Validation** - Comprehensive request sanitization
+- **Security Headers** - HSTS, CSP, X-Frame-Options enforcement
+
+#### **Advanced Authentication & MFA**
+- **Multi-Factor Authentication** - TOTP, SMS, Email, backup codes
+- **Device Fingerprinting** - Track and trust known devices
+- **Risk-based Authentication** - Dynamic MFA requirements
+- **Behavioral Analysis** - Detect unusual login patterns
+- **Geo-location Validation** - Location-based access control
+
+#### **Payment Security & Fraud Detection**
+- **ML-powered Fraud Detection** - Real-time transaction analysis
+- **Risk Scoring System** - Automated risk assessment
+- **PCI DSS Compliance** - Payment card industry standards
+- **Encryption Services** - AES-256, RSA-2048, Argon2
+
+### 🚀 Security Quick Start
+
+```bash
+# Setup complete security platform
+./scripts/setup-security-platform.sh
+
+# Start Security Gateway
+docker-compose -f docker-compose.security-gateway.yml up -d
+
+# Run security demonstration
+./test/security-demo.sh
+```
+
+### 📊 Security Monitoring
+
+- **Security Gateway**: http://localhost:8080
+- **Grafana Dashboard**: http://localhost:3000 (admin/admin)
+- **Prometheus Metrics**: http://localhost:9090
+- **Jaeger Tracing**: http://localhost:16686
+
+### 📚 Security Documentation
+
+- [Security Architecture](docs/SECURITY-ARCHITECTURE.md)
+- [Security Gateway README](cmd/security-gateway/README.md)
+- [Environment Configuration](.env.security.example)
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

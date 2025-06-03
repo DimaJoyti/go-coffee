@@ -1,0 +1,332 @@
+# Security Gateway Makefile
+
+# Variables
+SERVICE_NAME := security-gateway
+BINARY_NAME := security-gateway
+DOCKER_IMAGE := go-coffee/security-gateway
+VERSION := $(shell git describe --tags --always --dirty)
+BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+COMMIT := $(shell git rev-parse HEAD)
+
+# Go variables
+GOCMD := go
+GOBUILD := $(GOCMD) build
+GOCLEAN := $(GOCMD) clean
+GOTEST := $(GOCMD) test
+GOGET := $(GOCMD) get
+GOMOD := $(GOCMD) mod
+GOFMT := gofmt
+GOLINT := golangci-lint
+
+# Build flags
+LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.Commit=$(COMMIT)"
+
+# Directories
+BUILD_DIR := ./build
+BIN_DIR := ./bin
+CMD_DIR := ./cmd/$(SERVICE_NAME)
+INTERNAL_DIR := ./internal/$(SERVICE_NAME)
+PKG_DIR := ./pkg
+
+# Default target
+.PHONY: all
+all: clean deps lint test build
+
+# Help target
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  build          - Build the security gateway binary"
+	@echo "  test           - Run tests"
+	@echo "  test-coverage  - Run tests with coverage"
+	@echo "  lint           - Run linter"
+	@echo "  fmt            - Format code"
+	@echo "  deps           - Download dependencies"
+	@echo "  clean          - Clean build artifacts"
+	@echo "  docker-build   - Build Docker image"
+	@echo "  docker-run     - Run Docker container"
+	@echo "  docker-push    - Push Docker image"
+	@echo "  run            - Run the service locally"
+	@echo "  run-dev        - Run the service in development mode"
+	@echo "  install-tools  - Install development tools"
+
+# Build targets
+.PHONY: build
+build:
+	@echo "Building $(SERVICE_NAME)..."
+	@mkdir -p $(BIN_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME) $(CMD_DIR)
+
+.PHONY: build-linux
+build-linux:
+	@echo "Building $(SERVICE_NAME) for Linux..."
+	@mkdir -p $(BIN_DIR)
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-linux $(CMD_DIR)
+
+.PHONY: build-windows
+build-windows:
+	@echo "Building $(SERVICE_NAME) for Windows..."
+	@mkdir -p $(BIN_DIR)
+	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-windows.exe $(CMD_DIR)
+
+.PHONY: build-darwin
+build-darwin:
+	@echo "Building $(SERVICE_NAME) for macOS..."
+	@mkdir -p $(BIN_DIR)
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-darwin $(CMD_DIR)
+
+.PHONY: build-all
+build-all: build-linux build-windows build-darwin
+
+# Test targets
+.PHONY: test
+test:
+	@echo "Running tests..."
+	$(GOTEST) -v -race ./$(INTERNAL_DIR)/... ./$(PKG_DIR)/security/...
+
+.PHONY: test-coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	$(GOTEST) -v -race -coverprofile=coverage.out ./$(INTERNAL_DIR)/... ./$(PKG_DIR)/security/...
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+
+.PHONY: test-integration
+test-integration:
+	@echo "Running integration tests..."
+	$(GOTEST) -v -tags=integration ./$(INTERNAL_DIR)/...
+
+.PHONY: benchmark
+benchmark:
+	@echo "Running benchmarks..."
+	$(GOTEST) -bench=. -benchmem ./$(INTERNAL_DIR)/... ./$(PKG_DIR)/security/...
+
+# Code quality targets
+.PHONY: lint
+lint:
+	@echo "Running linter..."
+	$(GOLINT) run ./$(INTERNAL_DIR)/... ./$(PKG_DIR)/security/... $(CMD_DIR)/...
+
+.PHONY: fmt
+fmt:
+	@echo "Formatting code..."
+	$(GOFMT) -s -w ./$(INTERNAL_DIR) ./$(PKG_DIR)/security $(CMD_DIR)
+
+.PHONY: vet
+vet:
+	@echo "Running go vet..."
+	$(GOCMD) vet ./$(INTERNAL_DIR)/... ./$(PKG_DIR)/security/... $(CMD_DIR)/...
+
+.PHONY: check
+check: fmt vet lint test
+
+# Dependency targets
+.PHONY: deps
+deps:
+	@echo "Downloading dependencies..."
+	$(GOMOD) download
+	$(GOMOD) tidy
+
+.PHONY: deps-update
+deps-update:
+	@echo "Updating dependencies..."
+	$(GOMOD) get -u ./...
+	$(GOMOD) tidy
+
+# Clean targets
+.PHONY: clean
+clean:
+	@echo "Cleaning..."
+	$(GOCLEAN)
+	rm -rf $(BIN_DIR)
+	rm -rf $(BUILD_DIR)
+	rm -f coverage.out coverage.html
+
+# Docker targets
+.PHONY: docker-build
+docker-build:
+	@echo "Building Docker image..."
+	docker build -t $(DOCKER_IMAGE):$(VERSION) -t $(DOCKER_IMAGE):latest -f $(CMD_DIR)/Dockerfile .
+
+.PHONY: docker-run
+docker-run:
+	@echo "Running Docker container..."
+	docker run --rm -p 8080:8080 \
+		-e REDIS_URL=redis://host.docker.internal:6379 \
+		-e LOG_LEVEL=debug \
+		$(DOCKER_IMAGE):latest
+
+.PHONY: docker-run-detached
+docker-run-detached:
+	@echo "Running Docker container in detached mode..."
+	docker run -d --name $(SERVICE_NAME) -p 8080:8080 \
+		-e REDIS_URL=redis://host.docker.internal:6379 \
+		-e LOG_LEVEL=info \
+		$(DOCKER_IMAGE):latest
+
+.PHONY: docker-stop
+docker-stop:
+	@echo "Stopping Docker container..."
+	docker stop $(SERVICE_NAME) || true
+	docker rm $(SERVICE_NAME) || true
+
+.PHONY: docker-push
+docker-push:
+	@echo "Pushing Docker image..."
+	docker push $(DOCKER_IMAGE):$(VERSION)
+	docker push $(DOCKER_IMAGE):latest
+
+.PHONY: docker-compose-up
+docker-compose-up:
+	@echo "Starting services with Docker Compose..."
+	docker-compose -f docker-compose.security-gateway.yml up -d
+
+.PHONY: docker-compose-down
+docker-compose-down:
+	@echo "Stopping services with Docker Compose..."
+	docker-compose -f docker-compose.security-gateway.yml down
+
+# Run targets
+.PHONY: run
+run: build
+	@echo "Running $(SERVICE_NAME)..."
+	$(BIN_DIR)/$(BINARY_NAME)
+
+.PHONY: run-dev
+run-dev:
+	@echo "Running $(SERVICE_NAME) in development mode..."
+	$(GOCMD) run $(CMD_DIR)/main.go
+
+.PHONY: run-with-redis
+run-with-redis:
+	@echo "Starting Redis and running $(SERVICE_NAME)..."
+	docker run -d --name redis-security-gateway -p 6379:6379 redis:7-alpine || true
+	sleep 2
+	REDIS_URL=redis://localhost:6379 LOG_LEVEL=debug $(MAKE) run-dev
+
+# Development tools
+.PHONY: install-tools
+install-tools:
+	@echo "Installing development tools..."
+	$(GOGET) github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOGET) github.com/air-verse/air@latest
+	$(GOGET) github.com/swaggo/swag/cmd/swag@latest
+
+.PHONY: watch
+watch:
+	@echo "Starting file watcher..."
+	air -c .air.toml
+
+# Database/Redis targets
+.PHONY: redis-start
+redis-start:
+	@echo "Starting Redis..."
+	docker run -d --name redis-security-gateway -p 6379:6379 redis:7-alpine
+
+.PHONY: redis-stop
+redis-stop:
+	@echo "Stopping Redis..."
+	docker stop redis-security-gateway || true
+	docker rm redis-security-gateway || true
+
+.PHONY: redis-cli
+redis-cli:
+	@echo "Connecting to Redis CLI..."
+	docker exec -it redis-security-gateway redis-cli
+
+# Monitoring targets
+.PHONY: logs
+logs:
+	@echo "Showing logs..."
+	docker logs -f $(SERVICE_NAME)
+
+.PHONY: stats
+stats:
+	@echo "Showing container stats..."
+	docker stats $(SERVICE_NAME)
+
+# Security targets
+.PHONY: security-scan
+security-scan:
+	@echo "Running security scan..."
+	$(GOGET) github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+	gosec ./$(INTERNAL_DIR)/... ./$(PKG_DIR)/security/... $(CMD_DIR)/...
+
+.PHONY: vulnerability-check
+vulnerability-check:
+	@echo "Checking for vulnerabilities..."
+	$(GOGET) golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck ./...
+
+# Performance targets
+.PHONY: profile-cpu
+profile-cpu:
+	@echo "Running CPU profiling..."
+	$(GOCMD) test -cpuprofile=cpu.prof -bench=. ./$(INTERNAL_DIR)/...
+	$(GOCMD) tool pprof cpu.prof
+
+.PHONY: profile-mem
+profile-mem:
+	@echo "Running memory profiling..."
+	$(GOCMD) test -memprofile=mem.prof -bench=. ./$(INTERNAL_DIR)/...
+	$(GOCMD) tool pprof mem.prof
+
+# Documentation targets
+.PHONY: docs
+docs:
+	@echo "Generating documentation..."
+	$(GOCMD) doc -all ./$(INTERNAL_DIR)/... > docs/api.md
+
+.PHONY: swagger
+swagger:
+	@echo "Generating Swagger documentation..."
+	swag init -g $(CMD_DIR)/main.go -o ./docs/swagger
+
+# Release targets
+.PHONY: release
+release: clean deps check build-all docker-build
+	@echo "Release $(VERSION) ready!"
+
+.PHONY: tag
+tag:
+	@echo "Creating git tag $(VERSION)..."
+	git tag -a $(VERSION) -m "Release $(VERSION)"
+	git push origin $(VERSION)
+
+# Environment setup
+.PHONY: setup-dev
+setup-dev: install-tools deps redis-start
+	@echo "Development environment setup complete!"
+
+.PHONY: setup-prod
+setup-prod: deps build docker-build
+	@echo "Production build complete!"
+
+# Health check
+.PHONY: health
+health:
+	@echo "Checking service health..."
+	curl -f http://localhost:8080/health || echo "Service is not running"
+
+# Load testing
+.PHONY: load-test
+load-test:
+	@echo "Running load test..."
+	$(GOGET) github.com/rakyll/hey@latest
+	hey -n 1000 -c 10 http://localhost:8080/health
+
+# Cleanup targets
+.PHONY: clean-all
+clean-all: clean docker-stop redis-stop
+	@echo "Full cleanup complete!"
+
+# Show configuration
+.PHONY: config
+config:
+	@echo "Configuration:"
+	@echo "  Service Name: $(SERVICE_NAME)"
+	@echo "  Binary Name:  $(BINARY_NAME)"
+	@echo "  Version:      $(VERSION)"
+	@echo "  Build Time:   $(BUILD_TIME)"
+	@echo "  Commit:       $(COMMIT)"
+	@echo "  Docker Image: $(DOCKER_IMAGE)"
