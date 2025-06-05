@@ -1,10 +1,11 @@
 package defi
 
 import (
-	"go.uber.org/zap"
 	"context"
 	"encoding/json"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/shopspring/decimal"
@@ -273,20 +274,18 @@ func (h *GRPCHandler) validateRequest(req interface{}) error {
 
 // logRequest logs incoming requests for debugging
 func (h *GRPCHandler) logRequest(method string, req interface{}) {
-	if h.logger.Level() == "debug" {
-		reqJSON, _ := json.Marshal(req)
-		h.logger.Debug("Incoming request", 
-			zap.String("method", method), 
-			zap.String("request", string(reqJSON)))
-	}
+	// Always log debug messages - let the logger configuration handle filtering
+	reqJSON, _ := json.Marshal(req)
+	h.logger.Debug("Incoming request",
+		zap.String("method", method),
+		zap.String("request", string(reqJSON)))
 }
 
 // logResponse logs outgoing responses for debugging
 func (h *GRPCHandler) logResponse(method string, resp interface{}) {
-	if h.logger.Level() == "debug" {
-		respJSON, _ := json.Marshal(resp)
-		h.logger.Debug("Outgoing response", 
-			zap.String("method", method), 
-			zap.String("response", string(respJSON)))
-	}
+	// Always log debug messages - let the logger configuration handle filtering
+	respJSON, _ := json.Marshal(resp)
+	h.logger.Debug("Outgoing response",
+		zap.String("method", method),
+		zap.String("response", string(respJSON)))
 }

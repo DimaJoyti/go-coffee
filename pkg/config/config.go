@@ -148,6 +148,13 @@ type DeFiConfig struct {
 	UniswapV3Router      string `json:"uniswap_v3_router"`
 	AaveLendingPool      string `json:"aave_lending_pool"`
 	CompoundComptroller  string `json:"compound_comptroller"`
+
+	// Enhanced DeFi configuration
+	OneInchAPIKey        string `json:"oneinch_api_key"`
+	ChainlinkEnabled     bool   `json:"chainlink_enabled"`
+	ArbitrageEnabled     bool   `json:"arbitrage_enabled"`
+	YieldFarmingEnabled  bool   `json:"yield_farming_enabled"`
+	TradingBotsEnabled   bool   `json:"trading_bots_enabled"`
 }
 
 // AIConfig represents AI configuration
@@ -518,6 +525,11 @@ func LoadConfigFromEnv() (*Config, error) {
 				UniswapV3Router:     GetEnv("UNISWAP_V3_ROUTER", "0xE592427A0AEce92De3Edee1F18E0157C05861564"),
 				AaveLendingPool:     GetEnv("AAVE_LENDING_POOL", "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9"),
 				CompoundComptroller: GetEnv("COMPOUND_COMPTROLLER", "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B"),
+				OneInchAPIKey:       GetEnv("ONEINCH_API_KEY", ""),
+				ChainlinkEnabled:    GetEnvAsBool("CHAINLINK_ENABLED", true),
+				ArbitrageEnabled:    GetEnvAsBool("ARBITRAGE_ENABLED", true),
+				YieldFarmingEnabled: GetEnvAsBool("YIELD_FARMING_ENABLED", true),
+				TradingBotsEnabled:  GetEnvAsBool("TRADING_BOTS_ENABLED", false),
 			},
 		},
 

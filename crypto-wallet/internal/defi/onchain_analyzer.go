@@ -10,6 +10,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // OnChainAnalyzer analyzes on-chain data for trading insights
@@ -35,94 +36,7 @@ type OnChainAnalyzer struct {
 	stopChan  chan struct{}
 }
 
-// BlockchainEvent represents a significant blockchain event
-type BlockchainEvent struct {
-	ID          string                 `json:"id"`
-	Type        BlockchainEventType    `json:"type"`
-	Chain       Chain                  `json:"chain"`
-	BlockNumber uint64                 `json:"block_number"`
-	TxHash      string                 `json:"tx_hash"`
-	Token       Token                  `json:"token"`
-	Amount      decimal.Decimal        `json:"amount"`
-	From        string                 `json:"from"`
-	To          string                 `json:"to"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Metadata    map[string]interface{} `json:"metadata"`
-}
 
-// BlockchainEventType represents different types of blockchain events
-type BlockchainEventType string
-
-const (
-	EventTypeLargeTransfer   BlockchainEventType = "large_transfer"
-	EventTypeLiquidityAdd    BlockchainEventType = "liquidity_add"
-	EventTypeLiquidityRemove BlockchainEventType = "liquidity_remove"
-	EventTypeSwap            BlockchainEventType = "swap"
-	EventTypeStake           BlockchainEventType = "stake"
-	EventTypeUnstake         BlockchainEventType = "unstake"
-	EventTypeNewToken        BlockchainEventType = "new_token"
-	EventTypePriceAlert      BlockchainEventType = "price_alert"
-)
-
-// WhaleWatch represents monitoring of whale addresses
-type WhaleWatch struct {
-	Address    string          `json:"address"`
-	Label      string          `json:"label"`
-	Chain      Chain           `json:"chain"`
-	Balance    decimal.Decimal `json:"balance"`
-	LastTx     time.Time       `json:"last_tx"`
-	TxCount24h int             `json:"tx_count_24h"`
-	Volume24h  decimal.Decimal `json:"volume_24h"`
-	Active     bool            `json:"active"`
-}
-
-// LiquidityEvent represents a liquidity pool event
-type LiquidityEvent struct {
-	ID        string          `json:"id"`
-	Type      string          `json:"type"`
-	Pool      string          `json:"pool"`
-	Token0    Token           `json:"token0"`
-	Token1    Token           `json:"token1"`
-	Amount0   decimal.Decimal `json:"amount0"`
-	Amount1   decimal.Decimal `json:"amount1"`
-	Provider  string          `json:"provider"`
-	TxHash    string          `json:"tx_hash"`
-	Timestamp time.Time       `json:"timestamp"`
-}
-
-// MarketSignal represents a trading signal derived from on-chain analysis
-type MarketSignal struct {
-	ID         string          `json:"id"`
-	Type       SignalType      `json:"type"`
-	Token      Token           `json:"token"`
-	Strength   decimal.Decimal `json:"strength"`
-	Confidence decimal.Decimal `json:"confidence"`
-	Direction  SignalDirection `json:"direction"`
-	Timeframe  time.Duration   `json:"timeframe"`
-	Reason     string          `json:"reason"`
-	CreatedAt  time.Time       `json:"created_at"`
-	ExpiresAt  time.Time       `json:"expires_at"`
-}
-
-// SignalType represents different types of market signals
-type SignalType string
-
-const (
-	SignalTypeWhaleMovement  SignalType = "whale_movement"
-	SignalTypeLiquidityShift SignalType = "liquidity_shift"
-	SignalTypeVolumeSpike    SignalType = "volume_spike"
-	SignalTypePriceAnomaly   SignalType = "price_anomaly"
-	SignalTypeNewListing     SignalType = "new_listing"
-)
-
-// SignalDirection represents the direction of a market signal
-type SignalDirection string
-
-const (
-	SignalDirectionBullish SignalDirection = "bullish"
-	SignalDirectionBearish SignalDirection = "bearish"
-	SignalDirectionNeutral SignalDirection = "neutral"
-)
 
 // NewOnChainAnalyzer creates a new on-chain analyzer
 func NewOnChainAnalyzer(
@@ -200,7 +114,7 @@ func (oca *OnChainAnalyzer) GetMarketSignals(ctx context.Context) ([]*MarketSign
 
 		// Cache for 5 minutes
 		if err := oca.cache.Set(ctx, cacheKey, signals, time.Minute*5); err != nil {
-			oca.logger.Error("Failed to cache market signals", "error", err)
+			oca.logger.Error("Failed to cache market signals", zap.Error(err))
 		}
 	}
 
@@ -243,17 +157,17 @@ func (oca *OnChainAnalyzer) scanningLoop(ctx context.Context) {
 func (oca *OnChainAnalyzer) scanBlockchains(ctx context.Context) {
 	// Scan Ethereum
 	if err := oca.scanChain(ctx, ChainEthereum, oca.ethClient); err != nil {
-		oca.logger.Error("Failed to scan Ethereum", "error", err)
+		oca.logger.Error("Failed to scan Ethereum", zap.Error(err))
 	}
 
 	// Scan BSC
 	if err := oca.scanChain(ctx, ChainBSC, oca.bscClient); err != nil {
-		oca.logger.Error("Failed to scan BSC", "error", err)
+		oca.logger.Error("Failed to scan BSC", zap.Error(err))
 	}
 
 	// Scan Polygon
 	if err := oca.scanChain(ctx, ChainPolygon, oca.polygonClient); err != nil {
-		oca.logger.Error("Failed to scan Polygon", "error", err)
+		oca.logger.Error("Failed to scan Polygon", zap.Error(err))
 	}
 }
 
@@ -276,17 +190,17 @@ func (oca *OnChainAnalyzer) scanChain(ctx context.Context, chain Chain, client *
 	}
 
 	oca.logger.Debug("Scanning chain",
-		"chain", chain,
-		"from_block", fromBlock,
-		"to_block", latestBlock)
+		zap.String("chain", string(chain)),
+		zap.Uint64("from_block", fromBlock),
+		zap.Uint64("to_block", latestBlock))
 
 	// Scan blocks for events
 	for blockNum := fromBlock; blockNum <= latestBlock; blockNum++ {
 		if err := oca.scanBlock(ctx, chain, client, blockNum); err != nil {
 			oca.logger.Error("Failed to scan block",
-				"chain", chain,
-				"block", blockNum,
-				"error", err)
+				zap.String("chain", string(chain)),
+				zap.Uint64("block", blockNum),
+				zap.Error(err))
 			continue
 		}
 	}
@@ -346,9 +260,9 @@ func (oca *OnChainAnalyzer) eventProcessingLoop(ctx context.Context) {
 // processEvent processes a blockchain event
 func (oca *OnChainAnalyzer) processEvent(ctx context.Context, event *BlockchainEvent) {
 	oca.logger.Debug("Processing blockchain event",
-		"type", event.Type,
-		"token", event.Token.Symbol,
-		"amount", event.Amount)
+		zap.String("type", string(event.Type)),
+		zap.String("token", event.Token.Symbol),
+		zap.String("amount", event.Amount.String()))
 
 	switch event.Type {
 	case EventTypeLargeTransfer:
@@ -388,17 +302,17 @@ func (oca *OnChainAnalyzer) processLargeTransfer(ctx context.Context, event *Blo
 func (oca *OnChainAnalyzer) processLiquidityEvent(ctx context.Context, event *BlockchainEvent) {
 	// Track liquidity changes for market analysis
 	oca.logger.Info("Liquidity event detected",
-		"type", event.Type,
-		"token", event.Token.Symbol,
-		"amount", event.Amount)
+		zap.String("type", string(event.Type)),
+		zap.String("token", event.Token.Symbol),
+		zap.String("amount", event.Amount.String()))
 }
 
 // processSwapEvent processes swap events
 func (oca *OnChainAnalyzer) processSwapEvent(ctx context.Context, event *BlockchainEvent) {
 	// Track swap volume and price impact
 	oca.logger.Info("Swap event detected",
-		"token", event.Token.Symbol,
-		"amount", event.Amount)
+		zap.String("token", event.Token.Symbol),
+		zap.String("amount", event.Amount.String()))
 }
 
 // metricsCalculationLoop calculates on-chain metrics
@@ -449,7 +363,7 @@ func (oca *OnChainAnalyzer) calculateMetrics(ctx context.Context) {
 		// Cache metrics
 		cacheKey := fmt.Sprintf("onchain:metrics:%s", token.Address)
 		if err := oca.cache.Set(ctx, cacheKey, metrics, time.Minute*10); err != nil {
-			oca.logger.Error("Failed to cache metrics", "error", err)
+			oca.logger.Error("Failed to cache metrics", zap.Error(err))
 		}
 	}
 }
@@ -630,7 +544,7 @@ func (oca *OnChainAnalyzer) initializeWhaleWatches() {
 		oca.whaleWatches[whale.Address] = whale
 	}
 
-	oca.logger.Info("Initialized whale watches", "count", len(whales))
+	oca.logger.Info("Initialized whale watches", zap.Int("count", len(whales)))
 }
 
 // Helper methods
@@ -667,17 +581,7 @@ func (oca *OnChainAnalyzer) GetTokenAnalysis(ctx context.Context, tokenAddress s
 	return analysis, nil
 }
 
-// TokenAnalysis represents comprehensive token analysis
-type TokenAnalysis struct {
-	Token           Token             `json:"token"`
-	Metrics         OnChainMetrics    `json:"metrics"`
-	Signals         []*MarketSignal   `json:"signals"`
-	WhaleActivity   []*WhaleWatch     `json:"whale_activity"`
-	LiquidityEvents []*LiquidityEvent `json:"liquidity_events"`
-	Score           decimal.Decimal   `json:"score"`
-	Recommendation  string            `json:"recommendation"`
-	UpdatedAt       time.Time         `json:"updated_at"`
-}
+
 
 func (oca *OnChainAnalyzer) calculateTokenScore(metrics *OnChainMetrics) decimal.Decimal {
 	// Simple scoring algorithm

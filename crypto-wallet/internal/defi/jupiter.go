@@ -210,7 +210,7 @@ func (j *JupiterClient) ExecuteSwap(ctx context.Context, inputMint, outputMint s
 
 	// Get swap transaction
 	userPublicKey := userWallet.PublicKey().String()
-	swapResp, err := j.GetSwapTransaction(ctx, route, userPublicKey)
+	_, err = j.GetSwapTransaction(ctx, route, userPublicKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to get swap transaction: %w", err)
 	}

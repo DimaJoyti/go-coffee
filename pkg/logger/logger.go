@@ -288,3 +288,8 @@ func (l *Logger) WarnWithFields(msg string, fields ...Field) {
 	logger := l.With(fields...)
 	logger.Warn(msg)
 }
+
+// Named creates a new logger with a name field (for zap compatibility)
+func (l *Logger) Named(name string) *Logger {
+	return l.WithField("component", name)
+}

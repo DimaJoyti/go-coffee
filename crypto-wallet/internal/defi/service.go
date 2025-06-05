@@ -11,6 +11,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // Service provides DeFi protocol operations
@@ -75,11 +76,16 @@ func NewService(
 	service.oneInchClient = NewOneInchClient(config.OneInch.APIKey, logger)
 
 	// Initialize trading components
+	// Create price providers for arbitrage detection
+	priceProviders := []PriceProvider{
+		NewUniswapPriceProvider(service.uniswapClient),
+		NewOneInchPriceProvider(service.oneInchClient),
+	}
+
 	service.arbitrageDetector = NewArbitrageDetector(
 		logger,
 		cache,
-		service.uniswapClient,
-		service.oneInchClient,
+		priceProviders,
 	)
 
 	service.yieldAggregator = NewYieldAggregator(
@@ -102,7 +108,9 @@ func NewService(
 
 // GetTokenPrice retrieves the current price of a token
 func (s *Service) GetTokenPrice(ctx context.Context, req *GetTokenPriceRequest) (*GetTokenPriceResponse, error) {
-	s.logger.Info("Getting token price", "token", req.TokenAddress, "chain", req.Chain)
+	s.logger.Info("Getting token price",
+		zap.String("token", req.TokenAddress),
+		zap.String("chain", string(req.Chain)))
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("token_price:%s:%s", req.Chain, req.TokenAddress)
@@ -123,7 +131,7 @@ func (s *Service) GetTokenPrice(ctx context.Context, req *GetTokenPriceRequest) 
 	// Get price from Chainlink oracle
 	price, err := s.chainlinkClient.GetTokenPrice(ctx, req.TokenAddress)
 	if err != nil {
-		s.logger.Error("Failed to get token price from Chainlink", "error", err)
+		s.logger.Error("Failed to get token price from Chainlink", zap.Error(err))
 		return nil, fmt.Errorf("failed to get token price: %w", err)
 	}
 
@@ -146,10 +154,10 @@ func (s *Service) GetTokenPrice(ctx context.Context, req *GetTokenPriceRequest) 
 // GetSwapQuote gets a quote for token swap
 func (s *Service) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*GetSwapQuoteResponse, error) {
 	s.logger.Info("Getting swap quote",
-		"tokenIn", req.TokenIn,
-		"tokenOut", req.TokenOut,
-		"amountIn", req.AmountIn,
-		"chain", req.Chain)
+		zap.String("tokenIn", req.TokenIn),
+		zap.String("tokenOut", req.TokenOut),
+		zap.String("amountIn", req.AmountIn.String()),
+		zap.String("chain", string(req.Chain)))
 
 	var quote *SwapQuote
 	var err error
@@ -159,7 +167,7 @@ func (s *Service) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*
 		// Try Uniswap first
 		quote, err = s.uniswapClient.GetSwapQuote(ctx, req)
 		if err != nil {
-			s.logger.Warn("Uniswap quote failed, trying 1inch", "error", err)
+			s.logger.Warn("Uniswap quote failed, trying 1inch", zap.Error(err))
 			// Fallback to 1inch
 			quote, err = s.oneInchClient.GetSwapQuote(ctx, req)
 		}
@@ -177,7 +185,7 @@ func (s *Service) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*
 	}
 
 	if err != nil {
-		s.logger.Error("Failed to get swap quote", "error", err)
+		s.logger.Error("Failed to get swap quote", zap.Error(err))
 		return nil, fmt.Errorf("failed to get swap quote: %w", err)
 	}
 
@@ -188,7 +196,9 @@ func (s *Service) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*
 
 // ExecuteSwap executes a token swap
 func (s *Service) ExecuteSwap(ctx context.Context, req *ExecuteSwapRequest) (*ExecuteSwapResponse, error) {
-	s.logger.Info("Executing swap", "quoteID", req.QuoteID, "userID", req.UserID)
+	s.logger.Info("Executing swap",
+		zap.String("quoteID", req.QuoteID),
+		zap.String("userID", req.UserID))
 
 	// Get quote from cache
 	quote, err := s.getQuoteFromCache(ctx, req.QuoteID)
@@ -213,7 +223,7 @@ func (s *Service) ExecuteSwap(ctx context.Context, req *ExecuteSwapRequest) (*Ex
 	}
 
 	if err != nil {
-		s.logger.Error("Failed to execute swap", "error", err)
+		s.logger.Error("Failed to execute swap", zap.Error(err))
 		return nil, fmt.Errorf("failed to execute swap: %w", err)
 	}
 
@@ -225,7 +235,9 @@ func (s *Service) ExecuteSwap(ctx context.Context, req *ExecuteSwapRequest) (*Ex
 
 // GetLiquidityPools retrieves available liquidity pools
 func (s *Service) GetLiquidityPools(ctx context.Context, req *GetLiquidityPoolsRequest) (*GetLiquidityPoolsResponse, error) {
-	s.logger.Info("Getting liquidity pools", "chain", req.Chain, "protocol", req.Protocol)
+	s.logger.Info("Getting liquidity pools",
+		zap.String("chain", string(req.Chain)),
+		zap.String("protocol", string(req.Protocol)))
 
 	var pools []LiquidityPool
 	var err error
@@ -242,7 +254,7 @@ func (s *Service) GetLiquidityPools(ctx context.Context, req *GetLiquidityPoolsR
 	}
 
 	if err != nil {
-		s.logger.Error("Failed to get liquidity pools", "error", err)
+		s.logger.Error("Failed to get liquidity pools", zap.Error(err))
 		return nil, fmt.Errorf("failed to get liquidity pools: %w", err)
 	}
 
@@ -254,7 +266,9 @@ func (s *Service) GetLiquidityPools(ctx context.Context, req *GetLiquidityPoolsR
 
 // AddLiquidity adds liquidity to a pool
 func (s *Service) AddLiquidity(ctx context.Context, req *AddLiquidityRequest) (*AddLiquidityResponse, error) {
-	s.logger.Info("Adding liquidity", "poolID", req.PoolID, "userID", req.UserID)
+	s.logger.Info("Adding liquidity",
+		zap.String("poolID", req.PoolID),
+		zap.String("userID", req.UserID))
 
 	// Get pool information
 	pool, err := s.getPoolByID(ctx, req.PoolID)
@@ -278,7 +292,7 @@ func (s *Service) AddLiquidity(ctx context.Context, req *AddLiquidityRequest) (*
 	}
 
 	if err != nil {
-		s.logger.Error("Failed to add liquidity", "error", err)
+		s.logger.Error("Failed to add liquidity", zap.Error(err))
 		return nil, fmt.Errorf("failed to add liquidity: %w", err)
 	}
 
@@ -291,7 +305,7 @@ func (s *Service) AddLiquidity(ctx context.Context, req *AddLiquidityRequest) (*
 
 // GetYieldFarms retrieves available yield farming opportunities
 func (s *Service) GetYieldFarms(ctx context.Context, chain Chain) ([]YieldFarm, error) {
-	s.logger.Info("Getting yield farms", "chain", chain)
+	s.logger.Info("Getting yield farms", zap.String("chain", string(chain)))
 
 	// Implementation would fetch yield farms from various protocols
 	// This is a placeholder implementation
@@ -302,7 +316,10 @@ func (s *Service) GetYieldFarms(ctx context.Context, chain Chain) ([]YieldFarm, 
 
 // StakeTokens stakes tokens for yield farming
 func (s *Service) StakeTokens(ctx context.Context, userID, farmID string, amount decimal.Decimal) error {
-	s.logger.Info("Staking tokens", "userID", userID, "farmID", farmID, "amount", amount)
+	s.logger.Info("Staking tokens",
+		zap.String("userID", userID),
+		zap.String("farmID", farmID),
+		zap.String("amount", amount.String()))
 
 	// Implementation would stake tokens in the specified farm
 	// This is a placeholder implementation
@@ -312,7 +329,7 @@ func (s *Service) StakeTokens(ctx context.Context, userID, farmID string, amount
 
 // GetLendingPositions retrieves user's lending positions
 func (s *Service) GetLendingPositions(ctx context.Context, userID string) ([]LendingPosition, error) {
-	s.logger.Info("Getting lending positions", "userID", userID)
+	s.logger.Info("Getting lending positions", zap.String("userID", userID))
 
 	// Implementation would fetch lending positions from Aave, Compound, etc.
 	positions := []LendingPosition{}
@@ -322,7 +339,10 @@ func (s *Service) GetLendingPositions(ctx context.Context, userID string) ([]Len
 
 // LendTokens lends tokens to a lending protocol
 func (s *Service) LendTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
-	s.logger.Info("Lending tokens", "userID", userID, "token", tokenAddress, "amount", amount)
+	s.logger.Info("Lending tokens",
+		zap.String("userID", userID),
+		zap.String("token", tokenAddress),
+		zap.String("amount", amount.String()))
 
 	// Use Aave for lending
 	return s.aaveClient.LendTokens(ctx, userID, tokenAddress, amount)
@@ -330,7 +350,10 @@ func (s *Service) LendTokens(ctx context.Context, userID, tokenAddress string, a
 
 // BorrowTokens borrows tokens from a lending protocol
 func (s *Service) BorrowTokens(ctx context.Context, userID, tokenAddress string, amount decimal.Decimal) error {
-	s.logger.Info("Borrowing tokens", "userID", userID, "token", tokenAddress, "amount", amount)
+	s.logger.Info("Borrowing tokens",
+		zap.String("userID", userID),
+		zap.String("token", tokenAddress),
+		zap.String("amount", amount.String()))
 
 	// Use Aave for borrowing
 	return s.aaveClient.BorrowTokens(ctx, userID, tokenAddress, amount)
@@ -539,7 +562,9 @@ func (s *Service) GetTokenAnalysis(ctx context.Context, tokenAddress string) (*T
 
 // CreateTradingBot creates a new trading bot
 func (s *Service) CreateTradingBot(ctx context.Context, name string, strategy TradingStrategyType, config TradingBotConfig) (*TradingBot, error) {
-	s.logger.Info("Creating trading bot", "name", name, "strategy", strategy)
+	s.logger.Info("Creating trading bot",
+		zap.String("name", name),
+		zap.String("strategy", string(strategy)))
 
 	bot := NewTradingBot(
 		name,
@@ -623,7 +648,7 @@ func (s *Service) DeleteTradingBot(ctx context.Context, botID string) error {
 	// Remove from map
 	delete(s.tradingBots, botID)
 
-	s.logger.Info("Trading bot deleted", "botID", botID)
+	s.logger.Info("Trading bot deleted", zap.String("botID", botID))
 	return nil
 }
 

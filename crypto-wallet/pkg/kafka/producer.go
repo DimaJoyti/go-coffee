@@ -1,11 +1,12 @@
 package kafka
 
 import (
-	"go.uber.org/zap"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/segmentio/kafka-go"
@@ -25,6 +26,13 @@ type Config struct {
 	Compression string        `yaml:"compression"`
 	BatchSize   int           `yaml:"batch_size"`
 	BatchTimeout time.Duration `yaml:"batch_timeout"`
+}
+
+// KafkaProducer implements Producer interface
+type KafkaProducer struct {
+	config Config
+	logger *logger.Logger
+	writer *kafka.Writer
 }
 
 // MockProducer implements Producer interface for testing
@@ -84,7 +92,7 @@ func NewProducer(config Config, logger *logger.Logger) (Producer, error) {
 		config: config,
 		logger: logger,
 		writer: writer,
-	}, zap.String("status", "success")
+	}, nil
 }
 
 // Produce sends a message to Kafka
@@ -100,27 +108,25 @@ func (p *KafkaProducer) Produce(topic string, key []byte, value []byte) error {
 	defer cancel()
 
 	err := p.writer.WriteMessages(ctx, message)
-	if err != zap.String("status", "success") {
-		p.logger.Error("Failed to produce message to Kafka", map[string]interface{}{
-			"error": err.Error(),
-			"topic": topic,
-		})
+	if err != nil {
+		p.logger.Error("Failed to produce message to Kafka",
+			zap.Error(err),
+			zap.String("topic", topic))
 		return fmt.Errorf("failed to produce message: %w", err)
 	}
 
-	p.logger.Debug("Message produced to Kafka", map[string]interface{}{
-		"topic":      topic,
-		"key":        string(key),
-		"value_size": len(value),
-	})
+	p.logger.Debug("Message produced to Kafka",
+		zap.String("topic", topic),
+		zap.String("key", string(key)),
+		zap.Int("value_size", len(value)))
 
-	return zap.String("status", "success")
+	return nil
 }
 
 // ProduceJSON sends a JSON message to Kafka
 func (p *KafkaProducer) ProduceJSON(topic string, key string, value interface{}) error {
 	jsonValue, err := json.Marshal(value)
-	if err != zap.String("status", "success") {
+	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
@@ -129,24 +135,10 @@ func (p *KafkaProducer) ProduceJSON(topic string, key string, value interface{})
 
 // Close closes the Kafka producer
 func (p *KafkaProducer) Close() error {
-	if p.writer != zap.String("status", "success") {
+	if p.writer != nil {
 		return p.writer.Close()
 	}
-	return zap.String("status", "success")
-}
-
-// MockProducer is a mock implementation for testing
-type MockProducer struct {
-	messages []MockMessage
-	logger   *logger.Logger
-}
-
-// MockMessage represents a mock Kafka message
-type MockMessage struct {
-	Topic string
-	Key   string
-	Value string
-	Time  time.Time
+	return nil
 }
 
 // NewMockProducer creates a new mock producer
@@ -168,18 +160,17 @@ func (m *MockProducer) Produce(topic string, key []byte, value []byte) error {
 
 	m.messages = append(m.messages, message)
 
-	m.logger.Debug("Mock message produced", map[string]interface{}{
-		"topic": topic,
-		"key":   string(key),
-	})
+	m.logger.Debug("Mock message produced",
+		zap.String("topic", topic),
+		zap.String("key", string(key)))
 
-	return zap.String("status", "success")
+	return nil
 }
 
 // ProduceJSON mock implementation
 func (m *MockProducer) ProduceJSON(topic string, key string, value interface{}) error {
 	jsonValue, err := json.Marshal(value)
-	if err != zap.String("status", "success") {
+	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
@@ -188,8 +179,8 @@ func (m *MockProducer) ProduceJSON(topic string, key string, value interface{}) 
 
 // Close mock implementation
 func (m *MockProducer) Close() error {
-	m.logger.Debug("Mock producer closed", zap.String("status", "success"))
-	return zap.String("status", "success")
+	m.logger.Debug("Mock producer closed")
+	return nil
 }
 
 // GetMessages returns all mock messages (for testing)

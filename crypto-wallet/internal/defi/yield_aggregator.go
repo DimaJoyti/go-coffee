@@ -11,6 +11,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // YieldAggregator finds and optimizes yield farming opportunities
@@ -35,31 +36,7 @@ type YieldAggregator struct {
 	stopChan        chan struct{}
 }
 
-// YieldStrategy represents a yield farming strategy
-type YieldStrategy struct {
-	ID            string                     `json:"id"`
-	Name          string                     `json:"name"`
-	Type          YieldStrategyType          `json:"type"`
-	Opportunities []*YieldFarmingOpportunity `json:"opportunities"`
-	TotalAPY      decimal.Decimal            `json:"total_apy"`
-	Risk          RiskLevel                  `json:"risk"`
-	MinInvestment decimal.Decimal            `json:"min_investment"`
-	MaxInvestment decimal.Decimal            `json:"max_investment"`
-	AutoCompound  bool                       `json:"auto_compound"`
-	RebalanceFreq time.Duration              `json:"rebalance_frequency"`
-	CreatedAt     time.Time                  `json:"created_at"`
-	UpdatedAt     time.Time                  `json:"updated_at"`
-}
 
-// YieldStrategyType represents different yield strategies
-type YieldStrategyType string
-
-const (
-	YieldStrategyTypeConservative YieldStrategyType = "conservative"
-	YieldStrategyTypeBalanced     YieldStrategyType = "balanced"
-	YieldStrategyTypeAggressive   YieldStrategyType = "aggressive"
-	YieldStrategyTypeCustom       YieldStrategyType = "custom"
-)
 
 // NewYieldAggregator creates a new yield aggregator
 func NewYieldAggregator(
@@ -134,8 +111,8 @@ func (ya *YieldAggregator) GetBestOpportunities(ctx context.Context, limit int) 
 // GetOptimalStrategy returns the optimal yield strategy for given parameters
 func (ya *YieldAggregator) GetOptimalStrategy(ctx context.Context, req *OptimalStrategyRequest) (*YieldStrategy, error) {
 	ya.logger.Info("Getting optimal strategy",
-		"investment", req.InvestmentAmount,
-		"risk_tolerance", req.RiskTolerance)
+		zap.String("investment", req.InvestmentAmount.String()),
+		zap.String("risk_tolerance", string(req.RiskTolerance)))
 
 	// Get available opportunities
 	opportunities, err := ya.GetBestOpportunities(ctx, 20)
@@ -152,16 +129,7 @@ func (ya *YieldAggregator) GetOptimalStrategy(ctx context.Context, req *OptimalS
 	return strategy, nil
 }
 
-// OptimalStrategyRequest represents a request for optimal strategy
-type OptimalStrategyRequest struct {
-	InvestmentAmount decimal.Decimal `json:"investment_amount"`
-	RiskTolerance    RiskLevel       `json:"risk_tolerance"`
-	PreferredTokens  []string        `json:"preferred_tokens"`
-	MinAPY           decimal.Decimal `json:"min_apy"`
-	MaxLockPeriod    time.Duration   `json:"max_lock_period"`
-	AutoCompound     bool            `json:"auto_compound"`
-	Diversification  bool            `json:"diversification"`
-}
+
 
 // scanningLoop runs the main scanning loop
 func (ya *YieldAggregator) scanningLoop(ctx context.Context) {
@@ -187,7 +155,7 @@ func (ya *YieldAggregator) scanForOpportunities(ctx context.Context) {
 	// Scan Uniswap V3 pools
 	uniswapOpps, err := ya.scanUniswapOpportunities(ctx)
 	if err != nil {
-		ya.logger.Error("Failed to scan Uniswap opportunities", "error", err)
+		ya.logger.Error("Failed to scan Uniswap opportunities", zap.Error(err))
 	} else {
 		for _, opp := range uniswapOpps {
 			select {
@@ -201,7 +169,7 @@ func (ya *YieldAggregator) scanForOpportunities(ctx context.Context) {
 	// Scan Aave lending opportunities
 	aaveOpps, err := ya.scanAaveOpportunities(ctx)
 	if err != nil {
-		ya.logger.Error("Failed to scan Aave opportunities", "error", err)
+		ya.logger.Error("Failed to scan Aave opportunities", zap.Error(err))
 	} else {
 		for _, opp := range aaveOpps {
 			select {
@@ -215,7 +183,7 @@ func (ya *YieldAggregator) scanForOpportunities(ctx context.Context) {
 	// Scan Coffee Token staking
 	coffeeOpps, err := ya.scanCoffeeStakingOpportunities(ctx)
 	if err != nil {
-		ya.logger.Error("Failed to scan Coffee staking opportunities", "error", err)
+		ya.logger.Error("Failed to scan Coffee staking opportunities", zap.Error(err))
 	} else {
 		for _, opp := range coffeeOpps {
 			select {
@@ -252,15 +220,15 @@ func (ya *YieldAggregator) handleOpportunity(ctx context.Context, opp *YieldFarm
 	// Cache opportunity
 	cacheKey := fmt.Sprintf("yield:opportunity:%s", opp.ID)
 	if err := ya.cache.Set(ctx, cacheKey, opp, time.Hour); err != nil {
-		ya.logger.Error("Failed to cache opportunity", "error", err)
+		ya.logger.Error("Failed to cache opportunity", zap.Error(err))
 	}
 
 	ya.logger.Info("Yield opportunity detected",
-		"id", opp.ID,
-		"protocol", opp.Protocol,
-		"apy", opp.APY,
-		"tvl", opp.TVL,
-		"risk", opp.Risk)
+		zap.String("id", opp.ID),
+		zap.String("protocol", string(opp.Protocol)),
+		zap.String("apy", opp.APY.String()),
+		zap.String("tvl", opp.TVL.String()),
+		zap.String("risk", string(opp.Risk)))
 }
 
 // scanUniswapOpportunities scans Uniswap for yield opportunities
@@ -277,7 +245,7 @@ func (ya *YieldAggregator) scanUniswapOpportunities(ctx context.Context) ([]*Yie
 		return nil, err
 	}
 
-	for _, pool := range pools.Pools {
+	for _, pool := range pools {
 		// Calculate estimated APY based on fees and volume
 		estimatedAPY := ya.calculatePoolAPY(pool)
 
@@ -321,13 +289,13 @@ func (ya *YieldAggregator) scanAaveOpportunities(ctx context.Context) ([]*YieldF
 		"WETH": decimal.NewFromFloat(0.025), // 2.5% APY
 	}
 
-	for token, apy := range lendingRates {
+	for tokenSymbol, apy := range lendingRates {
 		if apy.GreaterThan(ya.minAPY) {
 			opp := &YieldFarmingOpportunity{
 				ID:         uuid.New().String(),
 				Protocol:   ProtocolTypeAave,
 				Chain:      ChainEthereum,
-				Strategy:   "lending",
+				Strategy:   fmt.Sprintf("lending_%s", tokenSymbol),
 				APY:        apy,
 				APR:        apy,
 				TVL:        decimal.NewFromFloat(100000000), // $100M TVL

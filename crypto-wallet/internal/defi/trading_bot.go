@@ -10,6 +10,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // TradingBot represents an automated trading bot
@@ -163,7 +164,10 @@ func (tb *TradingBot) Start(ctx context.Context) error {
 	}
 
 	tb.Status = BotStatusActive
-	tb.logger.Info("Starting trading bot", "id", tb.ID, "name", tb.Name, "strategy", tb.Strategy)
+	tb.logger.Info("Starting trading bot",
+		zap.String("id", tb.ID),
+		zap.String("name", tb.Name),
+		zap.String("strategy", string(tb.Strategy)))
 
 	// Start the main trading loop
 	go tb.tradingLoop(ctx)
@@ -187,7 +191,7 @@ func (tb *TradingBot) Stop() error {
 	}
 
 	tb.Status = BotStatusStopped
-	tb.logger.Info("Stopping trading bot", "id", tb.ID)
+	tb.logger.Info("Stopping trading bot", zap.String("id", tb.ID))
 
 	close(tb.stopChan)
 	return nil
@@ -203,7 +207,7 @@ func (tb *TradingBot) Pause() error {
 	}
 
 	tb.Status = BotStatusPaused
-	tb.logger.Info("Pausing trading bot", "id", tb.ID)
+	tb.logger.Info("Pausing trading bot", zap.String("id", tb.ID))
 
 	return nil
 }
@@ -218,7 +222,7 @@ func (tb *TradingBot) Resume() error {
 	}
 
 	tb.Status = BotStatusActive
-	tb.logger.Info("Resuming trading bot", "id", tb.ID)
+	tb.logger.Info("Resuming trading bot", zap.String("id", tb.ID))
 
 	return nil
 }
@@ -283,7 +287,7 @@ func (tb *TradingBot) executeStrategy(ctx context.Context) {
 	case StrategyTypeRebalancing:
 		tb.executeRebalancingStrategy(ctx)
 	default:
-		tb.logger.Warn("Unknown strategy type", "strategy", tb.Strategy)
+		tb.logger.Warn("Unknown strategy type", zap.String("strategy", string(tb.Strategy)))
 	}
 }
 
@@ -291,7 +295,7 @@ func (tb *TradingBot) executeStrategy(ctx context.Context) {
 func (tb *TradingBot) executeArbitrageStrategy(ctx context.Context) {
 	opportunities, err := tb.arbitrageDetector.GetOpportunities(ctx)
 	if err != nil {
-		tb.logger.Error("Failed to get arbitrage opportunities", "error", err)
+		tb.logger.Error("Failed to get arbitrage opportunities", zap.Error(err))
 		return
 	}
 
@@ -321,10 +325,10 @@ func (tb *TradingBot) executeArbitrageStrategy(ctx context.Context) {
 		select {
 		case tb.executionQueue <- buyOrder:
 			tb.logger.Info("Queued arbitrage buy order",
-				"order_id", buyOrder.ID,
-				"token", opp.Token.Symbol,
-				"amount", opp.Volume,
-				"profit_margin", opp.ProfitMargin)
+				zap.String("order_id", buyOrder.ID),
+				zap.String("token", opp.Token.Symbol),
+				zap.String("amount", opp.Volume.String()),
+				zap.String("profit_margin", opp.ProfitMargin.String()))
 		default:
 			tb.logger.Warn("Execution queue full, skipping order")
 		}
@@ -335,7 +339,7 @@ func (tb *TradingBot) executeArbitrageStrategy(ctx context.Context) {
 func (tb *TradingBot) executeYieldFarmingStrategy(ctx context.Context) {
 	opportunities, err := tb.yieldAggregator.GetBestOpportunities(ctx, 5)
 	if err != nil {
-		tb.logger.Error("Failed to get yield opportunities", "error", err)
+		tb.logger.Error("Failed to get yield opportunities", zap.Error(err))
 		return
 	}
 
@@ -364,9 +368,9 @@ func (tb *TradingBot) executeYieldFarmingStrategy(ctx context.Context) {
 		select {
 		case tb.executionQueue <- stakeOrder:
 			tb.logger.Info("Queued yield farming order",
-				"order_id", stakeOrder.ID,
-				"protocol", opp.Protocol,
-				"apy", opp.APY)
+				zap.String("order_id", stakeOrder.ID),
+				zap.String("protocol", string(opp.Protocol)),
+				zap.String("apy", opp.APY.String()))
 		default:
 			tb.logger.Warn("Execution queue full, skipping order")
 		}
@@ -403,9 +407,9 @@ func (tb *TradingBot) executeDCAStrategy(ctx context.Context) {
 	select {
 	case tb.executionQueue <- buyOrder:
 		tb.logger.Info("Queued DCA buy order",
-			"order_id", buyOrder.ID,
-			"token", coffeeToken.Symbol,
-			"amount", dcaAmount)
+			zap.String("order_id", buyOrder.ID),
+			zap.String("token", coffeeToken.Symbol),
+			zap.String("amount", dcaAmount.String()))
 	default:
 		tb.logger.Warn("Execution queue full, skipping DCA order")
 	}
@@ -443,10 +447,10 @@ func (tb *TradingBot) orderExecutionLoop(ctx context.Context) {
 // executeOrder executes a trading order
 func (tb *TradingBot) executeOrder(ctx context.Context, order *TradingOrder) {
 	tb.logger.Info("Executing order",
-		"order_id", order.ID,
-		"type", order.Type,
-		"token", order.Token.Symbol,
-		"amount", order.Amount)
+		zap.String("order_id", order.ID),
+		zap.String("type", string(order.Type)),
+		zap.String("token", order.Token.Symbol),
+		zap.String("amount", order.Amount.String()))
 
 	order.Status = OrderStatusExecuting
 
@@ -472,14 +476,14 @@ func (tb *TradingBot) executeOrder(ctx context.Context, order *TradingOrder) {
 	if err != nil {
 		order.Status = OrderStatusFailed
 		tb.logger.Error("Failed to execute order",
-			"order_id", order.ID,
-			"error", err)
+			zap.String("order_id", order.ID),
+			zap.Error(err))
 		tb.updatePerformance(false, decimal.Zero)
 	} else {
 		order.Status = OrderStatusExecuted
 		now := time.Now()
 		order.ExecutedAt = &now
-		tb.logger.Info("Successfully executed order", "order_id", order.ID)
+		tb.logger.Info("Successfully executed order", zap.String("order_id", order.ID))
 		tb.updatePerformance(true, order.Amount)
 	}
 }
@@ -505,10 +509,10 @@ func (tb *TradingBot) executeBuyOrder(ctx context.Context, order *TradingOrder) 
 
 	// Execute the swap (mock implementation)
 	tb.logger.Info("Executing buy order",
-		"token", order.Token.Symbol,
-		"amount_in", quote.AmountIn,
-		"amount_out", quote.AmountOut,
-		"price_impact", quote.PriceImpact)
+		zap.String("token", order.Token.Symbol),
+		zap.String("amount_in", quote.AmountIn.String()),
+		zap.String("amount_out", quote.AmountOut.String()),
+		zap.String("price_impact", quote.PriceImpact.String()))
 
 	// Create position
 	position := &TradingPosition{
@@ -535,7 +539,9 @@ func (tb *TradingBot) executeBuyOrder(ctx context.Context, order *TradingOrder) 
 // executeSellOrder executes a sell order
 func (tb *TradingBot) executeSellOrder(ctx context.Context, order *TradingOrder) error {
 	// Similar to buy order but in reverse
-	tb.logger.Info("Executing sell order", "token", order.Token.Symbol, "amount", order.Amount)
+	tb.logger.Info("Executing sell order",
+		zap.String("token", order.Token.Symbol),
+		zap.String("amount", order.Amount.String()))
 
 	// Mock implementation
 	return nil
@@ -543,7 +549,9 @@ func (tb *TradingBot) executeSellOrder(ctx context.Context, order *TradingOrder)
 
 // executeSwapOrder executes a swap order
 func (tb *TradingBot) executeSwapOrder(ctx context.Context, order *TradingOrder) error {
-	tb.logger.Info("Executing swap order", "token", order.Token.Symbol, "amount", order.Amount)
+	tb.logger.Info("Executing swap order",
+		zap.String("token", order.Token.Symbol),
+		zap.String("amount", order.Amount.String()))
 
 	// Mock implementation
 	return nil
@@ -551,7 +559,9 @@ func (tb *TradingBot) executeSwapOrder(ctx context.Context, order *TradingOrder)
 
 // executeStakeOrder executes a stake order
 func (tb *TradingBot) executeStakeOrder(ctx context.Context, order *TradingOrder) error {
-	tb.logger.Info("Executing stake order", "token", order.Token.Symbol, "amount", order.Amount)
+	tb.logger.Info("Executing stake order",
+		zap.String("token", order.Token.Symbol),
+		zap.String("amount", order.Amount.String()))
 
 	// Mock implementation - would interact with staking contracts
 	return nil
@@ -599,18 +609,18 @@ func (tb *TradingBot) monitorPositions(ctx context.Context) {
 		// Check stop loss
 		if currentPrice.LessThanOrEqual(position.StopLoss) {
 			tb.logger.Info("Stop loss triggered",
-				"position_id", position.ID,
-				"current_price", currentPrice,
-				"stop_loss", position.StopLoss)
+				zap.String("position_id", position.ID),
+				zap.String("current_price", currentPrice.String()),
+				zap.String("stop_loss", position.StopLoss.String()))
 			tb.closePosition(ctx, position)
 		}
 
 		// Check take profit
 		if currentPrice.GreaterThanOrEqual(position.TakeProfit) {
 			tb.logger.Info("Take profit triggered",
-				"position_id", position.ID,
-				"current_price", currentPrice,
-				"take_profit", position.TakeProfit)
+				zap.String("position_id", position.ID),
+				zap.String("current_price", currentPrice.String()),
+				zap.String("take_profit", position.TakeProfit.String()))
 			tb.closePosition(ctx, position)
 		}
 	}
@@ -637,8 +647,8 @@ func (tb *TradingBot) closePosition(ctx context.Context, position *TradingPositi
 	select {
 	case tb.executionQueue <- sellOrder:
 		tb.logger.Info("Queued position close order",
-			"position_id", position.ID,
-			"pnl", position.UnrealizedPnL)
+			zap.String("position_id", position.ID),
+			zap.String("pnl", position.UnrealizedPnL.String()))
 	default:
 		tb.logger.Warn("Failed to queue position close order")
 	}

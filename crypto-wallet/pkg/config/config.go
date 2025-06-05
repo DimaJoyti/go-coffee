@@ -23,6 +23,7 @@ type Config struct {
 	Telegram     TelegramConfig     `yaml:"telegram"`
 	AI           AIConfig           `yaml:"ai"`
 	Fintech      FintechConfig      `yaml:"fintech"`
+	MultiRegion  MultiRegionConfig  `yaml:"multi_region"`
 }
 
 // ServerConfig represents the HTTP server configuration
@@ -830,4 +831,48 @@ type CardRewardsConfig struct {
 	CategoryMultipliers map[string]float64 `yaml:"category_multipliers"`
 	RedemptionOptions   []string           `yaml:"redemption_options"`
 	MinRedemptionAmount string             `yaml:"min_redemption_amount"`
+}
+
+// MultiRegionConfig represents multi-region configuration
+type MultiRegionConfig struct {
+	Enabled  bool             `yaml:"enabled"`
+	Regions  []Region         `yaml:"regions"`
+	Failover FailoverConfig   `yaml:"failover"`
+}
+
+// Region represents a deployment region
+type Region struct {
+	Name     string `yaml:"name"`
+	Priority int    `yaml:"priority"`
+	Endpoint string `yaml:"endpoint"`
+	Healthy  bool   `yaml:"healthy"`
+}
+
+// FailoverConfig represents failover configuration
+type FailoverConfig struct {
+	Enabled            bool          `yaml:"enabled"`
+	CheckInterval      time.Duration `yaml:"check_interval"`
+	Timeout            time.Duration `yaml:"timeout"`
+	FailureThreshold   int           `yaml:"failure_threshold"`
+	RecoveryThreshold  int           `yaml:"recovery_threshold"`
+}
+
+// GetCurrentRegion returns the current region (first healthy region with highest priority)
+func (c *MultiRegionConfig) GetCurrentRegion() *Region {
+	if !c.Enabled || len(c.Regions) == 0 {
+		return nil
+	}
+
+	// Find the highest priority healthy region
+	var currentRegion *Region
+	for i := range c.Regions {
+		region := &c.Regions[i]
+		if region.Healthy {
+			if currentRegion == nil || region.Priority < currentRegion.Priority {
+				currentRegion = region
+			}
+		}
+	}
+
+	return currentRegion
 }

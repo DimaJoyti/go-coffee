@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 // Uniswap V3 contract addresses on Ethereum mainnet
@@ -52,10 +52,10 @@ func NewUniswapClient(client *blockchain.EthereumClient, logger *logger.Logger) 
 
 // GetSwapQuote gets a swap quote from Uniswap
 func (uc *UniswapClient) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*SwapQuote, error) {
-	uc.logger.Info("Getting Uniswap swap quote", 
-		"tokenIn", req.TokenIn, 
-		"tokenOut", req.TokenOut, 
-		"amountIn", req.AmountIn)
+	uc.logger.Info("Getting Uniswap swap quote",
+		zap.String("tokenIn", req.TokenIn),
+		zap.String("tokenOut", req.TokenOut),
+		zap.String("amountIn", req.AmountIn.String()))
 
 	// Convert addresses
 	tokenInAddr := common.HexToAddress(req.TokenIn)
@@ -116,7 +116,7 @@ func (uc *UniswapClient) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequ
 
 // ExecuteSwap executes a token swap on Uniswap
 func (uc *UniswapClient) ExecuteSwap(ctx context.Context, quote *SwapQuote, walletID, passphrase string) (string, error) {
-	uc.logger.Info("Executing Uniswap swap", "quoteID", quote.ID)
+	uc.logger.Info("Executing Uniswap swap", zap.String("quoteID", quote.ID))
 
 	// This is a simplified implementation
 	// In a real implementation, you would:
@@ -172,7 +172,7 @@ func (uc *UniswapClient) GetLiquidityPools(ctx context.Context, req *GetLiquidit
 
 // AddLiquidity adds liquidity to a Uniswap pool
 func (uc *UniswapClient) AddLiquidity(ctx context.Context, pool *LiquidityPool, req *AddLiquidityRequest) (string, decimal.Decimal, error) {
-	uc.logger.Info("Adding liquidity to Uniswap pool", "poolID", pool.ID)
+	uc.logger.Info("Adding liquidity to Uniswap pool", zap.String("poolID", pool.ID))
 
 	// This is a simplified implementation
 	// In a real implementation, you would:
@@ -190,7 +190,9 @@ func (uc *UniswapClient) AddLiquidity(ctx context.Context, pool *LiquidityPool, 
 
 // RemoveLiquidity removes liquidity from a Uniswap pool
 func (uc *UniswapClient) RemoveLiquidity(ctx context.Context, poolID string, lpTokens decimal.Decimal, walletID, passphrase string) (string, error) {
-	uc.logger.Info("Removing liquidity from Uniswap pool", "poolID", poolID, "lpTokens", lpTokens)
+	uc.logger.Info("Removing liquidity from Uniswap pool",
+		zap.String("poolID", poolID),
+		zap.String("lpTokens", lpTokens.String()))
 
 	// This is a simplified implementation
 	// For now, return a mock transaction hash
@@ -199,7 +201,7 @@ func (uc *UniswapClient) RemoveLiquidity(ctx context.Context, poolID string, lpT
 
 // GetPoolInfo retrieves information about a specific pool
 func (uc *UniswapClient) GetPoolInfo(ctx context.Context, poolAddress string) (*LiquidityPool, error) {
-	uc.logger.Info("Getting Uniswap pool info", "poolAddress", poolAddress)
+	uc.logger.Info("Getting Uniswap pool info", zap.String("poolAddress", poolAddress))
 
 	// This is a simplified implementation
 	// In a real implementation, you would query the pool contract directly
@@ -239,7 +241,7 @@ func (uc *UniswapClient) loadABIs() {
 	var err error
 	uc.factoryABI, err = abi.JSON(strings.NewReader(factoryABIJSON))
 	if err != nil {
-		uc.logger.Error("Failed to parse factory ABI", "error", err)
+		uc.logger.Error("Failed to parse factory ABI", zap.Error(err))
 	}
 
 	// Router ABI (simplified)
@@ -247,7 +249,7 @@ func (uc *UniswapClient) loadABIs() {
 	
 	uc.routerABI, err = abi.JSON(strings.NewReader(routerABIJSON))
 	if err != nil {
-		uc.logger.Error("Failed to parse router ABI", "error", err)
+		uc.logger.Error("Failed to parse router ABI", zap.Error(err))
 	}
 
 	// Quoter ABI (simplified)
@@ -255,7 +257,7 @@ func (uc *UniswapClient) loadABIs() {
 	
 	uc.quoterABI, err = abi.JSON(strings.NewReader(quoterABIJSON))
 	if err != nil {
-		uc.logger.Error("Failed to parse quoter ABI", "error", err)
+		uc.logger.Error("Failed to parse quoter ABI", zap.Error(err))
 	}
 
 	// ERC20 ABI (simplified)
@@ -263,6 +265,6 @@ func (uc *UniswapClient) loadABIs() {
 	
 	uc.erc20ABI, err = abi.JSON(strings.NewReader(erc20ABIJSON))
 	if err != nil {
-		uc.logger.Error("Failed to parse ERC20 ABI", "error", err)
+		uc.logger.Error("Failed to parse ERC20 ABI", zap.Error(err))
 	}
 }

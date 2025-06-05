@@ -7,12 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // 1inch API endpoints
@@ -43,11 +43,11 @@ func NewOneInchClient(apiKey string, logger *logger.Logger) *OneInchClient {
 
 // GetSwapQuote gets a swap quote from 1inch
 func (oc *OneInchClient) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*SwapQuote, error) {
-	oc.logger.Info("Getting 1inch swap quote", 
-		"tokenIn", req.TokenIn, 
-		"tokenOut", req.TokenOut, 
-		"amountIn", req.AmountIn,
-		"chain", req.Chain)
+	oc.logger.Info("Getting 1inch swap quote",
+		zap.String("tokenIn", req.TokenIn),
+		zap.String("tokenOut", req.TokenOut),
+		zap.String("amountIn", req.AmountIn.String()),
+		zap.String("chain", string(req.Chain)))
 
 	chainID := oc.getChainID(req.Chain)
 	if chainID == "" {
@@ -73,7 +73,12 @@ func (oc *OneInchClient) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequ
 	}
 
 	// Convert response to SwapQuote
-	amountOut := decimal.NewFromBigInt(quoteResp.ToTokenAmount, -18)
+	amountOut, err := decimal.NewFromString(quoteResp.ToTokenAmount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse amount out: %w", err)
+	}
+	// Convert from wei to token units (assuming 18 decimals)
+	amountOut = amountOut.Div(decimal.NewFromInt(1e18))
 	
 	// Calculate slippage and minimum amount out
 	slippage := req.Slippage
@@ -110,7 +115,7 @@ func (oc *OneInchClient) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequ
 
 // ExecuteSwap executes a token swap via 1inch
 func (oc *OneInchClient) ExecuteSwap(ctx context.Context, quote *SwapQuote, walletID, passphrase string) (string, error) {
-	oc.logger.Info("Executing 1inch swap", "quoteID", quote.ID)
+	oc.logger.Info("Executing 1inch swap", zap.String("quoteID", quote.ID))
 
 	chainID := oc.getChainID(quote.Chain)
 	if chainID == "" {
@@ -149,7 +154,7 @@ func (oc *OneInchClient) ExecuteSwap(ctx context.Context, quote *SwapQuote, wall
 
 // GetSupportedTokens retrieves supported tokens for a chain
 func (oc *OneInchClient) GetSupportedTokens(ctx context.Context, chain Chain) ([]Token, error) {
-	oc.logger.Info("Getting supported tokens from 1inch", "chain", chain)
+	oc.logger.Info("Getting supported tokens from 1inch", zap.String("chain", string(chain)))
 
 	chainID := oc.getChainID(chain)
 	if chainID == "" {
@@ -189,7 +194,7 @@ func (oc *OneInchClient) GetSupportedTokens(ctx context.Context, chain Chain) ([
 
 // GetLiquiditySources retrieves available liquidity sources
 func (oc *OneInchClient) GetLiquiditySources(ctx context.Context, chain Chain) ([]string, error) {
-	oc.logger.Info("Getting liquidity sources from 1inch", "chain", chain)
+	oc.logger.Info("Getting liquidity sources from 1inch", zap.String("chain", string(chain)))
 
 	chainID := oc.getChainID(chain)
 	if chainID == "" {
@@ -220,7 +225,7 @@ func (oc *OneInchClient) GetLiquiditySources(ctx context.Context, chain Chain) (
 
 // GetSpender retrieves the spender address for token approvals
 func (oc *OneInchClient) GetSpender(ctx context.Context, chain Chain) (string, error) {
-	oc.logger.Info("Getting spender address from 1inch", "chain", chain)
+	oc.logger.Info("Getting spender address from 1inch", zap.String("chain", string(chain)))
 
 	chainID := oc.getChainID(chain)
 	if chainID == "" {

@@ -1,6 +1,7 @@
 package defi
 
 import (
+	"context"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -414,5 +415,214 @@ type OnChainMetrics struct {
 	Timestamp       time.Time       `json:"timestamp"`
 }
 
-// Additional types needed by service.go (only those not defined elsewhere)
-// Note: Most types are already defined in other files to avoid duplication
+// Yield Strategy Models
+
+// YieldStrategy represents a yield farming strategy
+type YieldStrategy struct {
+	ID            string                     `json:"id"`
+	Name          string                     `json:"name"`
+	Type          YieldStrategyType          `json:"type"`
+	Opportunities []*YieldFarmingOpportunity `json:"opportunities"`
+	TotalAPY      decimal.Decimal            `json:"total_apy"`
+	Risk          RiskLevel                  `json:"risk"`
+	MinInvestment decimal.Decimal            `json:"min_investment"`
+	MaxInvestment decimal.Decimal            `json:"max_investment"`
+	AutoCompound  bool                       `json:"auto_compound"`
+	RebalanceFreq time.Duration              `json:"rebalance_freq"`
+	CreatedAt     time.Time                  `json:"created_at"`
+	UpdatedAt     time.Time                  `json:"updated_at"`
+}
+
+// YieldStrategyType represents different yield strategies
+type YieldStrategyType string
+
+const (
+	YieldStrategyTypeConservative YieldStrategyType = "conservative"
+	YieldStrategyTypeBalanced     YieldStrategyType = "balanced"
+	YieldStrategyTypeAggressive   YieldStrategyType = "aggressive"
+	YieldStrategyTypeCustom       YieldStrategyType = "custom"
+)
+
+// OptimalStrategyRequest represents a request for optimal strategy
+type OptimalStrategyRequest struct {
+	InvestmentAmount decimal.Decimal `json:"investment_amount"`
+	RiskTolerance    RiskLevel       `json:"risk_tolerance"`
+	PreferredTokens  []string        `json:"preferred_tokens"`
+	MinAPY           decimal.Decimal `json:"min_apy"`
+	MaxLockPeriod    time.Duration   `json:"max_lock_period"`
+	AutoCompound     bool            `json:"auto_compound"`
+	Diversification  bool            `json:"diversification"`
+}
+
+// On-Chain Analysis Models
+
+// BlockchainEvent represents a significant blockchain event
+type BlockchainEvent struct {
+	ID          string                 `json:"id"`
+	Type        BlockchainEventType    `json:"type"`
+	Chain       Chain                  `json:"chain"`
+	BlockNumber uint64                 `json:"block_number"`
+	TxHash      string                 `json:"tx_hash"`
+	Token       Token                  `json:"token"`
+	Amount      decimal.Decimal        `json:"amount"`
+	From        string                 `json:"from"`
+	To          string                 `json:"to"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+// BlockchainEventType represents different types of blockchain events
+type BlockchainEventType string
+
+const (
+	EventTypeLargeTransfer   BlockchainEventType = "large_transfer"
+	EventTypeLiquidityAdd    BlockchainEventType = "liquidity_add"
+	EventTypeLiquidityRemove BlockchainEventType = "liquidity_remove"
+	EventTypeSwap            BlockchainEventType = "swap"
+	EventTypeStake           BlockchainEventType = "stake"
+	EventTypeUnstake         BlockchainEventType = "unstake"
+	EventTypeNewToken        BlockchainEventType = "new_token"
+	EventTypePriceAlert      BlockchainEventType = "price_alert"
+)
+
+// WhaleWatch represents monitoring of whale addresses
+type WhaleWatch struct {
+	Address    string          `json:"address"`
+	Label      string          `json:"label"`
+	Chain      Chain           `json:"chain"`
+	Balance    decimal.Decimal `json:"balance"`
+	LastTx     time.Time       `json:"last_tx"`
+	TxCount24h int             `json:"tx_count_24h"`
+	Volume24h  decimal.Decimal `json:"volume_24h"`
+	Active     bool            `json:"active"`
+}
+
+// LiquidityEvent represents a liquidity pool event
+type LiquidityEvent struct {
+	ID        string          `json:"id"`
+	Type      string          `json:"type"`
+	Pool      string          `json:"pool"`
+	Token0    Token           `json:"token0"`
+	Token1    Token           `json:"token1"`
+	Amount0   decimal.Decimal `json:"amount0"`
+	Amount1   decimal.Decimal `json:"amount1"`
+	User      string          `json:"user"`
+	TxHash    string          `json:"tx_hash"`
+	Timestamp time.Time       `json:"timestamp"`
+}
+
+// MarketSignal represents a trading signal derived from on-chain analysis
+type MarketSignal struct {
+	ID         string          `json:"id"`
+	Type       SignalType      `json:"type"`
+	Token      Token           `json:"token"`
+	Strength   decimal.Decimal `json:"strength"`
+	Confidence decimal.Decimal `json:"confidence"`
+	Direction  SignalDirection `json:"direction"`
+	Timeframe  time.Duration   `json:"timeframe"`
+	Reason     string          `json:"reason"`
+	CreatedAt  time.Time       `json:"created_at"`
+	ExpiresAt  time.Time       `json:"expires_at"`
+}
+
+// SignalType represents different types of market signals
+type SignalType string
+
+const (
+	SignalTypeWhaleMovement  SignalType = "whale_movement"
+	SignalTypeLiquidityShift SignalType = "liquidity_shift"
+	SignalTypeVolumeSpike    SignalType = "volume_spike"
+	SignalTypePriceAnomaly   SignalType = "price_anomaly"
+	SignalTypeNewListing     SignalType = "new_listing"
+)
+
+// SignalDirection represents the direction of a market signal
+type SignalDirection string
+
+const (
+	SignalDirectionBullish SignalDirection = "bullish"
+	SignalDirectionBearish SignalDirection = "bearish"
+	SignalDirectionNeutral SignalDirection = "neutral"
+)
+
+// TokenAnalysis represents comprehensive token analysis
+type TokenAnalysis struct {
+	Token           Token             `json:"token"`
+	Metrics         OnChainMetrics    `json:"metrics"`
+	Signals         []*MarketSignal   `json:"signals"`
+	WhaleActivity   []*WhaleWatch     `json:"whale_activity"`
+	LiquidityEvents []*LiquidityEvent `json:"liquidity_events"`
+	Score           decimal.Decimal   `json:"score"`
+	Recommendation  string            `json:"recommendation"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+// Price Provider Wrappers
+
+// UniswapPriceProvider wraps UniswapClient to implement PriceProvider interface
+type UniswapPriceProvider struct {
+	client *UniswapClient
+}
+
+// NewUniswapPriceProvider creates a new Uniswap price provider
+func NewUniswapPriceProvider(client *UniswapClient) *UniswapPriceProvider {
+	return &UniswapPriceProvider{client: client}
+}
+
+// GetPrice implements PriceProvider interface
+func (upp *UniswapPriceProvider) GetPrice(ctx context.Context, token Token) (decimal.Decimal, error) {
+	// Mock implementation - in real scenario, get price from Uniswap pools
+	return decimal.NewFromFloat(2500.0), nil
+}
+
+// GetExchangeInfo implements PriceProvider interface
+func (upp *UniswapPriceProvider) GetExchangeInfo() Exchange {
+	return Exchange{
+		ID:       "uniswap",
+		Name:     "Uniswap V3",
+		Type:     ExchangeTypeDEX,
+		Chain:    ChainEthereum,
+		Protocol: ProtocolTypeUniswap,
+		Fee:      decimal.NewFromFloat(0.003),
+		Active:   true,
+	}
+}
+
+// IsHealthy implements PriceProvider interface
+func (upp *UniswapPriceProvider) IsHealthy(ctx context.Context) bool {
+	return true // Mock implementation
+}
+
+// OneInchPriceProvider wraps OneInchClient to implement PriceProvider interface
+type OneInchPriceProvider struct {
+	client *OneInchClient
+}
+
+// NewOneInchPriceProvider creates a new 1inch price provider
+func NewOneInchPriceProvider(client *OneInchClient) *OneInchPriceProvider {
+	return &OneInchPriceProvider{client: client}
+}
+
+// GetPrice implements PriceProvider interface
+func (oipp *OneInchPriceProvider) GetPrice(ctx context.Context, token Token) (decimal.Decimal, error) {
+	// Mock implementation - in real scenario, get price from 1inch
+	return decimal.NewFromFloat(2500.0), nil
+}
+
+// GetExchangeInfo implements PriceProvider interface
+func (oipp *OneInchPriceProvider) GetExchangeInfo() Exchange {
+	return Exchange{
+		ID:       "1inch",
+		Name:     "1inch",
+		Type:     ExchangeTypeDEX,
+		Chain:    ChainEthereum,
+		Protocol: ProtocolType1inch,
+		Fee:      decimal.Zero,
+		Active:   true,
+	}
+}
+
+// IsHealthy implements PriceProvider interface
+func (oipp *OneInchPriceProvider) IsHealthy(ctx context.Context) bool {
+	return true // Mock implementation
+}
