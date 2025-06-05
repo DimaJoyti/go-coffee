@@ -247,6 +247,42 @@ func setupRoutes(router *gin.Engine, service *terminal.Service) {
 			orderflow.GET("/metrics/:symbol", service.GetOrderFlowMetrics)
 			orderflow.GET("/imbalances/:symbol", service.GetActiveImbalances)
 		}
+
+		// HFT routes
+		hft := v1.Group("/hft")
+		{
+			// HFT status and metrics
+			hft.GET("/status", service.GetHFTStatus)
+			hft.GET("/latency", service.GetHFTLatencyStats)
+
+			// Strategy management
+			strategies := hft.Group("/strategies")
+			{
+				strategies.GET("", service.GetHFTStrategies)
+				strategies.POST("/:strategyId/start", service.StartHFTStrategy)
+				strategies.POST("/:strategyId/stop", service.StopHFTStrategy)
+			}
+
+			// Order management
+			orders := hft.Group("/orders")
+			{
+				orders.GET("", service.GetHFTOrders)
+				orders.POST("", service.PlaceHFTOrder)
+				orders.DELETE("/:orderId", service.CancelHFTOrder)
+			}
+
+			// Position management
+			positions := hft.Group("/positions")
+			{
+				positions.GET("", service.GetHFTPositions)
+			}
+
+			// Risk management
+			risk := hft.Group("/risk")
+			{
+				risk.GET("/events", service.GetHFTRiskEvents)
+			}
+		}
 	}
 
 	// WebSocket endpoint
@@ -254,6 +290,7 @@ func setupRoutes(router *gin.Engine, service *terminal.Service) {
 	router.GET("/ws/market", service.HandleMarketWebSocket)
 	router.GET("/ws/portfolio", service.HandlePortfolioWebSocket)
 	router.GET("/ws/alerts", service.HandleAlertsWebSocket)
+	router.GET("/ws/hft", service.HandleHFTWebSocket)
 
 	// Static files for frontend
 	router.Static("/static", "./web/build/static")

@@ -5,15 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strconv"
+
 	"strings"
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/config"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/models"
 	"github.com/shopspring/decimal"
-	"github.com/sirupsen/logrus"
+
 )
 
 // CoinGeckoProvider implements the Provider interface for CoinGecko API

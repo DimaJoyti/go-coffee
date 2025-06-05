@@ -23,6 +23,7 @@ type Config struct {
 	Security         SecurityConfig         `mapstructure:"security"`
 	DeFi             DeFiConfig             `mapstructure:"defi"`
 	AI               AIConfig               `mapstructure:"ai"`
+	HFT              *HFTConfig             `mapstructure:"hft"`
 }
 
 // ServerConfig holds server configuration
@@ -251,6 +252,49 @@ type SentimentAnalysisConfig struct {
 	Enabled        bool          `mapstructure:"enabled"`
 	Sources        []string      `mapstructure:"sources"`
 	UpdateInterval time.Duration `mapstructure:"update_interval"`
+}
+
+// HFTConfig holds High-Frequency Trading configuration
+type HFTConfig struct {
+	Enabled           bool                  `mapstructure:"enabled"`
+	Feeds             HFTFeedsConfig        `mapstructure:"feeds"`
+	OrderManagement   HFTOMSConfig          `mapstructure:"order_management"`
+	StrategyEngine    HFTStrategyConfig     `mapstructure:"strategy_engine"`
+	RiskManagement    HFTRiskConfig         `mapstructure:"risk_management"`
+}
+
+// HFTFeedsConfig holds HFT market data feeds configuration
+type HFTFeedsConfig struct {
+	Providers         []string      `mapstructure:"providers"`
+	BufferSize        int           `mapstructure:"buffer_size"`
+	LatencyThreshold  time.Duration `mapstructure:"latency_threshold"`
+	ReconnectInterval time.Duration `mapstructure:"reconnect_interval"`
+}
+
+// HFTOMSConfig holds HFT Order Management System configuration
+type HFTOMSConfig struct {
+	MaxOrdersPerSecond int           `mapstructure:"max_orders_per_second"`
+	OrderTimeout       time.Duration `mapstructure:"order_timeout"`
+	FillTimeout        time.Duration `mapstructure:"fill_timeout"`
+	RetryAttempts      int           `mapstructure:"retry_attempts"`
+}
+
+// HFTStrategyConfig holds HFT strategy engine configuration
+type HFTStrategyConfig struct {
+	MaxStrategies     int           `mapstructure:"max_strategies"`
+	SignalBufferSize  int           `mapstructure:"signal_buffer_size"`
+	ExecutionTimeout  time.Duration `mapstructure:"execution_timeout"`
+	PerformanceWindow time.Duration `mapstructure:"performance_window"`
+}
+
+// HFTRiskConfig holds HFT risk management configuration
+type HFTRiskConfig struct {
+	MaxDailyLoss       float64       `mapstructure:"max_daily_loss"`
+	MaxDrawdown        float64       `mapstructure:"max_drawdown"`
+	MaxPositionSize    float64       `mapstructure:"max_position_size"`
+	MaxExposure        float64       `mapstructure:"max_exposure"`
+	CheckInterval      time.Duration `mapstructure:"check_interval"`
+	ViolationThreshold int           `mapstructure:"violation_threshold"`
 }
 
 // Load loads configuration from file and environment variables

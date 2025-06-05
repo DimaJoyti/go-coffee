@@ -221,6 +221,39 @@ func (h *Hub) HandleAlertsWebSocket(w http.ResponseWriter, r *http.Request) {
 	go client.readPump()
 }
 
+// HandleHFTWebSocket handles HFT WebSocket connections
+func (h *Hub) HandleHFTWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := h.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		logrus.Errorf("Failed to upgrade HFT WebSocket connection: %v", err)
+		return
+	}
+
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		userID = "anonymous"
+	}
+
+	client := &Client{
+		hub:          h,
+		conn:         conn,
+		send:         make(chan []byte, 256),
+		id:           generateClientID(),
+		userID:       userID,
+		channels:     map[string]bool{"hft": true},
+		lastActivity: time.Now(),
+	}
+
+	client.hub.register <- client
+	h.subscribeToChannel("hft", client)
+
+	// Send initial HFT status
+	h.sendInitialHFTData(client)
+
+	go client.writePump()
+	go client.readPump()
+}
+
 // BroadcastToChannel broadcasts a message to all clients subscribed to a channel
 func (h *Hub) BroadcastToChannel(channel string, message interface{}) {
 	h.mu.RLock()
@@ -347,6 +380,30 @@ func (h *Hub) sendInitialMarketData(client *Client) {
 	data, err := json.Marshal(welcomeMessage)
 	if err != nil {
 		logrus.Errorf("Failed to marshal welcome message: %v", err)
+		return
+	}
+
+	select {
+	case client.send <- data:
+	default:
+		close(client.send)
+		delete(h.clients, client)
+	}
+}
+
+// sendInitialHFTData sends initial HFT data to a client
+func (h *Hub) sendInitialHFTData(client *Client) {
+	// Send welcome message with initial HFT data
+	welcomeMessage := models.WebSocketMessage{
+		Type:      "welcome",
+		Channel:   "hft",
+		Data:      map[string]interface{}{"message": "Connected to HFT data feed"},
+		Timestamp: time.Now(),
+	}
+
+	data, err := json.Marshal(welcomeMessage)
+	if err != nil {
+		logrus.Errorf("Failed to marshal HFT welcome message: %v", err)
 		return
 	}
 

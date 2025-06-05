@@ -9,7 +9,6 @@ import (
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/sirupsen/logrus"
 )
 
 // FootprintEngine generates footprint charts from tick data

@@ -5,10 +5,15 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/alerts"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/config"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/engine"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/feeds"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/oms"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/risk"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/market"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/models"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/orderflow"
@@ -31,6 +36,14 @@ type Service struct {
 	alertsService    *alerts.Service
 	orderflowService *orderflow.Service
 	wsHub            *websocket.Hub
+
+	// HFT Services
+	hftEnabled       bool
+	hftFeedsService  *feeds.Service
+	hftOMSService    *oms.Service
+	hftEngineService *engine.Service
+	hftRiskService   *risk.Service
+
 	startTime        time.Time
 }
 
@@ -96,6 +109,56 @@ func NewService(cfg *config.Config) (*Service, error) {
 	// Initialize WebSocket hub
 	wsHub := websocket.NewHub(cfg)
 
+	// Initialize HFT services (optional, based on configuration)
+	var hftFeedsService *feeds.Service
+	var hftOMSService *oms.Service
+	var hftEngineService *engine.Service
+	var hftRiskService *risk.Service
+	hftEnabled := false
+
+	// Check if HFT is enabled in configuration
+	if cfg.HFT != nil && cfg.HFT.Enabled {
+		hftEnabled = true
+
+		// Initialize HFT market data feeds
+		hftFeedsService, err = feeds.NewService(cfg, db, redisClient)
+		if err != nil {
+			logrus.WithError(err).Warn("Failed to create HFT feeds service, HFT disabled")
+			hftEnabled = false
+		}
+
+		// Initialize HFT Order Management System
+		if hftEnabled {
+			hftOMSService, err = oms.NewService(cfg, db, redisClient)
+			if err != nil {
+				logrus.WithError(err).Warn("Failed to create HFT OMS service, HFT disabled")
+				hftEnabled = false
+			}
+		}
+
+		// Initialize HFT Strategy Engine
+		if hftEnabled {
+			hftEngineService, err = engine.NewService(cfg, db, redisClient)
+			if err != nil {
+				logrus.WithError(err).Warn("Failed to create HFT engine service, HFT disabled")
+				hftEnabled = false
+			}
+		}
+
+		// Initialize HFT Risk Management
+		if hftEnabled {
+			hftRiskService, err = risk.NewService(cfg, db, redisClient)
+			if err != nil {
+				logrus.WithError(err).Warn("Failed to create HFT risk service, HFT disabled")
+				hftEnabled = false
+			}
+		}
+
+		if hftEnabled {
+			logrus.Info("HFT services initialized successfully")
+		}
+	}
+
 	return &Service{
 		config:           cfg,
 		db:               db,
@@ -105,6 +168,14 @@ func NewService(cfg *config.Config) (*Service, error) {
 		alertsService:    alertsService,
 		orderflowService: orderflowService,
 		wsHub:            wsHub,
+
+		// HFT Services
+		hftEnabled:       hftEnabled,
+		hftFeedsService:  hftFeedsService,
+		hftOMSService:    hftOMSService,
+		hftEngineService: hftEngineService,
+		hftRiskService:   hftRiskService,
+
 		startTime:        time.Now(),
 	}, nil
 }
@@ -136,6 +207,36 @@ func (s *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start order flow service: %w", err)
 	}
 
+	// Start HFT services if enabled
+	if s.hftEnabled {
+		logrus.Info("Starting HFT services")
+
+		// Start HFT market data feeds
+		if err := s.hftFeedsService.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start HFT feeds service: %w", err)
+		}
+
+		// Start HFT Order Management System
+		if err := s.hftOMSService.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start HFT OMS service: %w", err)
+		}
+
+		// Start HFT Strategy Engine
+		if err := s.hftEngineService.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start HFT engine service: %w", err)
+		}
+
+		// Start HFT Risk Management
+		if err := s.hftRiskService.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start HFT risk service: %w", err)
+		}
+
+		// Connect HFT services
+		s.connectHFTServices(ctx)
+
+		logrus.Info("HFT services started successfully")
+	}
+
 	logrus.Info("Crypto terminal service started successfully")
 	return nil
 }
@@ -143,6 +244,29 @@ func (s *Service) Start(ctx context.Context) error {
 // Stop stops the terminal service
 func (s *Service) Stop() error {
 	logrus.Info("Stopping crypto terminal service")
+
+	// Stop HFT services if enabled
+	if s.hftEnabled {
+		logrus.Info("Stopping HFT services")
+
+		if err := s.hftRiskService.Stop(); err != nil {
+			logrus.Errorf("Failed to stop HFT risk service: %v", err)
+		}
+
+		if err := s.hftEngineService.Stop(); err != nil {
+			logrus.Errorf("Failed to stop HFT engine service: %v", err)
+		}
+
+		if err := s.hftOMSService.Stop(); err != nil {
+			logrus.Errorf("Failed to stop HFT OMS service: %v", err)
+		}
+
+		if err := s.hftFeedsService.Stop(); err != nil {
+			logrus.Errorf("Failed to stop HFT feeds service: %v", err)
+		}
+
+		logrus.Info("HFT services stopped")
+	}
 
 	// Stop services
 	if err := s.orderflowService.Stop(); err != nil {
@@ -235,7 +359,180 @@ func (s *Service) GetHealthStatus() models.HealthCheck {
 		health.Status = "degraded"
 	}
 
+	// Check HFT services health if enabled
+	if s.hftEnabled {
+		if s.hftFeedsService.IsHealthy() {
+			health.Services["hft_feeds"] = "healthy"
+		} else {
+			health.Services["hft_feeds"] = "unhealthy"
+			health.Status = "degraded"
+		}
+
+		if s.hftOMSService.IsHealthy() {
+			health.Services["hft_oms"] = "healthy"
+		} else {
+			health.Services["hft_oms"] = "unhealthy"
+			health.Status = "degraded"
+		}
+
+		if s.hftEngineService.IsHealthy() {
+			health.Services["hft_engine"] = "healthy"
+		} else {
+			health.Services["hft_engine"] = "unhealthy"
+			health.Status = "degraded"
+		}
+
+		if s.hftRiskService.IsHealthy() {
+			health.Services["hft_risk"] = "healthy"
+		} else {
+			health.Services["hft_risk"] = "unhealthy"
+			health.Status = "degraded"
+		}
+	}
+
 	return health
+}
+
+// connectHFTServices connects HFT services together
+func (s *Service) connectHFTServices(ctx context.Context) {
+	// Connect market data feeds to strategy engine
+	go func() {
+		tickChan := s.hftFeedsService.SubscribeToTicks([]string{"BTCUSDT", "ETHUSDT"})
+		for tick := range tickChan {
+			s.hftEngineService.SendTick(tick)
+		}
+	}()
+
+	go func() {
+		orderBookChan := s.hftFeedsService.SubscribeToOrderBook([]string{"BTCUSDT", "ETHUSDT"})
+		for orderBook := range orderBookChan {
+			s.hftEngineService.SendOrderBook(orderBook)
+		}
+	}()
+
+	// Connect strategy engine signals to OMS
+	go func() {
+		signalChan := s.hftEngineService.GetSignalChannel()
+		for signal := range signalChan {
+			s.processHFTSignal(ctx, signal)
+		}
+	}()
+
+	// Connect OMS updates to strategy engine
+	go func() {
+		orderChan := s.hftOMSService.GetOrderUpdateChannel()
+		for order := range orderChan {
+			s.hftEngineService.SendOrderUpdate(order)
+		}
+	}()
+
+	go func() {
+		fillChan := s.hftOMSService.GetFillChannel()
+		for fill := range fillChan {
+			s.hftEngineService.SendFill(fill)
+		}
+	}()
+
+	// Connect risk events
+	go func() {
+		riskChan := s.hftRiskService.GetRiskEventChannel()
+		for riskEvent := range riskChan {
+			s.handleHFTRiskEvent(ctx, riskEvent)
+		}
+	}()
+
+	logrus.Info("HFT services connected successfully")
+}
+
+// processHFTSignal processes trading signals from the strategy engine
+func (s *Service) processHFTSignal(ctx context.Context, signal *models.Signal) {
+	logrus.WithFields(logrus.Fields{
+		"signal_id":   signal.ID,
+		"strategy_id": signal.StrategyID,
+		"symbol":      signal.Symbol,
+		"side":        signal.Side,
+		"strength":    signal.Strength,
+		"confidence":  signal.Confidence,
+	}).Info("Processing HFT trading signal")
+
+	// Validate signal with risk management
+	if err := s.hftRiskService.ValidateOrder(ctx, &models.Order{
+		StrategyID: signal.StrategyID,
+		Symbol:     signal.Symbol,
+		Exchange:   signal.Exchange,
+		Side:       signal.Side,
+		Type:       models.OrderTypeLimit,
+		Quantity:   signal.Quantity,
+		Price:      signal.Price,
+	}); err != nil {
+		logrus.WithError(err).Warn("Signal blocked by risk management")
+		return
+	}
+
+	// Create order from signal
+	order := &models.Order{
+		ID:            fmt.Sprintf("signal_%s_%d", signal.ID, time.Now().UnixNano()),
+		ClientOrderID: signal.ID,
+		StrategyID:    signal.StrategyID,
+		Symbol:        signal.Symbol,
+		Exchange:      signal.Exchange,
+		Side:          signal.Side,
+		Type:          models.OrderTypeLimit,
+		Quantity:      signal.Quantity,
+		Price:         signal.Price,
+		TimeInForce:   models.TimeInForceGTC,
+	}
+
+	// Place order through OMS
+	placedOrder, err := s.hftOMSService.PlaceOrder(ctx, order)
+	if err != nil {
+		logrus.WithError(err).Error("Failed to place order from signal")
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"order_id":    placedOrder.ID,
+		"signal_id":   signal.ID,
+		"strategy_id": signal.StrategyID,
+	}).Info("Order placed successfully from HFT signal")
+
+	// Mark signal as executed
+	signal.Executed = true
+}
+
+// handleHFTRiskEvent handles risk management events
+func (s *Service) handleHFTRiskEvent(ctx context.Context, riskEvent *models.RiskEvent) {
+	logrus.WithFields(logrus.Fields{
+		"event_id":    riskEvent.ID,
+		"type":        riskEvent.Type,
+		"severity":    riskEvent.Severity,
+		"strategy_id": riskEvent.StrategyID,
+		"action":      riskEvent.Action,
+		"description": riskEvent.Description,
+	}).Warn("Handling HFT risk event")
+
+	// Take action based on risk event
+	switch riskEvent.Action {
+	case "stop_strategy":
+		if err := s.hftEngineService.StopStrategy(ctx, riskEvent.StrategyID); err != nil {
+			logrus.WithError(err).Error("Failed to stop strategy due to risk event")
+		} else {
+			logrus.WithField("strategy_id", riskEvent.StrategyID).Warn("Strategy stopped due to risk event")
+		}
+	case "reduce_exposure":
+		// Would implement exposure reduction logic
+		logrus.WithField("strategy_id", riskEvent.StrategyID).Warn("Exposure reduction required")
+	case "block_order":
+		// Order already blocked, just log
+		logrus.WithField("event_id", riskEvent.ID).Info("Order blocked by risk management")
+	}
+
+	// Send risk event to WebSocket clients
+	s.wsHub.BroadcastToChannel("hft", map[string]interface{}{
+		"type":       "hft_risk_event",
+		"event":      riskEvent,
+		"timestamp":  time.Now(),
+	})
 }
 
 // Market Data Handlers
@@ -933,4 +1230,360 @@ func (s *Service) GetActiveImbalances(c *gin.Context) {
 		Data:      imbalances,
 		Timestamp: time.Now(),
 	})
+}
+
+// HFT API Handlers
+
+// GetHFTStatus returns the status of HFT services
+func (s *Service) GetHFTStatus(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusOK, models.APIResponse{
+			Success:   true,
+			Data:      map[string]interface{}{"enabled": false},
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	status := map[string]interface{}{
+		"enabled": true,
+		"services": map[string]interface{}{
+			"feeds":  s.hftFeedsService.IsHealthy(),
+			"oms":    s.hftOMSService.IsHealthy(),
+			"engine": s.hftEngineService.IsHealthy(),
+			"risk":   s.hftRiskService.IsHealthy(),
+		},
+		"metrics": map[string]interface{}{
+			"feeds":  s.hftFeedsService.GetMetrics(),
+			"oms":    s.hftOMSService.GetMetrics(),
+			"engine": s.hftEngineService.GetMetrics(),
+			"risk":   s.hftRiskService.GetMetrics(),
+		},
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      status,
+		Timestamp: time.Now(),
+	})
+}
+
+// GetHFTStrategies returns all HFT strategies
+func (s *Service) GetHFTStrategies(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	strategies := s.hftEngineService.GetStrategies()
+	strategyList := make([]map[string]interface{}, 0, len(strategies))
+
+	for _, strategy := range strategies {
+		strategyList = append(strategyList, map[string]interface{}{
+			"id":      strategy.GetID(),
+			"name":    strategy.GetName(),
+			"type":    strategy.GetType(),
+			"status":  strategy.GetStatus(),
+			"healthy": strategy.IsHealthy(),
+			"metrics": strategy.GetMetrics(),
+		})
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      strategyList,
+		Timestamp: time.Now(),
+	})
+}
+
+// StartHFTStrategy starts a specific HFT strategy
+func (s *Service) StartHFTStrategy(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	strategyID := c.Param("strategyId")
+	if strategyID == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success:   false,
+			Error:     "Strategy ID is required",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	if err := s.hftEngineService.StartStrategy(c.Request.Context(), strategyID); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success:   false,
+			Error:     err.Error(),
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      map[string]interface{}{"strategy_id": strategyID, "status": "started"},
+		Timestamp: time.Now(),
+	})
+}
+
+// StopHFTStrategy stops a specific HFT strategy
+func (s *Service) StopHFTStrategy(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	strategyID := c.Param("strategyId")
+	if strategyID == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success:   false,
+			Error:     "Strategy ID is required",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	if err := s.hftEngineService.StopStrategy(c.Request.Context(), strategyID); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success:   false,
+			Error:     err.Error(),
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      map[string]interface{}{"strategy_id": strategyID, "status": "stopped"},
+		Timestamp: time.Now(),
+	})
+}
+
+// GetHFTOrders returns HFT orders
+func (s *Service) GetHFTOrders(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	strategyID := c.Query("strategy_id")
+	if strategyID == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success:   false,
+			Error:     "Strategy ID is required",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	orders, err := s.hftOMSService.GetActiveOrders(c.Request.Context(), strategyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success:   false,
+			Error:     err.Error(),
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      orders,
+		Timestamp: time.Now(),
+	})
+}
+
+// PlaceHFTOrder places a new HFT order
+func (s *Service) PlaceHFTOrder(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	var order models.Order
+	if err := c.ShouldBindJSON(&order); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success:   false,
+			Error:     err.Error(),
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	placedOrder, err := s.hftOMSService.PlaceOrder(c.Request.Context(), &order)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success:   false,
+			Error:     err.Error(),
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, models.APIResponse{
+		Success:   true,
+		Data:      placedOrder,
+		Timestamp: time.Now(),
+	})
+}
+
+// CancelHFTOrder cancels an HFT order
+func (s *Service) CancelHFTOrder(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	orderID := c.Param("orderId")
+	if orderID == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success:   false,
+			Error:     "Order ID is required",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	if err := s.hftOMSService.CancelOrder(c.Request.Context(), orderID); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success:   false,
+			Error:     err.Error(),
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      map[string]interface{}{"order_id": orderID, "status": "canceled"},
+		Timestamp: time.Now(),
+	})
+}
+
+// GetHFTPositions returns HFT positions
+func (s *Service) GetHFTPositions(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	strategyID := c.Query("strategy_id")
+	if strategyID == "" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success:   false,
+			Error:     "Strategy ID is required",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	positions, err := s.hftOMSService.GetAllPositions(c.Request.Context(), strategyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success:   false,
+			Error:     err.Error(),
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      positions,
+		Timestamp: time.Now(),
+	})
+}
+
+// GetHFTRiskEvents returns HFT risk events
+func (s *Service) GetHFTRiskEvents(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	limit := 100
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	events := s.hftRiskService.GetRiskEvents(limit)
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      events,
+		Timestamp: time.Now(),
+	})
+}
+
+// GetHFTLatencyStats returns HFT latency statistics
+func (s *Service) GetHFTLatencyStats(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{
+			Success:   false,
+			Error:     "HFT services not enabled",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	stats := map[string]interface{}{
+		"feeds_latency": s.hftFeedsService.GetLatencyStats(),
+		"tick_count":    s.hftFeedsService.GetTickCount(),
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success:   true,
+		Data:      stats,
+		Timestamp: time.Now(),
+	})
+}
+
+// HandleHFTWebSocket handles HFT WebSocket connections
+func (s *Service) HandleHFTWebSocket(c *gin.Context) {
+	if !s.hftEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "HFT services not enabled",
+		})
+		return
+	}
+
+	// Use the WebSocket hub's HandleHFTWebSocket method
+	s.wsHub.HandleHFTWebSocket(c.Writer, c.Request)
 }

@@ -1,7 +1,6 @@
 package orderflow
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
@@ -9,7 +8,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/sirupsen/logrus"
+
 )
 
 // ImbalanceDetector detects order flow imbalances and absorption patterns

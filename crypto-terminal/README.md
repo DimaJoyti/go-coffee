@@ -36,6 +36,14 @@ A comprehensive cryptocurrency market terminal integrated with the Go Coffee Web
 - **Arbitrage Scanner** - Cross-DEX arbitrage opportunities
 - **Gas Tracker** - Network fee optimization
 
+### ⚡ **High-Frequency Trading (HFT)**
+- **Ultra-Low Latency** - Sub-millisecond market data processing
+- **Multi-Exchange Connectivity** - Binance, Coinbase, Kraken integration
+- **Advanced Order Management** - Complete order lifecycle with smart routing
+- **Strategy Engine** - Market making, arbitrage, and momentum strategies
+- **Real-Time Risk Management** - Dynamic limits and circuit breakers
+- **Performance Analytics** - Comprehensive trading metrics and reporting
+
 ## 🏗️ Architecture
 
 ```
@@ -152,11 +160,24 @@ integrations:
 - `GET /api/v1/orderflow/metrics/{symbol}` - Get real-time order flow metrics
 - `GET /api/v1/orderflow/imbalances/{symbol}` - Get active imbalances
 
+### High-Frequency Trading (HFT)
+- `GET /api/v1/hft/status` - Get HFT system status and metrics
+- `GET /api/v1/hft/latency` - Get latency statistics
+- `GET /api/v1/hft/strategies` - List all trading strategies
+- `POST /api/v1/hft/strategies/{id}/start` - Start a trading strategy
+- `POST /api/v1/hft/strategies/{id}/stop` - Stop a trading strategy
+- `GET /api/v1/hft/orders` - Get active HFT orders
+- `POST /api/v1/hft/orders` - Place a new HFT order
+- `DELETE /api/v1/hft/orders/{id}` - Cancel an HFT order
+- `GET /api/v1/hft/positions` - Get HFT positions
+- `GET /api/v1/hft/risk/events` - Get risk management events
+
 ### WebSocket
 - `ws://localhost:8090/ws/market` - Real-time market data
 - `ws://localhost:8090/ws/portfolio` - Real-time portfolio updates
 - `ws://localhost:8090/ws/alerts` - Real-time alert notifications
 - `ws://localhost:8090/ws/orderflow` - Real-time order flow data
+- `ws://localhost:8090/ws/hft` - Real-time HFT events and updates
 
 ## 🔧 Integration with Go Coffee
 
@@ -216,6 +237,7 @@ cd web && npm test
 
 - [Quick Start Guide](docs/QUICK_START.md)
 - [Order Flow Toolkit](docs/ORDER_FLOW_TOOLKIT.md)
+- [High-Frequency Trading System](docs/HFT_SYSTEM.md)
 - [Architecture Guide](docs/architecture.md)
 - [API Reference](docs/api-reference.md)
 - [Integration Guide](docs/integration.md)
