@@ -1,19 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Sidebar } from '@/components/layout/sidebar'
-import { Header } from '@/components/layout/header'
-import { DashboardOverview } from '@/components/dashboard/dashboard-overview'
-import { CoffeeOrders } from '@/components/coffee/coffee-orders'
-import { DefiPortfolio } from '@/components/defi/defi-portfolio'
 import { AIAgents } from '@/components/ai/ai-agents'
-import { BrightDataAnalytics } from '@/components/scraping/bright-data-analytics'
 import { Analytics } from '@/components/analytics/analytics'
+import { CoffeeOrders } from '@/components/coffee/coffee-orders'
+import { DashboardOverview } from '@/components/dashboard/dashboard-overview'
+import { DefiPortfolio } from '@/components/defi/defi-portfolio'
+import { Header } from '@/components/layout/header'
+import { Sidebar } from '@/components/layout/sidebar'
+import { BrightDataAnalytics } from '@/components/scraping/bright-data-analytics'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { cn } from '@/lib/utils'
+import { motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 
-type ActiveSection = 'dashboard' | 'coffee' | 'defi' | 'agents' | 'scraping' | 'analytics'
+type ActiveSection = 'dashboard' | 'coffee' | 'defi' | 'agents' | 'scraping' | 'analytics' | 'redis'
 
 export default function HomePage() {
   const [activeSection, setActiveSection] = useState<ActiveSection>('dashboard')
@@ -47,6 +47,8 @@ export default function HomePage() {
         return <BrightDataAnalytics {...sectionProps} />
       case 'analytics':
         return <Analytics {...sectionProps} />
+      case 'redis':
+        return <div className="text-center p-8">Redis Dashboard Coming Soon</div>
       default:
         return <DashboardOverview {...sectionProps} />
     }
@@ -92,8 +94,8 @@ export default function HomePage() {
       {/* Connection Status Indicator */}
       <div className={cn(
         "fixed bottom-4 right-4 z-50 px-3 py-2 rounded-full text-xs font-medium transition-all duration-300",
-        isConnected 
-          ? "bg-green-500 text-white" 
+        isConnected
+          ? "bg-green-500 text-white"
           : "bg-red-500 text-white animate-pulse"
       )}>
         {isConnected ? "🟢 Connected" : "🔴 Disconnected"}

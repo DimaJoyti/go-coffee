@@ -1,20 +1,20 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { 
-  LayoutDashboard, 
-  Coffee, 
-  Coins, 
-  Bot, 
-  Search, 
-  BarChart3,
-  ChevronLeft,
-  ChevronRight
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { motion } from 'framer-motion'
+import {
+    BarChart3,
+    Bot,
+    ChevronLeft,
+    ChevronRight,
+    Coffee,
+    Coins,
+    LayoutDashboard,
+    Search
+} from 'lucide-react'
 
-type ActiveSection = 'dashboard' | 'coffee' | 'defi' | 'agents' | 'scraping' | 'analytics'
+type ActiveSection = 'dashboard' | 'coffee' | 'defi' | 'agents' | 'scraping' | 'analytics' | 'redis'
 
 interface SidebarProps {
   activeSection: ActiveSection
@@ -59,6 +59,12 @@ const sidebarItems = [
     label: 'Analytics',
     icon: BarChart3,
     description: 'Reports & Insights'
+  },
+  {
+    id: 'redis' as ActiveSection,
+    label: 'Redis 8',
+    icon: BarChart3, // Will use Database when import is fixed
+    description: 'Visual Data Explorer'
   }
 ]
 

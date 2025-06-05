@@ -124,11 +124,14 @@ func (s *EncryptionService) DecryptAES(ciphertext string) ([]byte, error) {
 	if len(data) < nonceSize {
 		return nil, errors.New("ciphertext too short")
 	}
+	if len(data) <= nonceSize {
+		return nil, errors.New("ciphertext contains only nonce, no encrypted data")
+	}
 
-	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	nonce, ciphertextBytes := data[:nonceSize], data[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, ciphertextBytes, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt: %w", err)
+		return nil, fmt.Errorf("failed to decrypt data: authentication failed or data corrupted: %w", err)
 	}
 
 	return plaintext, nil

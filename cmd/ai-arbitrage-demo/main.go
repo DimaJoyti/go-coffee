@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
-
+	
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -249,7 +248,7 @@ func runTradeExecutionDemo(ctx context.Context, client pb.ArbitrageServiceClient
 		fmt.Printf("  Buy Price: $%.2f\n", trade.BuyPrice)
 		fmt.Printf("  Sell Price: $%.2f\n", trade.SellPrice)
 		fmt.Printf("  Profit: $%.2f\n", trade.Profit)
-		fmt.Printf("  Status: %s\n", trade.Status.String())
+		fmt.Printf("  Status: %s\n", trade.Status)
 		fmt.Printf("  Transaction ID: %s\n", executeResp.TransactionId)
 	} else {
 		fmt.Printf("❌ Trade execution failed: %s\n", executeResp.Message)

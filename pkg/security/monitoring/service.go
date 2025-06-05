@@ -12,22 +12,22 @@ import (
 
 // SecurityMonitoringService provides security monitoring and threat detection
 type SecurityMonitoringService struct {
-	config          *Config
-	logger          *logger.Logger
-	eventStore      EventStore
-	alertManager    AlertManager
-	threatDetector  ThreatDetector
-	metrics         *SecurityMetrics
-	mu              sync.RWMutex
+	config         *Config
+	logger         *logger.Logger
+	eventStore     EventStore
+	alertManager   AlertManager
+	threatDetector ThreatDetector
+	metrics        *SecurityMetrics
+	mu             sync.RWMutex
 }
 
 // Config represents monitoring configuration
 type Config struct {
-	EnableRealTimeMonitoring bool          `yaml:"enable_real_time_monitoring" env:"ENABLE_REAL_TIME_MONITORING" default:"true"`
+	EnableRealTimeMonitoring bool            `yaml:"enable_real_time_monitoring" env:"ENABLE_REAL_TIME_MONITORING" default:"true"`
 	AlertThresholds          AlertThresholds `yaml:"alert_thresholds"`
-	RetentionPeriod          time.Duration `yaml:"retention_period" env:"RETENTION_PERIOD" default:"720h"`
-	MaxEventsPerMinute       int           `yaml:"max_events_per_minute" env:"MAX_EVENTS_PER_MINUTE" default:"1000"`
-	EnableThreatIntelligence bool          `yaml:"enable_threat_intelligence" env:"ENABLE_THREAT_INTELLIGENCE" default:"true"`
+	RetentionPeriod          time.Duration   `yaml:"retention_period" env:"RETENTION_PERIOD" default:"720h"`
+	MaxEventsPerMinute       int             `yaml:"max_events_per_minute" env:"MAX_EVENTS_PER_MINUTE" default:"1000"`
+	EnableThreatIntelligence bool            `yaml:"enable_threat_intelligence" env:"ENABLE_THREAT_INTELLIGENCE" default:"true"`
 }
 
 // AlertThresholds defines thresholds for different types of alerts
@@ -38,6 +38,31 @@ type AlertThresholds struct {
 	TimeWindow             time.Duration `yaml:"time_window" default:"5m"`
 	CriticalEventThreshold int           `yaml:"critical_event_threshold" default:"1"`
 }
+
+// SecurityEventType represents the type of security event
+type SecurityEventType string
+
+const (
+	EventTypeAuthentication      SecurityEventType = "authentication"
+	EventTypeAuthorization       SecurityEventType = "authorization"
+	EventTypeDataAccess          SecurityEventType = "data_access"
+	EventTypeSystemAccess        SecurityEventType = "system_access"
+	EventTypeNetworkActivity     SecurityEventType = "network_activity"
+	EventTypeMaliciousActivity   SecurityEventType = "malicious_activity"
+	EventTypeConfigChange        SecurityEventType = "config_change"
+	EventTypePrivilegeEscalation SecurityEventType = "privilege_escalation"
+)
+
+// SecuritySeverity represents the severity of a security event
+type SecuritySeverity string
+
+const (
+	SeverityInfo     SecuritySeverity = "info"
+	SeverityLow      SecuritySeverity = "low"
+	SeverityMedium   SecuritySeverity = "medium"
+	SeverityHigh     SecuritySeverity = "high"
+	SeverityCritical SecuritySeverity = "critical"
+)
 
 // SecurityEvent represents a security event
 type SecurityEvent struct {
@@ -54,31 +79,6 @@ type SecurityEvent struct {
 	ThreatLevel ThreatLevel            `json:"threat_level"`
 	Mitigated   bool                   `json:"mitigated"`
 }
-
-// SecurityEventType represents the type of security event
-type SecurityEventType string
-
-const (
-	EventTypeAuthentication    SecurityEventType = "authentication"
-	EventTypeAuthorization     SecurityEventType = "authorization"
-	EventTypeDataAccess        SecurityEventType = "data_access"
-	EventTypeSystemAccess      SecurityEventType = "system_access"
-	EventTypeNetworkActivity   SecurityEventType = "network_activity"
-	EventTypeMaliciousActivity SecurityEventType = "malicious_activity"
-	EventTypeConfigChange      SecurityEventType = "config_change"
-	EventTypePrivilegeEscalation SecurityEventType = "privilege_escalation"
-)
-
-// SecuritySeverity represents the severity of a security event
-type SecuritySeverity string
-
-const (
-	SeverityInfo     SecuritySeverity = "info"
-	SeverityLow      SecuritySeverity = "low"
-	SeverityMedium   SecuritySeverity = "medium"
-	SeverityHigh     SecuritySeverity = "high"
-	SeverityCritical SecuritySeverity = "critical"
-)
 
 // ThreatLevel represents the threat level
 type ThreatLevel string
@@ -120,22 +120,22 @@ const (
 type AlertStatus string
 
 const (
-	AlertStatusOpen        AlertStatus = "open"
+	AlertStatusOpen          AlertStatus = "open"
 	AlertStatusInvestigating AlertStatus = "investigating"
-	AlertStatusResolved    AlertStatus = "resolved"
+	AlertStatusResolved      AlertStatus = "resolved"
 	AlertStatusFalsePositive AlertStatus = "false_positive"
 )
 
 // SecurityMetrics holds security-related metrics
 type SecurityMetrics struct {
-	TotalEvents         int64            `json:"total_events"`
-	EventsByType        map[string]int64 `json:"events_by_type"`
-	EventsBySeverity    map[string]int64 `json:"events_by_severity"`
-	ActiveAlerts        int64            `json:"active_alerts"`
-	ResolvedAlerts      int64            `json:"resolved_alerts"`
-	ThreatDetections    int64            `json:"threat_detections"`
-	BlockedRequests     int64            `json:"blocked_requests"`
-	LastUpdated         time.Time        `json:"last_updated"`
+	TotalEvents      int64            `json:"total_events"`
+	EventsByType     map[string]int64 `json:"events_by_type"`
+	EventsBySeverity map[string]int64 `json:"events_by_severity"`
+	ActiveAlerts     int64            `json:"active_alerts"`
+	ResolvedAlerts   int64            `json:"resolved_alerts"`
+	ThreatDetections int64            `json:"threat_detections"`
+	BlockedRequests  int64            `json:"blocked_requests"`
+	LastUpdated      time.Time        `json:"last_updated"`
 }
 
 // EventStore interface for storing security events
@@ -162,14 +162,14 @@ type ThreatDetector interface {
 
 // EventFilter represents filters for querying events
 type EventFilter struct {
-	StartTime   *time.Time         `json:"start_time,omitempty"`
-	EndTime     *time.Time         `json:"end_time,omitempty"`
+	StartTime   *time.Time          `json:"start_time,omitempty"`
+	EndTime     *time.Time          `json:"end_time,omitempty"`
 	EventTypes  []SecurityEventType `json:"event_types,omitempty"`
 	Severities  []SecuritySeverity  `json:"severities,omitempty"`
-	UserID      string             `json:"user_id,omitempty"`
-	IPAddress   string             `json:"ip_address,omitempty"`
-	ThreatLevel *ThreatLevel       `json:"threat_level,omitempty"`
-	Limit       int                `json:"limit,omitempty"`
+	UserID      string              `json:"user_id,omitempty"`
+	IPAddress   string              `json:"ip_address,omitempty"`
+	ThreatLevel *ThreatLevel        `json:"threat_level,omitempty"`
+	Limit       int                 `json:"limit,omitempty"`
 }
 
 // ThreatAnalysis represents the result of threat analysis
@@ -325,7 +325,7 @@ func (s *SecurityMonitoringService) updateMetrics(event *SecurityEvent) {
 
 func (s *SecurityMonitoringService) logEvent(event *SecurityEvent) {
 	eventJSON, _ := json.Marshal(event)
-	
+
 	switch event.Severity {
 	case SeverityCritical:
 		s.logger.Error("Critical security event", map[string]any{
@@ -377,7 +377,7 @@ func (s *SecurityMonitoringService) analyzeEventForThreats(ctx context.Context, 
 func (s *SecurityMonitoringService) checkAlertConditions(ctx context.Context, event *SecurityEvent) {
 	// Check for threshold-based alerts
 	s.checkThresholdAlerts(ctx, event)
-	
+
 	// Check for anomaly-based alerts
 	s.checkAnomalyAlerts(ctx, event)
 }

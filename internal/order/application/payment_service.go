@@ -256,6 +256,8 @@ func (s *PaymentService) handleCryptoPayment(ctx context.Context, payment *domai
 	return &CreatePaymentResponse{
 		PaymentID:      payment.ID,
 		Status:         payment.Status.String(),
+		Amount:         payment.Amount,
+		Currency:       payment.Currency,
 		PaymentAddress: addressResult.Address,
 		ExpiresAt:      addressResult.ExpiresAt,
 		CreatedAt:      payment.CreatedAt,
@@ -313,6 +315,8 @@ func (s *PaymentService) handleLoyaltyTokenPayment(ctx context.Context, payment 
 	return &CreatePaymentResponse{
 		PaymentID:    payment.ID,
 		Status:       payment.Status.String(),
+		Amount:       payment.Amount,
+		Currency:     payment.Currency,
 		TokensUsed:   tokensNeeded,
 		ExchangeRate: exchangeRate,
 		CreatedAt:    payment.CreatedAt,
@@ -337,6 +341,8 @@ func (s *PaymentService) handleCardPayment(ctx context.Context, payment *domain.
 	return &CreatePaymentResponse{
 		PaymentID: payment.ID,
 		Status:    payment.Status.String(),
+		Amount:    payment.Amount,
+		Currency:  payment.Currency,
 		CreatedAt: payment.CreatedAt,
 	}, nil
 }
@@ -358,6 +364,8 @@ func (s *PaymentService) handleTraditionalPayment(ctx context.Context, payment *
 	return &CreatePaymentResponse{
 		PaymentID: payment.ID,
 		Status:    payment.Status.String(),
+		Amount:    payment.Amount,
+		Currency:  payment.Currency,
 		CreatedAt: payment.CreatedAt,
 	}, nil
 }

@@ -432,8 +432,8 @@ func (s *SecurityGatewayService) isPublicEndpoint(url string) bool {
 
 func (s *SecurityGatewayService) logSecurityEvent(ctx context.Context, req *domain.SecurityRequest, eventType domain.SecurityEventType, severity domain.SecuritySeverity, description string) {
 	event := &monitoring.SecurityEvent{
-		EventType:   monitoring.SecurityEventType(eventType),
-		Severity:    monitoring.SecuritySeverity(severity),
+		EventType:   s.mapEventType(eventType),
+		Severity:    s.mapSeverity(severity),
 		Source:      "security-gateway",
 		UserID:      req.UserID,
 		IPAddress:   req.IPAddress,
@@ -448,4 +448,44 @@ func (s *SecurityGatewayService) logSecurityEvent(ctx context.Context, req *doma
 	}
 
 	s.monitoringService.LogSecurityEvent(ctx, event)
+}
+
+// mapEventType maps domain event types to monitoring event types
+func (s *SecurityGatewayService) mapEventType(eventType domain.SecurityEventType) monitoring.SecurityEventType {
+	switch eventType {
+	case domain.SecurityEventTypeAuthentication:
+		return monitoring.EventTypeAuthentication
+	case domain.SecurityEventTypeAuthorization:
+		return monitoring.EventTypeAuthorization
+	case domain.SecurityEventTypeNetworkActivity:
+		return monitoring.EventTypeNetworkActivity
+	case domain.SecurityEventTypeMaliciousActivity:
+		return monitoring.EventTypeMaliciousActivity
+	case domain.SecurityEventTypePrivilegeEscalation:
+		return monitoring.EventTypePrivilegeEscalation
+	case domain.SecurityEventTypeDataAccess:
+		return monitoring.EventTypeDataAccess
+	case domain.SecurityEventTypeSystemAccess:
+		return monitoring.EventTypeSystemAccess
+	default:
+		return monitoring.EventTypeNetworkActivity
+	}
+}
+
+// mapSeverity maps domain severity to monitoring severity
+func (s *SecurityGatewayService) mapSeverity(severity domain.SecuritySeverity) monitoring.SecuritySeverity {
+	switch severity {
+	case domain.SeverityInfo:
+		return monitoring.SeverityInfo
+	case domain.SeverityLow:
+		return monitoring.SeverityLow
+	case domain.SeverityMedium:
+		return monitoring.SeverityMedium
+	case domain.SeverityHigh:
+		return monitoring.SeverityHigh
+	case domain.SeverityCritical:
+		return monitoring.SeverityCritical
+	default:
+		return monitoring.SeverityInfo
+	}
 }

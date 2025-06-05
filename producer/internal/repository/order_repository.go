@@ -3,8 +3,7 @@ package repository
 import (
 	"sync"
 
-	"github.com/yourusername/coffee-order-system/pkg/errors"
-	"github.com/yourusername/coffee-order-system/pkg/models"
+	"github.com/DimaJoyti/go-coffee/pkg/models"
 )
 
 // OrderRepository інтерфейс для роботи з репозиторієм замовлень

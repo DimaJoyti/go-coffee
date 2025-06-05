@@ -9,7 +9,7 @@ import (
 	pb "github.com/DimaJoyti/go-coffee/api/proto"
 	"github.com/DimaJoyti/go-coffee/pkg/config"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/pkg/redis-mcp"
+	redismcp "github.com/DimaJoyti/go-coffee/pkg/redis-mcp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -138,9 +138,12 @@ func (me *MatchingEngine) FindMatches(ctx context.Context, opportunity *pb.Arbit
 	var buyers, sellers []*pb.Participant
 	for _, participant := range participants {
 		switch participant.Type {
-		case pb.ParticipantType_PARTICIPANT_BUYER, pb.ParticipantType_PARTICIPANT_BOTH:
+		case pb.ParticipantType_PARTICIPANT_BUYER:
 			buyers = append(buyers, participant)
-		case pb.ParticipantType_PARTICIPANT_SELLER, pb.ParticipantType_PARTICIPANT_BOTH:
+		case pb.ParticipantType_PARTICIPANT_SELLER:
+			sellers = append(sellers, participant)
+		case pb.ParticipantType_PARTICIPANT_BOTH:
+			buyers = append(buyers, participant)
 			sellers = append(sellers, participant)
 		}
 	}

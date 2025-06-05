@@ -62,6 +62,24 @@ const (
 	PaymentMethodLoyaltyToken PaymentMethod = 5
 )
 
+// String returns the string representation of PaymentMethod
+func (p PaymentMethod) String() string {
+	switch p {
+	case PaymentMethodCreditCard:
+		return "CREDIT_CARD"
+	case PaymentMethodDebitCard:
+		return "DEBIT_CARD"
+	case PaymentMethodCash:
+		return "CASH"
+	case PaymentMethodCrypto:
+		return "CRYPTO"
+	case PaymentMethodLoyaltyToken:
+		return "LOYALTY_TOKEN"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // Order represents a customer order
 type Order struct {
 	ID              string         `json:"id"`

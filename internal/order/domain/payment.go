@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+// Common errors
+var (
+	ErrPaymentNotFound = errors.New("payment not found")
+	ErrOrderNotFound   = errors.New("order not found")
+)
+
 // PaymentStatus represents the status of a payment
 type PaymentStatus int32
 

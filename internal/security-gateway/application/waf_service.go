@@ -6,7 +6,6 @@ import (
 	"net"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/DimaJoyti/go-coffee/internal/security-gateway/domain"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
@@ -162,7 +161,7 @@ func (w *WAFService) CheckRequest(ctx context.Context, req *domain.SecurityReque
 	// Check bot detection
 	if w.config.EnableBotDetection {
 		if isBot, confidence := w.detectBot(req); isBot {
-			result.Score += int(confidence * 50)
+			result.Score += confidence * 50
 			result.Details["bot_detection"] = map[string]interface{}{
 				"is_bot":     true,
 				"confidence": confidence,
@@ -187,7 +186,7 @@ func (w *WAFService) CheckRequest(ctx context.Context, req *domain.SecurityReque
 
 		matched, matchDetails := w.checkRule(rule, req)
 		if matched {
-			result.Score += rule.Score
+			result.Score += float64(rule.Score)
 			result.RuleMatched = rule.ID
 			result.Details[rule.ID] = matchDetails
 
@@ -440,7 +439,7 @@ func (w *WAFService) detectBot(req *domain.SecurityRequest) (bool, float64) {
 // Log WAF events
 func (w *WAFService) logWAFEvent(ctx context.Context, req *domain.SecurityRequest, eventType string, severity domain.SecuritySeverity) {
 	event := &monitoring.SecurityEvent{
-		EventType:   monitoring.SecurityEventTypeMaliciousActivity,
+		EventType:   monitoring.EventTypeMaliciousActivity,
 		Severity:    monitoring.SecuritySeverity(severity),
 		Source:      "waf",
 		UserID:      req.UserID,

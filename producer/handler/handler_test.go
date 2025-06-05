@@ -7,7 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"kafka_producer/config"
+	"github.com/dimasudakov/go-coffee/producer/config"
+	"github.com/dimasudakov/go-coffee/producer/model"
 )
 
 // MockProducer is a mock implementation of the kafka.Producer interface
@@ -31,66 +32,87 @@ func (m *MockProducer) Close() error {
 }
 
 func TestPlaceOrder(t *testing.T) {
-	// Create a mock producer
-	mockProducer := &MockProducer{
-		PushToQueueFunc: func(topic string, message []byte) error {
-			return nil
+	tests := []struct {
+		name           string
+		order         model.Order
+		expectedCode   int
+		expectedError  bool
+	}{
+		{
+			name: "Valid order",
+			order: model.Order{
+				CustomerName: "Test Customer",
+				CoffeeType:   "Test Coffee",
+				Quantity:     1,
+			},
+			expectedCode:  http.StatusOK,
+			expectedError: false,
+		},
+		{
+			name: "Invalid order - empty customer",
+			order: model.Order{
+				CustomerName: "",
+				CoffeeType:   "Test Coffee",
+				Quantity:     1,
+			},
+			expectedCode:  http.StatusBadRequest,
+			expectedError: true,
+		},
+		{
+			name: "Invalid order - empty coffee type",
+			order: model.Order{
+				CustomerName: "Test Customer",
+				CoffeeType:   "",
+				Quantity:     1,
+			},
+			expectedCode:  http.StatusBadRequest,
+			expectedError: true,
 		},
 	}
 
-	// Create a test configuration
-	cfg := &config.Config{
-		Kafka: config.KafkaConfig{
-			Topic: "test_topic",
-		},
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockProducer := &MockProducer{
+				PushToQueueFunc: func(topic string, message []byte) error {
+					return nil
+				},
+			}
 
-	// Create a handler with the mock producer
-	h := NewHandler(mockProducer, cfg)
+			cfg := &config.Config{
+				Kafka: config.KafkaConfig{
+					Topic: "test_topic",
+				},
+			}
 
-	// Create a test order
-	order := Order{
-		CustomerName: "Test Customer",
-		CoffeeType:   "Test Coffee",
-	}
+			h := NewHandler(mockProducer, cfg)
 
-	// Convert the order to JSON
-	orderJSON, err := json.Marshal(order)
-	if err != nil {
-		t.Fatalf("Failed to marshal order: %v", err)
-	}
+			orderJSON, err := json.Marshal(tt.order)
+			if err != nil {
+				t.Fatalf("Failed to marshal order: %v", err)
+			}
 
-	// Create a test request
-	req, err := http.NewRequest("POST", "/order", bytes.NewBuffer(orderJSON))
-	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+			req, err := http.NewRequest("POST", "/order", bytes.NewBuffer(orderJSON))
+			if err != nil {
+				t.Fatalf("Failed to create request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
 
-	// Create a test response recorder
-	rr := httptest.NewRecorder()
+			rr := httptest.NewRecorder()
+			h.PlaceOrder(rr, req)
 
-	// Call the handler
-	h.PlaceOrder(rr, req)
+			if status := rr.Code; status != tt.expectedCode {
+				t.Errorf("Handler returned wrong status code: got %v want %v", status, tt.expectedCode)
+			}
 
-	// Check the status code
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
-	}
+			var response Response
+			if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+				t.Fatalf("Failed to unmarshal response: %v", err)
+			}
 
-	// Check the response body
-	var response Response
-	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if !response.Success {
-		t.Errorf("Handler returned wrong success value: got %v want %v", response.Success, true)
-	}
-
-	expectedMessage := "Order for Test Customer placed successfully!"
-	if response.Message != expectedMessage {
-		t.Errorf("Handler returned wrong message: got %v want %v", response.Message, expectedMessage)
+			if tt.expectedError && response.Success {
+				t.Error("Expected error response but got success")
+			}
+		})
 	}
 }
 

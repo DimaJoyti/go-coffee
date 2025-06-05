@@ -66,12 +66,12 @@ func SecurityMetricsHandler(monitoringService *monitoring.SecurityMonitoringServ
 		c.JSON(http.StatusOK, SecurityMetricsResponse{
 			TotalEvents:         metrics.TotalEvents,
 			BlockedRequests:     metrics.BlockedRequests,
-			AllowedRequests:     metrics.AllowedRequests,
+			AllowedRequests:     metrics.TotalEvents - metrics.BlockedRequests, // Calculate allowed requests
 			ThreatDetections:    metrics.ThreatDetections,
-			RateLimitViolations: metrics.RateLimitViolations,
-			WAFBlocks:           metrics.WAFBlocks,
-			RequestsByCountry:   metrics.RequestsByCountry,
-			AverageResponseTime: metrics.AverageResponseTime.String(),
+			RateLimitViolations: 0, // Not available in current metrics
+			WAFBlocks:           0, // Not available in current metrics
+			RequestsByCountry:   make(map[string]int64), // Not available in current metrics
+			AverageResponseTime: "0ms", // Not available in current metrics
 			LastUpdated:         metrics.LastUpdated,
 		})
 	}
@@ -262,31 +262,36 @@ security_gateway_blocked_requests ` + strconv.FormatInt(metrics.BlockedRequests,
 
 # HELP security_gateway_allowed_requests Total number of allowed requests
 # TYPE security_gateway_allowed_requests counter
-security_gateway_allowed_requests ` + strconv.FormatInt(metrics.AllowedRequests, 10) + `
+security_gateway_allowed_requests ` + strconv.FormatInt(metrics.TotalEvents - metrics.BlockedRequests, 10) + `
 
 # HELP security_gateway_threat_detections Total number of threat detections
 # TYPE security_gateway_threat_detections counter
 security_gateway_threat_detections ` + strconv.FormatInt(metrics.ThreatDetections, 10) + `
 
-# HELP security_gateway_rate_limit_violations Total number of rate limit violations
-# TYPE security_gateway_rate_limit_violations counter
-security_gateway_rate_limit_violations ` + strconv.FormatInt(metrics.RateLimitViolations, 10) + `
+# HELP security_gateway_active_alerts Total number of active alerts
+# TYPE security_gateway_active_alerts gauge
+security_gateway_active_alerts ` + strconv.FormatInt(metrics.ActiveAlerts, 10) + `
 
-# HELP security_gateway_waf_blocks Total number of WAF blocks
-# TYPE security_gateway_waf_blocks counter
-security_gateway_waf_blocks ` + strconv.FormatInt(metrics.WAFBlocks, 10) + `
-
-# HELP security_gateway_average_response_time Average response time in milliseconds
-# TYPE security_gateway_average_response_time gauge
-security_gateway_average_response_time ` + strconv.FormatFloat(float64(metrics.AverageResponseTime.Milliseconds()), 'f', 2, 64) + `
+# HELP security_gateway_resolved_alerts Total number of resolved alerts
+# TYPE security_gateway_resolved_alerts counter
+security_gateway_resolved_alerts ` + strconv.FormatInt(metrics.ResolvedAlerts, 10) + `
 
 `
 
-	// Add requests by country metrics
-	for country, count := range metrics.RequestsByCountry {
-		prometheusMetrics += `# HELP security_gateway_requests_by_country Requests by country
-# TYPE security_gateway_requests_by_country counter
-security_gateway_requests_by_country{country="` + country + `"} ` + strconv.FormatInt(count, 10) + `
+	// Add events by type metrics
+	for eventType, count := range metrics.EventsByType {
+		prometheusMetrics += `# HELP security_gateway_events_by_type Events by type
+# TYPE security_gateway_events_by_type counter
+security_gateway_events_by_type{type="` + eventType + `"} ` + strconv.FormatInt(count, 10) + `
+
+`
+	}
+
+	// Add events by severity metrics
+	for severity, count := range metrics.EventsBySeverity {
+		prometheusMetrics += `# HELP security_gateway_events_by_severity Events by severity
+# TYPE security_gateway_events_by_severity counter
+security_gateway_events_by_severity{severity="` + severity + `"} ` + strconv.FormatInt(count, 10) + `
 
 `
 	}

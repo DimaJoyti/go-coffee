@@ -15,11 +15,12 @@ import (
 
 // MCPServer represents the Redis MCP server
 type MCPServer struct {
-	redis       *redis.Client
-	logger      *logger.Logger
-	queryParser *QueryParser
-	dataManager *DataManager
-	router      *gin.Engine
+	redis              *redis.Client
+	logger             *logger.Logger
+	queryParser        *QueryParser
+	dataManager        *DataManager
+	visualQueryBuilder *VisualQueryBuilder
+	router             *gin.Engine
 }
 
 // MCPRequest represents a natural language request to Redis
@@ -76,6 +77,7 @@ func NewMCPServer(redisClient *redis.Client, logger *logger.Logger) *MCPServer {
 	// Initialize components
 	server.queryParser = NewQueryParser(logger)
 	server.dataManager = NewDataManager(redisClient, logger)
+	server.visualQueryBuilder = NewVisualQueryBuilder(redisClient, logger)
 
 	// Setup routes
 	server.setupRoutes()
@@ -97,6 +99,9 @@ func (s *MCPServer) setupRoutes() {
 		api.POST("/batch", s.handleBatchQuery)
 		api.GET("/schema", s.handleSchema)
 	}
+
+	// Setup visual query builder routes
+	s.visualQueryBuilder.SetupVisualRoutes(api)
 }
 
 // handleQuery processes natural language queries to Redis

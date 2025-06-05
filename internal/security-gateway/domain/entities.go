@@ -1,8 +1,35 @@
 package domain
 
 import (
+	"fmt"
+	"net"
 	"net/http"
+	"strings"
 	"time"
+)
+
+// SecurityEventType represents the type of security event
+type SecurityEventType string
+
+const (
+	SecurityEventTypeAuthentication     SecurityEventType = "authentication"
+	SecurityEventTypeAuthorization     SecurityEventType = "authorization"
+	SecurityEventTypeNetworkActivity   SecurityEventType = "network_activity"
+	SecurityEventTypeMaliciousActivity SecurityEventType = "malicious_activity"
+	SecurityEventTypePrivilegeEscalation SecurityEventType = "privilege_escalation"
+	SecurityEventTypeDataAccess        SecurityEventType = "data_access"
+	SecurityEventTypeSystemAccess      SecurityEventType = "system_access"
+)
+
+// SecuritySeverity represents the severity level of a security event
+type SecuritySeverity string
+
+const (
+	SeverityInfo     SecuritySeverity = "info"
+	SeverityLow      SecuritySeverity = "low"
+	SeverityMedium   SecuritySeverity = "medium"
+	SeverityHigh     SecuritySeverity = "high"
+	SeverityCritical SecuritySeverity = "critical"
 )
 
 // SecurityRequest represents a request being processed by the security gateway
@@ -270,16 +297,7 @@ const (
 	SecurityAlertTypeSystemAnomaly     SecurityAlertType = "system_anomaly"
 )
 
-// SecuritySeverity represents the severity of a security alert
-type SecuritySeverity string
 
-const (
-	SecuritySeverityInfo     SecuritySeverity = "info"
-	SecuritySeverityLow      SecuritySeverity = "low"
-	SecuritySeverityMedium   SecuritySeverity = "medium"
-	SecuritySeverityHigh     SecuritySeverity = "high"
-	SecuritySeverityCritical SecuritySeverity = "critical"
-)
 
 // SecurityAlertStatus represents the status of a security alert
 type SecurityAlertStatus string

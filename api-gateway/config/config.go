@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
-	"strings"
+	"time"
 )
 
 // Config структура для конфігурації API Gateway
@@ -20,8 +20,11 @@ type ServerConfig struct {
 
 // GRPCConfig структура для конфігурації gRPC клієнтів
 type GRPCConfig struct {
-	ProducerAddress string `json:"producer_address"`
-	ConsumerAddress string `json:"consumer_address"`
+	ProducerAddress    string        `json:"producer_address"`
+	ConsumerAddress    string        `json:"consumer_address"`
+	ConnectionTimeout  time.Duration `json:"connection_timeout"`
+	MaxRetries         int           `json:"max_retries"`
+	RetryDelay         time.Duration `json:"retry_delay"`
 }
 
 // LoadConfig завантажує конфігурацію з змінних середовища або файлу конфігурації
@@ -31,8 +34,11 @@ func LoadConfig() (*Config, error) {
 			Port: getEnvAsInt("SERVER_PORT", 8080),
 		},
 		GRPC: GRPCConfig{
-			ProducerAddress: getEnv("PRODUCER_GRPC_ADDRESS", "localhost:50051"),
-			ConsumerAddress: getEnv("CONSUMER_GRPC_ADDRESS", "localhost:50052"),
+			ProducerAddress:   getEnv("PRODUCER_GRPC_ADDRESS", "localhost:50051"),
+			ConsumerAddress:   getEnv("CONSUMER_GRPC_ADDRESS", "localhost:50052"),
+			ConnectionTimeout: getEnvAsDuration("GRPC_CONNECTION_TIMEOUT", 5*time.Second),
+			MaxRetries:        getEnvAsInt("GRPC_MAX_RETRIES", 3),
+			RetryDelay:        getEnvAsDuration("GRPC_RETRY_DELAY", 1*time.Second),
 		},
 	}
 
@@ -80,29 +86,14 @@ func getEnvAsInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-// getEnvAsSlice отримує значення змінної середовища як []string або значення за замовчуванням
-func getEnvAsSlice(key string, defaultValue []string) []string {
+// getEnvAsDuration отримує значення змінної середовища як time.Duration або значення за замовчуванням
+func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	if value, exists := os.LookupEnv(key); exists {
-		// Видаляємо квадратні дужки та пробіли
-		value = strings.TrimSpace(value)
-		value = strings.Trim(value, "[]")
-
-		// Розділяємо рядок за комами
-		parts := strings.Split(value, ",")
-
-		// Видаляємо пробіли та лапки з кожної частини
-		var result []string
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			part = strings.Trim(part, "\"'")
-			if part != "" {
-				result = append(result, part)
-			}
-		}
-
-		if len(result) > 0 {
-			return result
+		if duration, err := time.ParseDuration(value); err == nil {
+			return duration
 		}
 	}
 	return defaultValue
 }
+
+

@@ -15,6 +15,28 @@ import (
 	"api_gateway/server"
 )
 
+func initProducerClient(cfg *config.Config) (*client.CoffeeClient, error) {
+	var lastErr error
+	for retries := 0; retries <= cfg.GRPC.MaxRetries; retries++ {
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.GRPC.ConnectionTimeout)
+		client := client.NewCoffeeClient(cfg.GRPC.ProducerAddress)
+
+		if err := client.Connect(ctx); err == nil {
+			cancel()
+			return client, nil
+		} else {
+			cancel()
+			lastErr = err
+			if retries < cfg.GRPC.MaxRetries {
+				log.Printf("Failed to connect to Producer service, retrying in %v... (%d/%d)",
+					cfg.GRPC.RetryDelay, retries+1, cfg.GRPC.MaxRetries)
+				time.Sleep(cfg.GRPC.RetryDelay)
+			}
+		}
+	}
+	return nil, fmt.Errorf("failed to connect after %d retries: %w", cfg.GRPC.MaxRetries, lastErr)
+}
+
 func main() {
 	// Завантаження конфігурації
 	cfg, err := config.LoadConfig()
@@ -23,9 +45,9 @@ func main() {
 	}
 
 	// Створення gRPC клієнта для Producer сервісу
-	producerClient := client.NewCoffeeClient(cfg.GRPC.ProducerAddress)
-	if err := producerClient.Connect(); err != nil {
-		log.Fatalf("Failed to connect to Producer service: %v", err)
+	producerClient, err := initProducerClient(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize producer client: %v", err)
 	}
 	defer producerClient.Close()
 

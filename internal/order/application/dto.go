@@ -281,6 +281,8 @@ type RefundPaymentRequest struct {
 type CreatePaymentResponse struct {
 	PaymentID      string     `json:"payment_id"`
 	Status         string     `json:"status"`
+	Amount         int64      `json:"amount"`                    // Payment amount in cents
+	Currency       string     `json:"currency"`                 // Payment currency
 	PaymentAddress string     `json:"payment_address,omitempty"` // For crypto payments
 	TokensUsed     int64      `json:"tokens_used,omitempty"`     // For loyalty token payments
 	ExchangeRate   float64    `json:"exchange_rate,omitempty"`   // For loyalty token payments

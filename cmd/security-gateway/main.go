@@ -15,6 +15,7 @@ import (
 
 	"github.com/DimaJoyti/go-coffee/internal/security-gateway/application"
 	"github.com/DimaJoyti/go-coffee/internal/security-gateway/infrastructure"
+	httpTransport "github.com/DimaJoyti/go-coffee/internal/security-gateway/transport/http"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
 	pkgLogger "github.com/DimaJoyti/go-coffee/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/pkg/security/encryption"
@@ -36,6 +37,13 @@ type Config struct {
 		Encryption encryption.Config `mapstructure:"encryption"`
 		Validation validation.Config `mapstructure:"validation"`
 		Monitoring monitoring.Config `mapstructure:"monitoring"`
+
+		ThreatDetector struct {
+			SuspiciousIPThreshold int           `mapstructure:"suspicious_ip_threshold"`
+			BlockDuration         time.Duration `mapstructure:"block_duration"`
+			AllowedUserAgents    []string      `mapstructure:"allowed_user_agents"`
+			BlockedIPRanges      []string      `mapstructure:"blocked_ip_ranges"`
+		} `mapstructure:"threat_detector"`
 
 		RateLimit struct {
 			Enabled           bool          `mapstructure:"enabled"`
@@ -190,32 +198,28 @@ func initializeServices(config *Config, logger *logger.Logger) (*Services, error
 	// Initialize validation service
 	validationService := validation.NewValidationService(&config.Security.Validation, logger)
 
-	// Initialize infrastructure components
-	redisClient, err := infrastructure.NewRedisClient(&infrastructure.RedisConfig{
+	// Initialize Redis services
+	redisServices, err := infrastructure.NewRedisServices(&infrastructure.RedisConfig{
 		URL:      config.Redis.URL,
 		DB:       config.Redis.DB,
 		Password: config.Redis.Password,
-	})
+	}, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Redis client: %w", err)
+		return nil, fmt.Errorf("failed to initialize Redis services: %w", err)
 	}
 
-	// Initialize event store
-	eventStore := infrastructure.NewRedisEventStore(redisClient, logger)
-
-	// Initialize alert manager
-	alertManager := infrastructure.NewRedisAlertManager(redisClient, logger)
-
-	// Initialize threat detector
-	threatDetector := infrastructure.NewBasicThreatDetector(logger)
+	// Create adapters for monitoring service
+	eventStoreAdapter := infrastructure.NewEventStoreAdapter(redisServices.EventStore)
+	alertManagerAdapter := infrastructure.NewAlertManagerAdapter(redisServices.AlertMgr)
+	threatDetectorAdapter := infrastructure.NewThreatDetectorAdapter()
 
 	// Initialize monitoring service
 	monitoringService := monitoring.NewSecurityMonitoringService(
 		&config.Security.Monitoring,
 		logger,
-		eventStore,
-		alertManager,
-		threatDetector,
+		eventStoreAdapter,
+		alertManagerAdapter,
+		threatDetectorAdapter,
 	)
 
 	// Initialize rate limit service
@@ -226,7 +230,7 @@ func initializeServices(config *Config, logger *logger.Logger) (*Services, error
 			BurstSize:         config.Security.RateLimit.BurstSize,
 			CleanupInterval:   config.Security.RateLimit.CleanupInterval,
 		},
-		redisClient,
+		redisServices.Client,
 		logger,
 	)
 
@@ -284,16 +288,23 @@ func setupRouter(config *Config, services *Services, logger *logger.Logger) *gin
 	router.Use(gin.Recovery())
 
 	// Add custom middleware
-	router.Use(http.LoggingMiddleware(logger))
-	router.Use(http.CORSMiddleware(&config.Security.CORS))
-	router.Use(http.SecurityHeadersMiddleware())
+	router.Use(httpTransport.LoggingMiddleware(logger))
+	router.Use(httpTransport.CORSMiddleware(&httpTransport.CORSConfig{
+		AllowedOrigins:   config.Security.CORS.AllowedOrigins,
+		AllowedMethods:   config.Security.CORS.AllowedMethods,
+		AllowedHeaders:   config.Security.CORS.AllowedHeaders,
+		ExposedHeaders:   config.Security.CORS.ExposedHeaders,
+		AllowCredentials: config.Security.CORS.AllowCredentials,
+		MaxAge:           config.Security.CORS.MaxAge,
+	}))
+	router.Use(httpTransport.SecurityHeadersMiddleware())
 
 	if config.Security.RateLimit.Enabled {
-		router.Use(http.RateLimitMiddleware(services.RateLimitService))
+		router.Use(httpTransport.RateLimitMiddleware(services.RateLimitService))
 	}
 
 	if config.Security.WAF.Enabled {
-		router.Use(http.WAFMiddleware(services.WAFService))
+		router.Use(httpTransport.WAFMiddleware(services.WAFService))
 	}
 
 	// Health check endpoint
@@ -306,7 +317,7 @@ func setupRouter(config *Config, services *Services, logger *logger.Logger) *gin
 	})
 
 	// Metrics endpoint
-	router.GET("/metrics", http.MetricsHandler(services.MonitoringService))
+	router.GET("/metrics", httpTransport.MetricsHandler(services.MonitoringService))
 
 	// API routes
 	api := router.Group("/api/v1")
@@ -314,19 +325,19 @@ func setupRouter(config *Config, services *Services, logger *logger.Logger) *gin
 		// Security endpoints
 		security := api.Group("/security")
 		{
-			security.POST("/validate", http.ValidateHandler(services.ValidationService))
-			security.GET("/metrics", http.SecurityMetricsHandler(services.MonitoringService))
-			security.GET("/alerts", http.AlertsHandler(services.MonitoringService))
+			security.POST("/validate", httpTransport.ValidateHandler(services.ValidationService))
+			security.GET("/metrics", httpTransport.SecurityMetricsHandler(services.MonitoringService))
+			security.GET("/alerts", httpTransport.AlertsHandler(services.MonitoringService))
 		}
 
 		// Gateway endpoints (proxy to other services)
 		gateway := api.Group("/gateway")
-		gateway.Use(http.GatewayMiddleware(services.GatewayService))
+		gateway.Use(httpTransport.GatewayMiddleware(services.GatewayService))
 		{
-			gateway.Any("/auth/*path", http.ProxyHandler("auth", services.GatewayService))
-			gateway.Any("/order/*path", http.ProxyHandler("order", services.GatewayService))
-			gateway.Any("/payment/*path", http.ProxyHandler("payment", services.GatewayService))
-			gateway.Any("/user/*path", http.ProxyHandler("user", services.GatewayService))
+			gateway.Any("/auth/*path", httpTransport.ProxyHandler("auth", services.GatewayService))
+			gateway.Any("/order/*path", httpTransport.ProxyHandler("order", services.GatewayService))
+			gateway.Any("/payment/*path", httpTransport.ProxyHandler("payment", services.GatewayService))
+			gateway.Any("/user/*path", httpTransport.ProxyHandler("user", services.GatewayService))
 		}
 	}
 

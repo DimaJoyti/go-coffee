@@ -336,6 +336,39 @@ go-coffee/
 
 ## 🚀 Getting Started
 
+### 🔥 **NEW: Redis 8 Visual Interface**
+
+Experience the power of Redis 8 with our comprehensive visual interface:
+
+```bash
+# Quick start - launches complete Redis 8 visual stack
+./scripts/start-redis-visual.sh
+
+# Seed with sample data for testing
+cd scripts && go run seed-redis-data.go
+
+# Test all functionality
+./scripts/test-redis-visual.sh
+
+# Stop the stack
+./scripts/stop-redis-visual.sh
+```
+
+**🎯 Access Points:**
+- **🌐 Web UI**: http://localhost:3000 (Redis Dashboard)
+- **🔧 Redis MCP API**: http://localhost:8080
+- **📊 RedisInsight**: http://localhost:8001
+- **⚡ Redis Direct**: localhost:6379
+
+**✨ Key Features:**
+- 🔍 **Visual Data Explorer**: Browse Redis keys and data structures
+- 🛠️ **Query Builder**: Build Redis commands visually with templates
+- 📊 **Real-time Monitoring**: Live metrics and performance tracking
+- 🤖 **AI-Powered Search**: Natural language to Redis queries
+- 📈 **Data Visualization**: Interactive charts and graphs
+- 🔄 **WebSocket Streaming**: Real-time data updates
+- 🎨 **Modern UI**: Built with React, TypeScript, and Tailwind CSS
+
 ### Development Environment Setup
 
 1. **Install dependencies**

@@ -107,7 +107,7 @@ func (s *Service) GetMarketPrices(ctx context.Context, req *pb.GetMarketPricesRe
 	
 	var prices []*pb.MarketPrice
 	
-	for key, price := range s.currentPrices {
+	for _, price := range s.currentPrices {
 		// Filter by asset symbols
 		if len(req.AssetSymbols) > 0 {
 			found := false
@@ -148,9 +148,9 @@ func (s *Service) GetMarketPrices(ctx context.Context, req *pb.GetMarketPricesRe
 
 // SubscribeToPrices provides real-time price updates
 func (s *Service) SubscribeToPrices(req *pb.SubscribePricesRequest, stream pb.MarketDataService_SubscribeToPricesServer) error {
-	s.logger.Info("Client subscribed to price updates",
+	s.logger.InfoWithFields("Client subscribed to price updates",
 		logger.String("participant_id", req.ParticipantId),
-		logger.Strings("assets", req.AssetSymbols),
+		logger.Any("assets", req.AssetSymbols),
 	)
 	
 	// Create subscription channel
@@ -193,11 +193,11 @@ func (s *Service) SubscribeToPrices(req *pb.SubscribePricesRequest, stream pb.Ma
 		select {
 		case update := <-subscription:
 			if err := stream.Send(update); err != nil {
-				s.logger.Error("Failed to send price update", logger.Error(err))
+				s.logger.ErrorWithFields("Failed to send price update", logger.Error(err))
 				return err
 			}
 		case <-stream.Context().Done():
-			s.logger.Info("Client disconnected from price stream",
+			s.logger.InfoWithFields("Client disconnected from price stream",
 				logger.String("participant_id", req.ParticipantId),
 			)
 			return nil
@@ -207,7 +207,7 @@ func (s *Service) SubscribeToPrices(req *pb.SubscribePricesRequest, stream pb.Ma
 
 // GetHistoricalData retrieves historical price data
 func (s *Service) GetHistoricalData(ctx context.Context, req *pb.GetHistoricalDataRequest) (*pb.GetHistoricalDataResponse, error) {
-	s.logger.Info("Getting historical data",
+	s.logger.InfoWithFields("Getting historical data",
 		logger.String("asset", req.AssetSymbol),
 		logger.String("market", req.Market),
 		logger.String("interval", req.Interval),
@@ -246,10 +246,10 @@ func (s *Service) GetHistoricalData(ctx context.Context, req *pb.GetHistoricalDa
 
 // GetMarketDepth retrieves market depth (order book)
 func (s *Service) GetMarketDepth(ctx context.Context, req *pb.GetMarketDepthRequest) (*pb.GetMarketDepthResponse, error) {
-	s.logger.Info("Getting market depth",
+	s.logger.InfoWithFields("Getting market depth",
 		logger.String("asset", req.AssetSymbol),
 		logger.String("market", req.Market),
-		logger.Int32("depth", req.Depth),
+		logger.Int("depth", int(req.Depth)),
 	)
 	
 	// Generate sample market depth data
@@ -263,6 +263,34 @@ func (s *Service) GetMarketDepth(ctx context.Context, req *pb.GetMarketDepthRequ
 		Message: "Market depth retrieved successfully",
 	}, nil
 }
+    
+    // assetMatches checks if the price's asset symbol matches any of the requested symbols.
+    // If requestedSymbols is empty, it's considered a match.
+    func assetMatches(priceAssetSymbol string, requestedSymbols []string) bool {
+    	if len(requestedSymbols) == 0 {
+    		return true // No filter means it matches
+    	}
+    	for _, s := range requestedSymbols {
+    		if priceAssetSymbol == s {
+    			return true
+    		}
+    	}
+    	return false
+    }
+    
+    // marketMatches checks if the price's market matches any of the requested markets.
+    // If requestedMarkets is empty, it's considered a match.
+    func marketMatches(priceMarket string, requestedMarkets []string) bool {
+    	if len(requestedMarkets) == 0 {
+    		return true // No filter means it matches
+    	}
+    	for _, m := range requestedMarkets {
+    		if priceMarket == m {
+    			return true
+    		}
+    	}
+    	return false
+    }
 
 // Helper functions
 
@@ -416,7 +444,7 @@ func (s *Service) updatePrices() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	
-	for key, price := range s.currentPrices {
+    	for _, price := range s.currentPrices {
 		// Simulate price movement
 		change := (rand.Float64() - 0.5) * 0.01 // ±0.5% change
 		newPrice := price.LastPrice * (1 + change)

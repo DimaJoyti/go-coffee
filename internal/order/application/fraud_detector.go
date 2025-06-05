@@ -361,7 +361,7 @@ func (f *MLFraudDetector) checkBehavior(ctx context.Context, payment *domain.Pay
 	// Check payment method patterns
 	isPreferredMethod := false
 	for _, method := range behavior.PreferredMethods {
-		if method == string(payment.Method) {
+		if method == payment.PaymentMethod.String() {
 			isPreferredMethod = true
 			break
 		}
@@ -372,7 +372,7 @@ func (f *MLFraudDetector) checkBehavior(ctx context.Context, payment *domain.Pay
 			Type:        FraudIndicatorBehavior,
 			Severity:    "low",
 			Description: "Unusual payment method",
-			Value:       payment.Method,
+			Value:       payment.PaymentMethod.String(),
 		}
 		analysis.Indicators = append(analysis.Indicators, indicator)
 		analysis.RiskScore += 0.1

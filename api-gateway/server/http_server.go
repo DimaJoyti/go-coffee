@@ -3,15 +3,18 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"api_gateway/client"
 	"api_gateway/config"
+	"api_gateway/proto/coffee"
+	"api_gateway/utils"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // HTTPServer представляє HTTP сервер для API Gateway
@@ -62,7 +65,7 @@ func NewHTTPServer(config *config.Config, producerClient *client.CoffeeClient) *
 
 	// Створення HTTP сервера
 	server.Server = &http.Server{
-		Addr:         ":" + string(config.Server.Port),
+		Addr:         fmt.Sprintf(":%d", config.Server.Port),
 		Handler:      server.logMiddleware(server.corsMiddleware(mux)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -70,6 +73,30 @@ func NewHTTPServer(config *config.Config, producerClient *client.CoffeeClient) *
 	}
 
 	return server
+}
+
+// convertOrderToProto converts HTTP Order to protobuf Order
+func convertOrderToProto(order *Order) *coffee.Order {
+	return &coffee.Order{
+		Id:           order.ID,
+		CustomerName: order.CustomerName,
+		CoffeeType:   order.CoffeeType,
+		Status:       order.Status,
+		CreatedAt:    timestamppb.New(order.CreatedAt),
+		UpdatedAt:    timestamppb.New(order.UpdatedAt),
+	}
+}
+
+// convertOrderFromProto converts protobuf Order to HTTP Order
+func convertOrderFromProto(protoOrder *coffee.Order) *Order {
+	return &Order{
+		ID:           protoOrder.Id,
+		CustomerName: protoOrder.CustomerName,
+		CoffeeType:   protoOrder.CoffeeType,
+		Status:       protoOrder.Status,
+		CreatedAt:    protoOrder.CreatedAt.AsTime(),
+		UpdatedAt:    protoOrder.UpdatedAt.AsTime(),
+	}
 }
 
 // handleOrder обробляє запити на створення замовлення
@@ -93,7 +120,7 @@ func (s *HTTPServer) handleOrder(w http.ResponseWriter, r *http.Request) {
 
 	// Створення замовлення
 	order := &Order{
-		ID:           uuid.New().String(),
+		ID:           utils.GenerateUUID(),
 		CustomerName: orderReq.CustomerName,
 		CoffeeType:   orderReq.CoffeeType,
 		Status:       "pending",
@@ -151,7 +178,7 @@ func (s *HTTPServer) handleOrderWithID(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetOrder обробляє запити на отримання інформації про замовлення
-func (s *HTTPServer) handleGetOrder(w http.ResponseWriter, r *http.Request, orderID string) {
+func (s *HTTPServer) handleGetOrder(w http.ResponseWriter, _ *http.Request, orderID string) {
 	// TODO: Отримання інформації про замовлення через gRPC
 
 	// Заглушка для демонстрації
@@ -179,7 +206,7 @@ func (s *HTTPServer) handleGetOrder(w http.ResponseWriter, r *http.Request, orde
 }
 
 // handleCancelOrder обробляє запити на скасування замовлення
-func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request, orderID string) {
+func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, _ *http.Request, orderID string) {
 	// TODO: Скасування замовлення через gRPC
 
 	// Заглушка для демонстрації
@@ -218,7 +245,7 @@ func (s *HTTPServer) handleListOrders(w http.ResponseWriter, r *http.Request) {
 	// Заглушка для демонстрації
 	orders := []*Order{
 		{
-			ID:           uuid.New().String(),
+			ID: utils.GenerateUUID(),
 			CustomerName: "John Doe",
 			CoffeeType:   "Latte",
 			Status:       "pending",
@@ -226,7 +253,7 @@ func (s *HTTPServer) handleListOrders(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt:    time.Now().Add(-5 * time.Minute),
 		},
 		{
-			ID:           uuid.New().String(),
+			ID: utils.GenerateUUID(),
 			CustomerName: "Jane Smith",
 			CoffeeType:   "Espresso",
 			Status:       "completed",
@@ -282,7 +309,7 @@ func (s *HTTPServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (s *HTTPServer) logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		requestID := uuid.New().String()
+		requestID := utils.GenerateUUID()
 
 		// Додавання requestID до контексту
 		ctx := context.WithValue(r.Context(), "requestID", requestID)

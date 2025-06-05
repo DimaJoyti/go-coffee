@@ -1,4 +1,3 @@
-module kafka_worker
 
 go 1.22.4
 

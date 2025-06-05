@@ -3,9 +3,7 @@ package application
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base32"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/pquerna/otp"
@@ -15,6 +13,22 @@ import (
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/pkg/security/monitoring"
 )
+
+// UserRepository provides access to user storage
+type UserRepository interface {
+	CreateUser(ctx context.Context, user *domain.User) error
+	GetUser(ctx context.Context, userID string) (*domain.User, error)
+	UpdateUser(ctx context.Context, user *domain.User) error
+	DeleteUser(ctx context.Context, userID string) error
+}
+
+// SessionRepository provides access to session storage
+type SessionRepository interface {
+	CreateSession(ctx context.Context, session *domain.Session) error
+	GetSession(ctx context.Context, sessionID string) (*domain.Session, error)
+	UpdateSession(ctx context.Context, session *domain.Session) error
+	DeleteSession(ctx context.Context, sessionID string) error
+}
 
 // MFAService provides multi-factor authentication functionality
 type MFAService struct {
@@ -132,7 +146,7 @@ func NewMFAService(
 
 // SetupMFA initiates MFA setup for a user
 func (m *MFAService) SetupMFA(ctx context.Context, req *MFASetupRequest) (*MFASetupResponse, error) {
-	user, err := m.userRepo.GetByID(ctx, req.UserID)
+	user, err := m.userRepo.GetUser(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -153,7 +167,7 @@ func (m *MFAService) SetupMFA(ctx context.Context, req *MFASetupRequest) (*MFASe
 
 // VerifyMFASetup verifies MFA setup with provided code
 func (m *MFAService) VerifyMFASetup(ctx context.Context, req *MFAVerifyRequest) (*MFAVerifyResponse, error) {
-	user, err := m.userRepo.GetByID(ctx, req.UserID)
+	user, err := m.userRepo.GetUser(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -210,7 +224,7 @@ func (m *MFAService) VerifyMFASetup(ctx context.Context, req *MFAVerifyRequest) 
 
 // CreateMFAChallenge creates an MFA challenge for authentication
 func (m *MFAService) CreateMFAChallenge(ctx context.Context, req *MFAChallengeRequest) (*MFAChallengeResponse, error) {
-	user, err := m.userRepo.GetByID(ctx, req.UserID)
+	user, err := m.userRepo.GetUser(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -246,7 +260,7 @@ func (m *MFAService) CreateMFAChallenge(ctx context.Context, req *MFAChallengeRe
 
 // VerifyMFAChallenge verifies an MFA challenge
 func (m *MFAService) VerifyMFAChallenge(ctx context.Context, req *MFAVerifyRequest) (*MFAVerifyResponse, error) {
-	user, err := m.userRepo.GetByID(ctx, req.UserID)
+	user, err := m.userRepo.GetUser(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -302,7 +316,7 @@ func (m *MFAService) VerifyMFAChallenge(ctx context.Context, req *MFAVerifyReque
 
 // DisableMFA disables MFA for a user
 func (m *MFAService) DisableMFA(ctx context.Context, userID string) error {
-	user, err := m.userRepo.GetByID(ctx, userID)
+	user, err := m.userRepo.GetUser(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -531,7 +545,7 @@ func (m *MFAService) storeMFAChallenge(ctx context.Context, challenge *MFAChalle
 
 func (m *MFAService) logSecurityEvent(ctx context.Context, userID, eventType string, severity monitoring.SecuritySeverity, metadata map[string]interface{}) {
 	event := &monitoring.SecurityEvent{
-		EventType:   monitoring.SecurityEventTypeAuthentication,
+		EventType:   monitoring.SecurityEventType(eventType),
 		Severity:    severity,
 		Source:      "mfa-service",
 		UserID:      userID,

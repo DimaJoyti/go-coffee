@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/internal/security-gateway/application"
 	"github.com/DimaJoyti/go-coffee/internal/security-gateway/domain"
@@ -331,7 +330,7 @@ func MetricsMiddleware(monitoringService *monitoring.SecurityMonitoringService) 
 		
 		// Log security event for metrics
 		event := &monitoring.SecurityEvent{
-			EventType:   monitoring.SecurityEventTypeNetworkActivity,
+			EventType:   monitoring.EventTypeNetworkActivity,
 			Severity:    monitoring.SeverityInfo,
 			Source:      "security-gateway",
 			IPAddress:   c.ClientIP(),

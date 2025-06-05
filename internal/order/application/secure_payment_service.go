@@ -236,11 +236,18 @@ func NewSecurePaymentService(
 func (s *SecurePaymentService) CreateSecurePayment(ctx context.Context, req *SecureCreatePaymentRequest) (*SecureCreatePaymentResponse, error) {
 	startTime := time.Now()
 	
+	// Get order for logging
+	order, _ := s.orderRepo.GetByID(ctx, req.OrderID)
+	amount := int64(0)
+	if order != nil {
+		amount = order.TotalAmount
+	}
+
 	// Log security event
 	s.logSecurityEvent(ctx, "payment_creation_started", monitoring.SeverityInfo, map[string]interface{}{
 		"order_id":     req.OrderID,
-		"customer_id":  req.Metadata.IPAddress,
-		"amount":       req.CreatePaymentRequest.Amount,
+		"ip_address":   req.Metadata.IPAddress,
+		"amount":       amount,
 		"method":       req.PaymentMethod,
 	})
 
@@ -331,7 +338,7 @@ func (s *SecurePaymentService) CreateSecurePayment(ctx context.Context, req *Sec
 	originalReq := req.CreatePaymentRequest
 	originalResp, err := s.createPaymentInternal(ctx, originalReq)
 	if err != nil {
-		s.logSecurityEvent(ctx, "payment_creation_failed", monitoring.SeverityError, map[string]interface{}{
+		s.logSecurityEvent(ctx, "payment_creation_failed", monitoring.SeverityHigh, map[string]interface{}{
 			"order_id": req.OrderID,
 			"error":    err.Error(),
 		})
@@ -376,24 +383,46 @@ func (s *SecurePaymentService) CreateSecurePayment(ctx context.Context, req *Sec
 func (s *SecurePaymentService) validatePaymentRequest(ctx context.Context, req *SecureCreatePaymentRequest, securityCheck *SecurityCheckResult) error {
 	checks := []SecurityCheck{}
 
-	// Validate amount
-	if req.Amount <= 0 {
+	// Validate request structure
+	if req.CreatePaymentRequest == nil {
 		checks = append(checks, SecurityCheck{
-			Name:    "amount_validation",
+			Name:    "request_validation",
 			Status:  SecurityCheckStatusFailed,
-			Message: "Invalid payment amount",
+			Message: "Invalid payment request structure",
 		})
-	} else if req.Amount > s.config.MaxPaymentAmount {
+		securityCheck.Checks = checks
+		securityCheck.Passed = false
+		return errors.New("invalid payment request: missing required fields")
+	}
+
+	// Get order to validate amount
+	order, err := s.orderRepo.GetByID(ctx, req.OrderID)
+	if err != nil {
 		checks = append(checks, SecurityCheck{
-			Name:    "amount_limit",
+			Name:    "order_validation",
 			Status:  SecurityCheckStatusFailed,
-			Message: "Payment amount exceeds maximum allowed",
+			Message: "Failed to retrieve order for validation",
 		})
 	} else {
-		checks = append(checks, SecurityCheck{
-			Name:   "amount_validation",
-			Status: SecurityCheckStatusPassed,
-		})
+		// Validate amount
+		if order.TotalAmount <= 0 {
+			checks = append(checks, SecurityCheck{
+				Name:    "amount_validation",
+				Status:  SecurityCheckStatusFailed,
+				Message: "Invalid payment amount",
+			})
+		} else if order.TotalAmount > s.config.MaxPaymentAmount {
+			checks = append(checks, SecurityCheck{
+				Name:    "amount_limit",
+				Status:  SecurityCheckStatusFailed,
+				Message: "Payment amount exceeds maximum allowed",
+			})
+		} else {
+			checks = append(checks, SecurityCheck{
+				Name:   "amount_validation",
+				Status: SecurityCheckStatusPassed,
+			})
+		}
 	}
 
 	// Validate IP address
@@ -443,7 +472,13 @@ func (s *SecurePaymentService) validatePaymentRequest(ctx context.Context, req *
 }
 
 func (s *SecurePaymentService) requiresMFA(req *SecureCreatePaymentRequest) bool {
-	return req.Amount >= s.config.RequireMFAAmount || req.RequireMFA
+	// Get order to check amount
+	order, err := s.orderRepo.GetByID(context.Background(), req.OrderID)
+	if err != nil {
+		// If we can't get the order, err on the side of caution and require MFA
+		return true
+	}
+	return order.TotalAmount >= s.config.RequireMFAAmount || req.RequireMFA
 }
 
 func (s *SecurePaymentService) generateMFAChallenge(ctx context.Context, customerID string) *MFAChallenge {
@@ -486,7 +521,7 @@ func (s *SecurePaymentService) isCountryBlocked(country string) bool {
 
 func (s *SecurePaymentService) logSecurityEvent(ctx context.Context, eventType string, severity monitoring.SecuritySeverity, metadata map[string]interface{}) {
 	event := &monitoring.SecurityEvent{
-		EventType:   monitoring.SecurityEventTypeDataAccess,
+		EventType:   monitoring.EventTypeDataAccess,
 		Severity:    severity,
 		Source:      "secure-payment-service",
 		Description: eventType,

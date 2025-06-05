@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/internal/integration"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -55,7 +56,7 @@ func main() {
 	log.Printf("✅ Connected to Redis successfully")
 
 	// Initialize MCP-AI Integration
-	integration := NewMCPAIIntegration(redisClient, aiSearchURL, mcpServerURL)
+	integration := integration.NewMCPAIIntegration(redisClient, aiSearchURL, mcpServerURL)
 
 	// Start server in a goroutine
 	go func() {
