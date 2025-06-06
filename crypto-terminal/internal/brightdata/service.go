@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -413,4 +412,25 @@ func (s *Service) SearchCryptoNews(ctx context.Context, query string) ([]*Search
 func (s *Service) ScrapeURL(ctx context.Context, url string) (*ScrapedContent, error) {
 	// Use scrape_as_markdown_Bright_Data to scrape content
 	return s.newsCollector.ScrapeContent(ctx, url)
+}
+
+// ScrapeTradingViewData scrapes crypto market data from TradingView
+func (s *Service) ScrapeTradingViewData(ctx context.Context) (*TradingViewData, error) {
+	// Scrape TradingView crypto market data
+	return s.marketIntelligence.ScrapeTradingView(ctx)
+}
+
+// GetPortfolioAnalytics returns portfolio analytics and risk metrics
+func (s *Service) GetPortfolioAnalytics(ctx context.Context, portfolioID string) (*PortfolioAnalytics, error) {
+	return s.marketIntelligence.GetPortfolioAnalytics(ctx, portfolioID)
+}
+
+// GetMarketHeatmap returns market heatmap data
+func (s *Service) GetMarketHeatmap(ctx context.Context) (*MarketHeatmap, error) {
+	return s.marketIntelligence.GetMarketHeatmap(ctx)
+}
+
+// GetRiskMetrics returns comprehensive risk metrics
+func (s *Service) GetRiskMetrics(ctx context.Context, portfolioID string) (*RiskMetrics, error) {
+	return s.marketIntelligence.GetRiskMetrics(ctx, portfolioID)
 }

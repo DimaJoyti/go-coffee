@@ -317,7 +317,7 @@ func (sa *SentimentAnalyzer) calculatePlatformBreakdown(posts []*SocialPost) map
 			PositiveMentions: positiveMentions,
 			NegativeMentions: negativeMentions,
 			NeutralMentions:  neutralMentions,
-			TopPosts:         topPosts,
+			TopPosts:         convertToSocialPostSlice(topPosts),
 		}
 	}
 	
@@ -362,13 +362,24 @@ func (sa *SentimentAnalyzer) extractTrendingTopics(posts []*SocialPost) []string
 // filterInfluencerPosts filters posts from known influencers
 func (sa *SentimentAnalyzer) filterInfluencerPosts(posts []*SocialPost) []SocialPost {
 	var influencerPosts []SocialPost
-	
+
 	for _, post := range posts {
 		if _, isInfluencer := sa.influencers[post.Author]; isInfluencer {
 			post.IsInfluencer = true
 			influencerPosts = append(influencerPosts, *post)
 		}
 	}
-	
+
 	return influencerPosts
+}
+
+// convertToSocialPostSlice converts []*SocialPost to []SocialPost
+func convertToSocialPostSlice(posts []*SocialPost) []SocialPost {
+	result := make([]SocialPost, len(posts))
+	for i, post := range posts {
+		if post != nil {
+			result[i] = *post
+		}
+	}
+	return result
 }

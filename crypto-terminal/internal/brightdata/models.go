@@ -238,3 +238,200 @@ type BrightDataConfig struct {
 	EnableSocial    bool           `json:"enable_social"`
 	EnableEvents    bool           `json:"enable_events"`
 }
+
+// TradingViewData represents scraped data from TradingView
+type TradingViewData struct {
+	Coins           []TradingViewCoin `json:"coins"`
+	MarketOverview  MarketOverview    `json:"market_overview"`
+	TrendingCoins   []TrendingCoin    `json:"trending_coins"`
+	Gainers         []TradingViewCoin `json:"gainers"`
+	Losers          []TradingViewCoin `json:"losers"`
+	MarketCap       MarketCapData     `json:"market_cap"`
+	LastUpdated     time.Time         `json:"last_updated"`
+	DataQuality     float64           `json:"data_quality"`
+}
+
+// TradingViewCoin represents a cryptocurrency from TradingView
+type TradingViewCoin struct {
+	Symbol          string          `json:"symbol"`
+	Name            string          `json:"name"`
+	Price           decimal.Decimal `json:"price"`
+	Change24h       decimal.Decimal `json:"change_24h"`
+	ChangePercent   decimal.Decimal `json:"change_percent"`
+	MarketCap       decimal.Decimal `json:"market_cap"`
+	Volume24h       decimal.Decimal `json:"volume_24h"`
+	CircSupply      decimal.Decimal `json:"circ_supply"`
+	VolMarketCap    decimal.Decimal `json:"vol_market_cap"`
+	SocialDominance decimal.Decimal `json:"social_dominance"`
+	Category        []string        `json:"category"`
+	TechRating      string          `json:"tech_rating"`
+	Rank            int             `json:"rank"`
+	LogoURL         string          `json:"logo_url"`
+	LastUpdated     time.Time       `json:"last_updated"`
+}
+
+// MarketOverview represents overall market statistics
+type MarketOverview struct {
+	TotalMarketCap  decimal.Decimal `json:"total_market_cap"`
+	TotalVolume24h  decimal.Decimal `json:"total_volume_24h"`
+	BTCDominance    decimal.Decimal `json:"btc_dominance"`
+	ETHDominance    decimal.Decimal `json:"eth_dominance"`
+	ActiveCoins     int             `json:"active_coins"`
+	MarketSentiment string          `json:"market_sentiment"`
+	FearGreedIndex  int             `json:"fear_greed_index"`
+	LastUpdated     time.Time       `json:"last_updated"`
+}
+
+// TrendingCoin represents a trending cryptocurrency
+type TrendingCoin struct {
+	Symbol      string          `json:"symbol"`
+	Name        string          `json:"name"`
+	Price       decimal.Decimal `json:"price"`
+	Change24h   decimal.Decimal `json:"change_24h"`
+	Volume24h   decimal.Decimal `json:"volume_24h"`
+	TrendScore  decimal.Decimal `json:"trend_score"`
+	Mentions    int64           `json:"mentions"`
+	LogoURL     string          `json:"logo_url"`
+	LastUpdated time.Time       `json:"last_updated"`
+}
+
+// MarketCapData represents market capitalization data
+type MarketCapData struct {
+	TotalMarketCap decimal.Decimal            `json:"total_market_cap"`
+	Dominance      map[string]decimal.Decimal `json:"dominance"`
+	TopCoins       []MarketCapCoin            `json:"top_coins"`
+	LastUpdated    time.Time                  `json:"last_updated"`
+}
+
+// MarketCapCoin represents a coin in market cap ranking
+type MarketCapCoin struct {
+	Symbol      string          `json:"symbol"`
+	Name        string          `json:"name"`
+	MarketCap   decimal.Decimal `json:"market_cap"`
+	Price       decimal.Decimal `json:"price"`
+	Rank        int             `json:"rank"`
+	LogoURL     string          `json:"logo_url"`
+	LastUpdated time.Time       `json:"last_updated"`
+}
+
+// PortfolioAnalytics represents comprehensive portfolio analytics
+type PortfolioAnalytics struct {
+	PortfolioID     string                    `json:"portfolio_id"`
+	TotalValue      decimal.Decimal           `json:"total_value"`
+	TotalReturn     decimal.Decimal           `json:"total_return"`
+	TotalReturnPct  decimal.Decimal           `json:"total_return_pct"`
+	DayReturn       decimal.Decimal           `json:"day_return"`
+	DayReturnPct    decimal.Decimal           `json:"day_return_pct"`
+	Holdings        []PortfolioHolding        `json:"holdings"`
+	Allocation      map[string]decimal.Decimal `json:"allocation"`
+	Performance     PerformanceMetrics        `json:"performance"`
+	Risk            RiskMetrics               `json:"risk"`
+	Diversification DiversificationMetrics    `json:"diversification"`
+	LastUpdated     time.Time                 `json:"last_updated"`
+}
+
+// PortfolioHolding represents a single holding in the portfolio
+type PortfolioHolding struct {
+	Symbol          string          `json:"symbol"`
+	Name            string          `json:"name"`
+	Quantity        decimal.Decimal `json:"quantity"`
+	AvgCost         decimal.Decimal `json:"avg_cost"`
+	CurrentPrice    decimal.Decimal `json:"current_price"`
+	MarketValue     decimal.Decimal `json:"market_value"`
+	UnrealizedPnL   decimal.Decimal `json:"unrealized_pnl"`
+	UnrealizedPct   decimal.Decimal `json:"unrealized_pct"`
+	Weight          decimal.Decimal `json:"weight"`
+	DayChange       decimal.Decimal `json:"day_change"`
+	DayChangePct    decimal.Decimal `json:"day_change_pct"`
+	LastUpdated     time.Time       `json:"last_updated"`
+}
+
+// PerformanceMetrics represents portfolio performance metrics
+type PerformanceMetrics struct {
+	SharpeRatio     decimal.Decimal `json:"sharpe_ratio"`
+	SortinoRatio    decimal.Decimal `json:"sortino_ratio"`
+	CalmarRatio     decimal.Decimal `json:"calmar_ratio"`
+	MaxDrawdown     decimal.Decimal `json:"max_drawdown"`
+	Volatility      decimal.Decimal `json:"volatility"`
+	Alpha           decimal.Decimal `json:"alpha"`
+	Beta            decimal.Decimal `json:"beta"`
+	TrackingError   decimal.Decimal `json:"tracking_error"`
+	InformationRatio decimal.Decimal `json:"information_ratio"`
+	WinRate         decimal.Decimal `json:"win_rate"`
+	AvgWin          decimal.Decimal `json:"avg_win"`
+	AvgLoss         decimal.Decimal `json:"avg_loss"`
+	ProfitFactor    decimal.Decimal `json:"profit_factor"`
+}
+
+// RiskMetrics represents comprehensive risk metrics
+type RiskMetrics struct {
+	VaR95           decimal.Decimal            `json:"var_95"`
+	VaR99           decimal.Decimal            `json:"var_99"`
+	CVaR95          decimal.Decimal            `json:"cvar_95"`
+	CVaR99          decimal.Decimal            `json:"cvar_99"`
+	PortfolioVol    decimal.Decimal            `json:"portfolio_vol"`
+	Correlation     map[string]decimal.Decimal `json:"correlation"`
+	ConcentrationRisk decimal.Decimal          `json:"concentration_risk"`
+	LiquidityRisk   decimal.Decimal            `json:"liquidity_risk"`
+	CounterpartyRisk decimal.Decimal           `json:"counterparty_risk"`
+	RiskScore       decimal.Decimal            `json:"risk_score"`
+	StressTests     []StressTestResult         `json:"stress_tests"`
+	LastUpdated     time.Time                  `json:"last_updated"`
+}
+
+// StressTestResult represents results of a stress test scenario
+type StressTestResult struct {
+	Scenario        string          `json:"scenario"`
+	Description     string          `json:"description"`
+	PnLImpact       decimal.Decimal `json:"pnl_impact"`
+	PnLImpactPct    decimal.Decimal `json:"pnl_impact_pct"`
+	WorstHolding    string          `json:"worst_holding"`
+	WorstImpact     decimal.Decimal `json:"worst_impact"`
+	RecoveryTime    string          `json:"recovery_time"`
+	Probability     decimal.Decimal `json:"probability"`
+}
+
+// DiversificationMetrics represents portfolio diversification metrics
+type DiversificationMetrics struct {
+	HerfindahlIndex     decimal.Decimal            `json:"herfindahl_index"`
+	EffectiveAssets     decimal.Decimal            `json:"effective_assets"`
+	ConcentrationRatio  decimal.Decimal            `json:"concentration_ratio"`
+	SectorDiversification map[string]decimal.Decimal `json:"sector_diversification"`
+	GeoDiversification  map[string]decimal.Decimal `json:"geo_diversification"`
+	MarketCapDiversification map[string]decimal.Decimal `json:"market_cap_diversification"`
+	DiversificationScore decimal.Decimal           `json:"diversification_score"`
+}
+
+// MarketHeatmap represents market heatmap data
+type MarketHeatmap struct {
+	Sectors         []SectorData    `json:"sectors"`
+	TopMovers       []HeatmapCoin   `json:"top_movers"`
+	MarketSentiment string          `json:"market_sentiment"`
+	TotalMarketCap  decimal.Decimal `json:"total_market_cap"`
+	LastUpdated     time.Time       `json:"last_updated"`
+}
+
+// SectorData represents data for a market sector
+type SectorData struct {
+	Name            string          `json:"name"`
+	MarketCap       decimal.Decimal `json:"market_cap"`
+	Change24h       decimal.Decimal `json:"change_24h"`
+	Volume24h       decimal.Decimal `json:"volume_24h"`
+	CoinCount       int             `json:"coin_count"`
+	TopCoins        []HeatmapCoin   `json:"top_coins"`
+	Performance     string          `json:"performance"`
+}
+
+// HeatmapCoin represents a coin in the heatmap
+type HeatmapCoin struct {
+	Symbol        string          `json:"symbol"`
+	Name          string          `json:"name"`
+	Price         decimal.Decimal `json:"price"`
+	Change24h     decimal.Decimal `json:"change_24h"`
+	MarketCap     decimal.Decimal `json:"market_cap"`
+	Volume24h     decimal.Decimal `json:"volume_24h"`
+	Color         string          `json:"color"`
+	Size          decimal.Decimal `json:"size"`
+	LogoURL       string          `json:"logo_url"`
+	LastUpdated   time.Time       `json:"last_updated"`
+}

@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/api"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/brightdata"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/config"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/terminal"
 	"github.com/gin-gonic/gin"
@@ -167,6 +169,28 @@ func setupRoutes(router *gin.Engine, service *terminal.Service) {
 			"git_commit": gitCommit,
 		})
 	})
+
+	// Initialize Bright Data service for TradingView integration
+	brightDataService := brightdata.NewService(&brightdata.BrightDataConfig{
+		Enabled:         true,
+		UpdateInterval:  30 * time.Second,
+		MaxConcurrent:   5,
+		CacheTTL:        5 * time.Minute,
+		RateLimitRPS:    10,
+		EnableSentiment: true,
+		EnableNews:      true,
+		EnableSocial:    true,
+		EnableEvents:    true,
+	}, nil, logrus.StandardLogger()) // nil for redis client for now
+
+	// Initialize TradingView handlers
+	tradingViewHandlers := api.NewTradingViewHandlers(brightDataService, logrus.StandardLogger())
+
+	// API v2 routes for TradingView integration
+	v2 := router.Group("/api/v2")
+	{
+		tradingViewHandlers.RegisterRoutes(v2)
+	}
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")

@@ -1,14 +1,13 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Portfolio from './pages/Portfolio';
-import Alerts from './pages/Alerts';
-import Markets from './pages/Markets';
-import DeFi from './pages/DeFi';
-import Settings from './pages/Settings';
+import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import './App.css';
+import Layout from './components/Layout';
+import Alerts from './pages/Alerts';
+import Dashboard from './pages/Dashboard';
+import DeFi from './pages/DeFi';
+import Markets from './pages/Markets';
+import Portfolio from './pages/Portfolio';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -18,6 +17,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/portfolio-manager" element={<PortfolioManager />} />
             <Route path="/markets" element={<Markets />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/defi" element={<DeFi />} />

@@ -8,6 +8,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/config"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/models"
 	"github.com/google/uuid"
+
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
