@@ -38,7 +38,9 @@ type ServerConfig struct {
 // MarketDataConfig holds market data provider configuration
 type MarketDataConfig struct {
 	Providers ProvidersConfig `mapstructure:"providers"`
+	Exchanges ExchangesConfig `mapstructure:"exchanges"`
 	Cache     CacheConfig     `mapstructure:"cache"`
+	Aggregation AggregationConfig `mapstructure:"aggregation"`
 }
 
 // ProvidersConfig holds configuration for market data providers
@@ -46,6 +48,13 @@ type ProvidersConfig struct {
 	CoinGecko CoinGeckoConfig `mapstructure:"coingecko"`
 	Binance   BinanceConfig   `mapstructure:"binance"`
 	Coinbase  CoinbaseConfig  `mapstructure:"coinbase"`
+}
+
+// ExchangesConfig holds configuration for exchange integrations
+type ExchangesConfig struct {
+	Binance  ExchangeBinanceConfig  `mapstructure:"binance"`
+	Coinbase ExchangeCoinbaseConfig `mapstructure:"coinbase"`
+	Kraken   ExchangeKrakenConfig   `mapstructure:"kraken"`
 }
 
 // CoinGeckoConfig holds CoinGecko API configuration
@@ -75,6 +84,48 @@ type CacheConfig struct {
 	PriceTTL      time.Duration `mapstructure:"price_ttl"`
 	IndicatorTTL  time.Duration `mapstructure:"indicator_ttl"`
 	MarketDataTTL time.Duration `mapstructure:"market_data_ttl"`
+}
+
+// AggregationConfig holds market data aggregation configuration
+type AggregationConfig struct {
+	UpdateInterval       time.Duration `mapstructure:"update_interval"`
+	ArbitrageThreshold   float64       `mapstructure:"arbitrage_threshold"`
+	DataQualityThreshold float64       `mapstructure:"data_quality_threshold"`
+	MaxPriceDeviation    float64       `mapstructure:"max_price_deviation"`
+	CacheTTL             time.Duration `mapstructure:"cache_ttl"`
+	EnableArbitrage      bool          `mapstructure:"enable_arbitrage"`
+	EnableDataValidation bool          `mapstructure:"enable_data_validation"`
+	Symbols              []string      `mapstructure:"symbols"`
+}
+
+// ExchangeBinanceConfig holds Binance exchange configuration
+type ExchangeBinanceConfig struct {
+	APIKey    string `mapstructure:"api_key"`
+	SecretKey string `mapstructure:"secret_key"`
+	BaseURL   string `mapstructure:"base_url"`
+	WSURL     string `mapstructure:"ws_url"`
+	Testnet   bool   `mapstructure:"testnet"`
+	Enabled   bool   `mapstructure:"enabled"`
+}
+
+// ExchangeCoinbaseConfig holds Coinbase exchange configuration
+type ExchangeCoinbaseConfig struct {
+	APIKey     string `mapstructure:"api_key"`
+	SecretKey  string `mapstructure:"secret_key"`
+	Passphrase string `mapstructure:"passphrase"`
+	BaseURL    string `mapstructure:"base_url"`
+	WSURL      string `mapstructure:"ws_url"`
+	Sandbox    bool   `mapstructure:"sandbox"`
+	Enabled    bool   `mapstructure:"enabled"`
+}
+
+// ExchangeKrakenConfig holds Kraken exchange configuration
+type ExchangeKrakenConfig struct {
+	APIKey    string `mapstructure:"api_key"`
+	SecretKey string `mapstructure:"secret_key"`
+	BaseURL   string `mapstructure:"base_url"`
+	WSURL     string `mapstructure:"ws_url"`
+	Enabled   bool   `mapstructure:"enabled"`
 }
 
 // RedisConfig holds Redis configuration
