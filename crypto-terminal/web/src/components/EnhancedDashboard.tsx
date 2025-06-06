@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  TrendingUp, 
-  Activity, 
-  Shield, 
-  BarChart3, 
-  Zap, 
-  Globe,
-  DollarSign,
-  PieChart
-} from 'lucide-react';
-import ArbitrageOpportunities from './ArbitrageOpportunities';
-import MultiExchangePrices from './MultiExchangePrices';
-import DataQualityDashboard from './DataQualityDashboard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import {
+    Activity,
+    BarChart3,
+    DollarSign,
+    Globe,
+    PieChart,
+    Shield,
+    TrendingUp,
+    Zap
+} from 'lucide-react';
+import React, { useState } from 'react';
+import ArbitrageOpportunities from './ArbitrageOpportunities';
+import DataQualityDashboard from './DataQualityDashboard';
+import MultiExchangePrices from './MultiExchangePrices';
 
 interface EnhancedDashboardProps {
   className?: string;
@@ -34,6 +34,22 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
       description: 'Connected exchanges'
     },
     {
+      title: 'News Articles',
+      value: '247',
+      change: '+23',
+      changeType: 'positive' as const,
+      icon: Globe,
+      description: 'Latest crypto news'
+    },
+    {
+      title: 'Sentiment Score',
+      value: '72/100',
+      change: '+8',
+      changeType: 'positive' as const,
+      icon: BarChart3,
+      description: 'Market sentiment'
+    },
+    {
       title: 'Arbitrage Opportunities',
       value: '12',
       change: '+5',
@@ -42,7 +58,7 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
       description: 'Profitable opportunities'
     },
     {
-      title: 'Avg Data Quality',
+      title: 'Data Quality',
       value: '94%',
       change: '+2%',
       changeType: 'positive' as const,
@@ -54,7 +70,7 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
       value: '$2.4B',
       change: '+12%',
       changeType: 'positive' as const,
-      icon: BarChart3,
+      icon: DollarSign,
       description: '24h trading volume'
     }
   ];
@@ -77,7 +93,7 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Crypto Data Terminal</h1>
           <p className="text-gray-600 mt-1">
-            Real-time multi-exchange crypto data aggregation and analysis
+            Real-time multi-exchange crypto data aggregation with AI-powered news, sentiment analysis, and market intelligence
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -89,11 +105,15 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
             <Activity className="h-3 w-3 mr-1" />
             Multi-Exchange
           </Badge>
+          <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+            <Globe className="h-3 w-3 mr-1" />
+            AI Intelligence
+          </Badge>
         </div>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
         {stats.map((stat, index) => (
           <Card key={index} className="hover:shadow-md transition-shadow">
             <CardContent className="p-6">
@@ -119,7 +139,7 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
             Overview
@@ -131,6 +151,14 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
           <TabsTrigger value="arbitrage" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Arbitrage
+          </TabsTrigger>
+          <TabsTrigger value="news" className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            News
+          </TabsTrigger>
+          <TabsTrigger value="sentiment" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Sentiment
           </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <PieChart className="h-4 w-4" />
@@ -147,6 +175,10 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
             <MultiExchangePrices className="xl:col-span-1" />
             <ArbitrageOpportunities className="xl:col-span-1" />
           </div>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <NewsWidget className="xl:col-span-2" />
+            <SentimentWidget className="xl:col-span-1" />
+          </div>
           <DataQualityDashboard />
         </TabsContent>
 
@@ -156,6 +188,17 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
 
         <TabsContent value="arbitrage" className="mt-6">
           <ArbitrageOpportunities />
+        </TabsContent>
+
+        <TabsContent value="news" className="mt-6">
+          <NewsWidget />
+        </TabsContent>
+
+        <TabsContent value="sentiment" className="mt-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <SentimentWidget />
+            <MarketIntelligenceWidget />
+          </div>
         </TabsContent>
 
         <TabsContent value="analytics" className="mt-6">
@@ -224,11 +267,13 @@ const EnhancedDashboard: React.FC<EnhancedDashboardProps> = ({ className }) => {
             <span>Powered by Go Coffee</span>
           </div>
           <div className="flex items-center gap-4">
-            <span>Real-time data from multiple exchanges</span>
+            <span>Real-time multi-exchange data</span>
+            <span>•</span>
+            <span>AI-powered news & sentiment</span>
             <span>•</span>
             <span>Advanced arbitrage detection</span>
             <span>•</span>
-            <span>Professional trading tools</span>
+            <span>Market intelligence</span>
           </div>
         </div>
       </div>
