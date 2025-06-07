@@ -3,12 +3,13 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dimasudakov/go-coffee/producer/config"
-	"github.com/dimasudakov/go-coffee/producer/model"
+	"github.com/DimaJoyti/go-coffee/producer/config"
+	"github.com/DimaJoyti/go-coffee/producer/store"
 )
 
 // MockProducer is a mock implementation of the kafka.Producer interface
@@ -31,39 +32,97 @@ func (m *MockProducer) Close() error {
 	return nil
 }
 
+// MockOrderStore is a mock implementation of the store.OrderStore interface
+type MockOrderStore struct {
+	orders map[string]*store.Order
+}
+
+func NewMockOrderStore() *MockOrderStore {
+	return &MockOrderStore{
+		orders: make(map[string]*store.Order),
+	}
+}
+
+func (m *MockOrderStore) Add(order *store.Order) error {
+	m.orders[order.ID] = order
+	return nil
+}
+
+func (m *MockOrderStore) Get(id string) (*store.Order, error) {
+	if order, exists := m.orders[id]; exists {
+		return order, nil
+	}
+	return nil, errors.New("order not found")
+}
+
+func (m *MockOrderStore) Update(order *store.Order) error {
+	m.orders[order.ID] = order
+	return nil
+}
+
+func (m *MockOrderStore) Delete(id string) error {
+	delete(m.orders, id)
+	return nil
+}
+
+func (m *MockOrderStore) List() ([]*store.Order, error) {
+	orders := make([]*store.Order, 0, len(m.orders))
+	for _, order := range m.orders {
+		orders = append(orders, order)
+	}
+	return orders, nil
+}
+
+func (m *MockOrderStore) ListByStatus(status store.OrderStatus) ([]*store.Order, error) {
+	orders := make([]*store.Order, 0)
+	for _, order := range m.orders {
+		if order.Status == status {
+			orders = append(orders, order)
+		}
+	}
+	return orders, nil
+}
+
+func (m *MockOrderStore) ListByCustomer(customerName string) ([]*store.Order, error) {
+	orders := make([]*store.Order, 0)
+	for _, order := range m.orders {
+		if order.CustomerName == customerName {
+			orders = append(orders, order)
+		}
+	}
+	return orders, nil
+}
+
 func TestPlaceOrder(t *testing.T) {
 	tests := []struct {
 		name           string
-		order         model.Order
+		order         OrderRequest
 		expectedCode   int
 		expectedError  bool
 	}{
 		{
 			name: "Valid order",
-			order: model.Order{
+			order: OrderRequest{
 				CustomerName: "Test Customer",
 				CoffeeType:   "Test Coffee",
-				Quantity:     1,
 			},
 			expectedCode:  http.StatusOK,
 			expectedError: false,
 		},
 		{
 			name: "Invalid order - empty customer",
-			order: model.Order{
+			order: OrderRequest{
 				CustomerName: "",
 				CoffeeType:   "Test Coffee",
-				Quantity:     1,
 			},
 			expectedCode:  http.StatusBadRequest,
 			expectedError: true,
 		},
 		{
 			name: "Invalid order - empty coffee type",
-			order: model.Order{
+			order: OrderRequest{
 				CustomerName: "Test Customer",
 				CoffeeType:   "",
-				Quantity:     1,
 			},
 			expectedCode:  http.StatusBadRequest,
 			expectedError: true,
@@ -78,13 +137,15 @@ func TestPlaceOrder(t *testing.T) {
 				},
 			}
 
+			mockOrderStore := NewMockOrderStore()
+
 			cfg := &config.Config{
 				Kafka: config.KafkaConfig{
 					Topic: "test_topic",
 				},
 			}
 
-			h := NewHandler(mockProducer, cfg)
+			h := NewHandler(mockProducer, cfg, mockOrderStore)
 
 			orderJSON, err := json.Marshal(tt.order)
 			if err != nil {
@@ -104,7 +165,7 @@ func TestPlaceOrder(t *testing.T) {
 				t.Errorf("Handler returned wrong status code: got %v want %v", status, tt.expectedCode)
 			}
 
-			var response Response
+			var response OrderResponse
 			if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
 				t.Fatalf("Failed to unmarshal response: %v", err)
 			}
@@ -120,11 +181,14 @@ func TestHealthCheck(t *testing.T) {
 	// Create a mock producer
 	mockProducer := &MockProducer{}
 
+	// Create a mock order store
+	mockOrderStore := NewMockOrderStore()
+
 	// Create a test configuration
 	cfg := &config.Config{}
 
 	// Create a handler with the mock producer
-	h := NewHandler(mockProducer, cfg)
+	h := NewHandler(mockProducer, cfg, mockOrderStore)
 
 	// Create a test request
 	req, err := http.NewRequest("GET", "/health", nil)

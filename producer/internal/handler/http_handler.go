@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yourusername/coffee-order-system/pkg/errors"
-	"github.com/yourusername/coffee-order-system/pkg/logger"
-	"github.com/yourusername/coffee-order-system/pkg/models"
+	"github.com/DimaJoyti/go-coffee/pkg/errors"
+	"github.com/DimaJoyti/go-coffee/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/pkg/models"
 
-	"kafka_producer/internal/service"
+	"github.com/DimaJoyti/go-coffee/producer/internal/service"
 )
 
 // OrderRequest представляє запит на створення замовлення

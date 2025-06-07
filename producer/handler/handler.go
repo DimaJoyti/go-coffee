@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"kafka_producer/config"
-	"kafka_producer/kafka"
-	"kafka_producer/store"
+	"github.com/DimaJoyti/go-coffee/producer/config"
+	"github.com/DimaJoyti/go-coffee/producer/kafka"
+	"github.com/DimaJoyti/go-coffee/producer/store"
 )
 
 // OrderRequest represents a request to place an order
@@ -23,7 +23,7 @@ type OrderRequest struct {
 // OrderResponse represents a response to an order request
 type OrderResponse struct {
 	Success bool        `json:"success"`
-	Message string      `json:"msg"`
+	Message string      `json:"message"`
 	Order   *store.Order `json:"order,omitempty"`
 }
 
@@ -54,7 +54,36 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	orderReq := new(OrderRequest)
 	if err := json.NewDecoder(r.Body).Decode(orderReq); err != nil {
 		log.Println(err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response := OrderResponse{
+			Success: false,
+			Message: "Invalid JSON format",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	// 1.1. Validate input
+	if strings.TrimSpace(orderReq.CustomerName) == "" {
+		response := OrderResponse{
+			Success: false,
+			Message: "Customer name is required",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	if strings.TrimSpace(orderReq.CoffeeType) == "" {
+		response := OrderResponse{
+			Success: false,
+			Message: "Coffee type is required",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 

@@ -1,0 +1,163 @@
+version: '3.8'
+
+services:
+  # Redis for caching
+  redis-bright-data:
+    image: redis:7-alpine
+    container_name: redis-bright-data
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_bright_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - bright-data-network
+
+  # MCP Server (mock for development)
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp-server
+    container_name: mcp-server
+    ports:
+      - "3001:3001"
+    environment:
+      - MCP_SERVER_PORT=3001
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    networks:
+      - bright-data-network
+
+  # Bright Data Hub Service
+  bright-data-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile.bright-data-hub
+    container_name: bright-data-hub
+    ports:
+      - "8095:8095"
+    environment:
+      # Core settings
+      - BRIGHT_DATA_HUB_ENABLED=true
+      - BRIGHT_DATA_HUB_PORT=8095
+      - MCP_SERVER_URL=http://mcp-server:3001
+      - REDIS_URL=redis://redis-bright-data:6379
+      
+      # Rate limiting
+      - BRIGHT_DATA_RATE_LIMIT_RPS=10
+      - BRIGHT_DATA_RATE_LIMIT_BURST=20
+      
+      # Caching
+      - BRIGHT_DATA_CACHE_TTL=5m
+      - BRIGHT_DATA_CACHE_MAX_SIZE=1000
+      
+      # Features
+      - BRIGHT_DATA_ENABLE_SOCIAL=true
+      - BRIGHT_DATA_ENABLE_ECOMMERCE=true
+      - BRIGHT_DATA_ENABLE_SEARCH=true
+      - BRIGHT_DATA_ENABLE_ANALYTICS=true
+      
+      # AI Analytics
+      - BRIGHT_DATA_SENTIMENT_ENABLED=true
+      - BRIGHT_DATA_TREND_DETECTION_ENABLED=true
+      - BRIGHT_DATA_CONFIDENCE_THRESHOLD=0.7
+      
+      # Monitoring
+      - BRIGHT_DATA_METRICS_ENABLED=true
+      - BRIGHT_DATA_TRACING_ENABLED=true
+      - BRIGHT_DATA_LOG_LEVEL=info
+      
+      # Platform-specific settings
+      - BRIGHT_DATA_INSTAGRAM_ENABLED=true
+      - BRIGHT_DATA_FACEBOOK_ENABLED=true
+      - BRIGHT_DATA_TWITTER_ENABLED=true
+      - BRIGHT_DATA_LINKEDIN_ENABLED=true
+      - BRIGHT_DATA_AMAZON_ENABLED=true
+      - BRIGHT_DATA_BOOKING_ENABLED=true
+      - BRIGHT_DATA_ZILLOW_ENABLED=true
+      
+      # Search settings
+      - BRIGHT_DATA_DEFAULT_SEARCH_ENGINE=google
+      - BRIGHT_DATA_MAX_SEARCH_RESULTS=20
+    depends_on:
+      redis-bright-data:
+        condition: service_healthy
+      mcp-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8095/api/v1/bright-data/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - bright-data-network
+    restart: unless-stopped
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-bright-data
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - bright-data-network
+    profiles:
+      - monitoring
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-bright-data
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - bright-data-network
+    profiles:
+      - monitoring
+
+  # Jaeger for tracing (optional)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger-bright-data
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - bright-data-network
+    profiles:
+      - monitoring
+
+networks:
+  bright-data-network:
+    driver: bridge
+
+volumes:
+  redis_bright_data:
+  prometheus_data:
+  grafana_data:

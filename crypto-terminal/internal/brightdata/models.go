@@ -435,3 +435,176 @@ type HeatmapCoin struct {
 	LogoURL       string          `json:"logo_url"`
 	LastUpdated   time.Time       `json:"last_updated"`
 }
+
+// TradingSignal represents a trading signal from 3commas or other sources
+type TradingSignal struct {
+	ID              string                 `json:"id"`
+	Source          string                 `json:"source"`          // 3commas, tradingview, custom
+	Type            string                 `json:"type"`            // buy, sell, hold
+	Symbol          string                 `json:"symbol"`
+	Exchange        string                 `json:"exchange"`
+	Price           decimal.Decimal        `json:"price"`
+	TargetPrice     *decimal.Decimal       `json:"target_price,omitempty"`
+	StopLoss        *decimal.Decimal       `json:"stop_loss,omitempty"`
+	Confidence      decimal.Decimal        `json:"confidence"`      // 0 to 100
+	Strength        string                 `json:"strength"`        // weak, moderate, strong
+	TimeFrame       string                 `json:"time_frame"`      // 1m, 5m, 15m, 1h, 4h, 1d
+	Strategy        string                 `json:"strategy"`        // RSI, MACD, Bollinger, etc.
+	Indicators      map[string]interface{} `json:"indicators"`
+	RiskLevel       string                 `json:"risk_level"`      // low, medium, high
+	ExpectedReturn  decimal.Decimal        `json:"expected_return"` // percentage
+	MaxDrawdown     decimal.Decimal        `json:"max_drawdown"`    // percentage
+	Description     string                 `json:"description"`
+	Tags            []string               `json:"tags"`
+	CreatedAt       time.Time              `json:"created_at"`
+	ExpiresAt       *time.Time             `json:"expires_at,omitempty"`
+	Status          string                 `json:"status"`          // active, expired, executed
+	Performance     *SignalPerformance     `json:"performance,omitempty"`
+}
+
+// SignalPerformance tracks the performance of a trading signal
+type SignalPerformance struct {
+	SignalID        string          `json:"signal_id"`
+	EntryPrice      decimal.Decimal `json:"entry_price"`
+	ExitPrice       *decimal.Decimal `json:"exit_price,omitempty"`
+	CurrentPrice    decimal.Decimal `json:"current_price"`
+	UnrealizedPnL   decimal.Decimal `json:"unrealized_pnl"`
+	RealizedPnL     *decimal.Decimal `json:"realized_pnl,omitempty"`
+	ReturnPct       decimal.Decimal `json:"return_pct"`
+	MaxGain         decimal.Decimal `json:"max_gain"`
+	MaxLoss         decimal.Decimal `json:"max_loss"`
+	Duration        time.Duration   `json:"duration"`
+	IsActive        bool            `json:"is_active"`
+	ExecutedAt      *time.Time      `json:"executed_at,omitempty"`
+	ClosedAt        *time.Time      `json:"closed_at,omitempty"`
+	LastUpdated     time.Time       `json:"last_updated"`
+}
+
+// TradingBot represents a 3commas trading bot
+type TradingBot struct {
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Type            string                 `json:"type"`            // simple, composite, grid
+	Status          string                 `json:"status"`          // enabled, disabled, archived
+	Exchange        string                 `json:"exchange"`
+	Pairs           []string               `json:"pairs"`
+	Strategy        string                 `json:"strategy"`
+	BaseOrderSize   decimal.Decimal        `json:"base_order_size"`
+	SafetyOrderSize decimal.Decimal        `json:"safety_order_size"`
+	MaxSafetyOrders int                    `json:"max_safety_orders"`
+	TakeProfit      decimal.Decimal        `json:"take_profit"`
+	StopLoss        *decimal.Decimal       `json:"stop_loss,omitempty"`
+	TrailingEnabled bool                   `json:"trailing_enabled"`
+	TrailingDeviation decimal.Decimal      `json:"trailing_deviation"`
+	ActiveDeals     int                    `json:"active_deals"`
+	CompletedDeals  int                    `json:"completed_deals"`
+	TotalProfit     decimal.Decimal        `json:"total_profit"`
+	TotalProfitPct  decimal.Decimal        `json:"total_profit_pct"`
+	WinRate         decimal.Decimal        `json:"win_rate"`
+	AvgDealTime     time.Duration          `json:"avg_deal_time"`
+	MaxDrawdown     decimal.Decimal        `json:"max_drawdown"`
+	CreatedAt       time.Time              `json:"created_at"`
+	LastUpdated     time.Time              `json:"last_updated"`
+	Settings        map[string]interface{} `json:"settings"`
+	Performance     *BotPerformance        `json:"performance,omitempty"`
+}
+
+// BotPerformance represents detailed bot performance metrics
+type BotPerformance struct {
+	BotID           string          `json:"bot_id"`
+	TotalTrades     int             `json:"total_trades"`
+	WinningTrades   int             `json:"winning_trades"`
+	LosingTrades    int             `json:"losing_trades"`
+	WinRate         decimal.Decimal `json:"win_rate"`
+	AvgWin          decimal.Decimal `json:"avg_win"`
+	AvgLoss         decimal.Decimal `json:"avg_loss"`
+	ProfitFactor    decimal.Decimal `json:"profit_factor"`
+	SharpeRatio     decimal.Decimal `json:"sharpe_ratio"`
+	MaxDrawdown     decimal.Decimal `json:"max_drawdown"`
+	MaxDrawdownDate time.Time       `json:"max_drawdown_date"`
+	TotalVolume     decimal.Decimal `json:"total_volume"`
+	AvgDealTime     time.Duration   `json:"avg_deal_time"`
+	BestTrade       decimal.Decimal `json:"best_trade"`
+	WorstTrade      decimal.Decimal `json:"worst_trade"`
+	LastTradeAt     *time.Time      `json:"last_trade_at,omitempty"`
+	LastUpdated     time.Time       `json:"last_updated"`
+}
+
+// TradingDeal represents an active or completed trading deal
+type TradingDeal struct {
+	ID              string          `json:"id"`
+	BotID           string          `json:"bot_id"`
+	BotName         string          `json:"bot_name"`
+	Symbol          string          `json:"symbol"`
+	Exchange        string          `json:"exchange"`
+	Status          string          `json:"status"`          // active, completed, cancelled, failed
+	Type            string          `json:"type"`            // long, short
+	BaseOrderSize   decimal.Decimal `json:"base_order_size"`
+	SafetyOrders    int             `json:"safety_orders"`
+	CompletedOrders int             `json:"completed_orders"`
+	AveragePrice    decimal.Decimal `json:"average_price"`
+	CurrentPrice    decimal.Decimal `json:"current_price"`
+	TakeProfit      decimal.Decimal `json:"take_profit"`
+	StopLoss        *decimal.Decimal `json:"stop_loss,omitempty"`
+	UnrealizedPnL   decimal.Decimal `json:"unrealized_pnl"`
+	RealizedPnL     *decimal.Decimal `json:"realized_pnl,omitempty"`
+	TotalInvested   decimal.Decimal `json:"total_invested"`
+	MaxFunds        decimal.Decimal `json:"max_funds"`
+	CreatedAt       time.Time       `json:"created_at"`
+	CompletedAt     *time.Time      `json:"completed_at,omitempty"`
+	LastUpdated     time.Time       `json:"last_updated"`
+}
+
+// TechnicalIndicator represents a technical analysis indicator
+type TechnicalIndicator struct {
+	Name        string                 `json:"name"`        // RSI, MACD, SMA, EMA, etc.
+	Symbol      string                 `json:"symbol"`
+	TimeFrame   string                 `json:"time_frame"`  // 1m, 5m, 15m, 1h, 4h, 1d
+	Value       decimal.Decimal        `json:"value"`
+	Signal      string                 `json:"signal"`      // buy, sell, neutral
+	Strength    decimal.Decimal        `json:"strength"`    // 0 to 100
+	Parameters  map[string]interface{} `json:"parameters"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Source      string                 `json:"source"`      // tradingview, taapi, custom
+}
+
+// TechnicalAnalysis represents comprehensive technical analysis for a symbol
+type TechnicalAnalysis struct {
+	Symbol          string               `json:"symbol"`
+	Exchange        string               `json:"exchange"`
+	TimeFrame       string               `json:"time_frame"`
+	OverallSignal   string               `json:"overall_signal"`   // strong_buy, buy, neutral, sell, strong_sell
+	OverallScore    decimal.Decimal      `json:"overall_score"`    // 0 to 100
+	Indicators      []TechnicalIndicator `json:"indicators"`
+	SupportLevels   []decimal.Decimal    `json:"support_levels"`
+	ResistanceLevels []decimal.Decimal   `json:"resistance_levels"`
+	TrendDirection  string               `json:"trend_direction"`  // bullish, bearish, sideways
+	TrendStrength   decimal.Decimal      `json:"trend_strength"`   // 0 to 100
+	Volatility      decimal.Decimal      `json:"volatility"`
+	Volume          VolumeAnalysis       `json:"volume"`
+	Patterns        []ChartPattern       `json:"patterns"`
+	LastUpdated     time.Time            `json:"last_updated"`
+	Source          string               `json:"source"`
+}
+
+// VolumeAnalysis represents volume analysis data
+type VolumeAnalysis struct {
+	CurrentVolume   decimal.Decimal `json:"current_volume"`
+	AverageVolume   decimal.Decimal `json:"average_volume"`
+	VolumeRatio     decimal.Decimal `json:"volume_ratio"`
+	VolumeProfile   string          `json:"volume_profile"`   // accumulation, distribution, neutral
+	VolumeSignal    string          `json:"volume_signal"`    // bullish, bearish, neutral
+	OnBalanceVolume decimal.Decimal `json:"on_balance_volume"`
+}
+
+// ChartPattern represents a detected chart pattern
+type ChartPattern struct {
+	Name        string          `json:"name"`        // head_and_shoulders, triangle, flag, etc.
+	Type        string          `json:"type"`        // bullish, bearish, neutral
+	Confidence  decimal.Decimal `json:"confidence"`  // 0 to 100
+	Target      *decimal.Decimal `json:"target,omitempty"`
+	StopLoss    *decimal.Decimal `json:"stop_loss,omitempty"`
+	Breakout    *decimal.Decimal `json:"breakout,omitempty"`
+	DetectedAt  time.Time       `json:"detected_at"`
+	Status      string          `json:"status"`      // forming, confirmed, invalidated
+}

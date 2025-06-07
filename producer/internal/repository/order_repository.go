@@ -3,6 +3,7 @@ package repository
 import (
 	"sync"
 
+	"github.com/DimaJoyti/go-coffee/pkg/errors"
 	"github.com/DimaJoyti/go-coffee/pkg/models"
 )
 

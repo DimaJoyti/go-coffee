@@ -3,8 +3,8 @@ package kafka
 import (
 	"log"
 
+	"github.com/DimaJoyti/go-coffee/producer/config"
 	"github.com/IBM/sarama"
-	"kafka_producer/config"
 )
 
 // Producer interface defines the methods for a Kafka producer

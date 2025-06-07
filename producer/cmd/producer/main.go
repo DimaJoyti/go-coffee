@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"kafka_producer/config"
-	"kafka_producer/handler"
-	"kafka_producer/kafka"
-	"kafka_producer/store"
+	"github.com/DimaJoyti/go-coffee/producer/config"
+	"github.com/DimaJoyti/go-coffee/producer/handler"
+	"github.com/DimaJoyti/go-coffee/producer/kafka"
+	"github.com/DimaJoyti/go-coffee/producer/store"
 )
 
 func main() {

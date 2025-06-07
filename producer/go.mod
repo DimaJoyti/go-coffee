@@ -1,12 +1,12 @@
-module kafka_producer
+module github.com/DimaJoyti/go-coffee/producer
 
-go 1.22.4
+go 1.22
 
 require (
 	github.com/IBM/sarama v1.43.2
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.19.0
-	github.com/yourusername/coffee-order-system/pkg v0.0.0
+	github.com/DimaJoyti/go-coffee/pkg v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 )
@@ -41,4 +41,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
 )
 
-replace github.com/yourusername/coffee-order-system/pkg => ../pkg
+replace github.com/DimaJoyti/go-coffee/pkg => ../pkg

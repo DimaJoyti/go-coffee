@@ -3,12 +3,12 @@ package service
 import (
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/pkg/errors"
+	"github.com/DimaJoyti/go-coffee/pkg/kafka"
+	"github.com/DimaJoyti/go-coffee/pkg/models"
 	"github.com/google/uuid"
-	"github.com/yourusername/coffee-order-system/pkg/errors"
-	"github.com/yourusername/coffee-order-system/pkg/kafka"
-	"github.com/yourusername/coffee-order-system/pkg/models"
 
-	"kafka_producer/internal/repository"
+	"github.com/DimaJoyti/go-coffee/producer/internal/repository"
 )
 
 // OrderService представляє сервіс для роботи з замовленнями
