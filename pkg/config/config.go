@@ -55,6 +55,9 @@ type ServerConfig struct {
 	StreamsPort       int    `json:"streams_port"`
 	AISearchPort      int    `json:"ai_search_port"`
 	AuthServicePort   int    `json:"auth_service_port"`
+	PaymentServicePort int   `json:"payment_service_port"`
+	OrderServicePort   int   `json:"order_service_port"`
+	KitchenServicePort int   `json:"kitchen_service_port"`
 	Host              string `json:"host"`
 	ReadTimeout       string `json:"read_timeout"`
 	WriteTimeout      string `json:"write_timeout"`
@@ -444,16 +447,19 @@ func LoadConfigFromEnv() (*Config, error) {
 		LogFormat:   GetEnv("LOG_FORMAT", "json"),
 
 		Server: ServerConfig{
-			APIGatewayPort:  GetEnvAsInt("API_GATEWAY_PORT", 8080),
-			ProducerPort:    GetEnvAsInt("PRODUCER_PORT", 3000),
-			ConsumerPort:    GetEnvAsInt("CONSUMER_PORT", 3001),
-			StreamsPort:     GetEnvAsInt("STREAMS_PORT", 3002),
-			AISearchPort:    GetEnvAsInt("AI_SEARCH_PORT", 8092),
-			AuthServicePort: GetEnvAsInt("AUTH_SERVICE_PORT", 8091),
-			Host:            GetEnv("SERVER_HOST", "0.0.0.0"),
-			ReadTimeout:     GetEnv("SERVER_READ_TIMEOUT", "30s"),
-			WriteTimeout:    GetEnv("SERVER_WRITE_TIMEOUT", "30s"),
-			IdleTimeout:     GetEnv("SERVER_IDLE_TIMEOUT", "120s"),
+			APIGatewayPort:     GetEnvAsInt("API_GATEWAY_PORT", 8080),
+			ProducerPort:       GetEnvAsInt("PRODUCER_PORT", 3000),
+			ConsumerPort:       GetEnvAsInt("CONSUMER_PORT", 3001),
+			StreamsPort:        GetEnvAsInt("STREAMS_PORT", 3002),
+			AISearchPort:       GetEnvAsInt("AI_SEARCH_PORT", 8092),
+			AuthServicePort:    GetEnvAsInt("AUTH_SERVICE_PORT", 8091),
+			PaymentServicePort: GetEnvAsInt("PAYMENT_SERVICE_PORT", 8093),
+			OrderServicePort:   GetEnvAsInt("ORDER_SERVICE_PORT", 8094),
+			KitchenServicePort: GetEnvAsInt("KITCHEN_SERVICE_PORT", 8095),
+			Host:               GetEnv("SERVER_HOST", "0.0.0.0"),
+			ReadTimeout:        GetEnv("SERVER_READ_TIMEOUT", "30s"),
+			WriteTimeout:       GetEnv("SERVER_WRITE_TIMEOUT", "30s"),
+			IdleTimeout:        GetEnv("SERVER_IDLE_TIMEOUT", "120s"),
 		},
 
 		Database: DatabaseConfig{

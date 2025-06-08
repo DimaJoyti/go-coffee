@@ -8,15 +8,15 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/google/uuid"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/wallet"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
 	cryptoUtil "github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/crypto"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/google/uuid"
 )
 
 // Service provides transaction operations
@@ -67,7 +67,7 @@ func (s *Service) CreateTransaction(ctx context.Context, req *models.CreateTrans
 	}
 
 	// Get blockchain client
-	client, err := s.getBlockchainClient(models.Chain(wallet.Chain))
+	client, err := s.getBlockchainClient(wallet.Chain)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to get blockchain client: %v", err))
 		return nil, fmt.Errorf("failed to get blockchain client: %w", err)
@@ -145,7 +145,7 @@ func (s *Service) CreateTransaction(ctx context.Context, req *models.CreateTrans
 
 	// Get chain ID
 	var chainID *big.Int
-	switch models.Chain(wallet.Chain) {
+	switch wallet.Chain {
 	case models.ChainEthereum:
 		chainID = big.NewInt(1) // Ethereum Mainnet
 	case models.ChainBSC:
@@ -196,7 +196,7 @@ func (s *Service) CreateTransaction(ctx context.Context, req *models.CreateTrans
 		Nonce:     nonce,
 		Data:      req.Data,
 		Chain:     wallet.Chain,
-		Status:    string(models.TransactionStatusPending),
+		Status:    models.TransactionStatusPending,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -231,7 +231,7 @@ func (s *Service) GetTransaction(ctx context.Context, req *models.GetTransaction
 	}
 
 	// Update transaction status if pending
-	if transaction.Status == string(models.TransactionStatusPending) {
+	if transaction.Status == models.TransactionStatusPending {
 		if err := s.updateTransactionStatus(ctx, transaction); err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to update transaction status: %v", err))
 			// Continue with the current status
@@ -262,7 +262,7 @@ func (s *Service) GetTransactionByHash(ctx context.Context, req *models.GetTrans
 	}
 
 	// Update transaction status if pending
-	if transaction.Status == string(models.TransactionStatusPending) {
+	if transaction.Status == models.TransactionStatusPending {
 		if err := s.updateTransactionStatus(ctx, transaction); err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to update transaction status: %v", err))
 			// Continue with the current status
@@ -290,7 +290,7 @@ func (s *Service) ListTransactions(ctx context.Context, req *models.ListTransact
 
 	// Update pending transactions
 	for i, tx := range transactions {
-		if tx.Status == string(models.TransactionStatusPending) {
+		if tx.Status == models.TransactionStatusPending {
 			if err := s.updateTransactionStatus(ctx, &transactions[i]); err != nil {
 				s.logger.Error(fmt.Sprintf("Failed to update transaction status: %v", err))
 				// Continue with the current status
@@ -446,7 +446,7 @@ func (s *Service) GetTransactionReceipt(ctx context.Context, req *models.GetTran
 // updateTransactionStatus updates the status of a transaction
 func (s *Service) updateTransactionStatus(ctx context.Context, transaction *models.Transaction) error {
 	// Get blockchain client
-	client, err := s.getBlockchainClient(models.Chain(transaction.Chain))
+	client, err := s.getBlockchainClient(transaction.Chain)
 	if err != nil {
 		return fmt.Errorf("failed to get blockchain client: %w", err)
 	}
@@ -460,9 +460,9 @@ func (s *Service) updateTransactionStatus(ctx context.Context, transaction *mode
 
 	// Update transaction status
 	if receipt.Status == 1 {
-		transaction.Status = string(models.TransactionStatusConfirmed)
+		transaction.Status = models.TransactionStatusConfirmed
 	} else {
-		transaction.Status = string(models.TransactionStatusFailed)
+		transaction.Status = models.TransactionStatusFailed
 	}
 
 	// Update transaction details

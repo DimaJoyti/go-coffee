@@ -6,14 +6,14 @@ import (
 
 // Wallet represents a blockchain wallet
 type Wallet struct {
-	ID        string    `json:"id" db:"id"`
-	UserID    string    `json:"user_id" db:"user_id"`
-	Name      string    `json:"name" db:"name"`
-	Address   string    `json:"address" db:"address"`
-	Chain     string    `json:"chain" db:"chain"`
-	Type      string    `json:"type" db:"type"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	ID        string     `json:"id" db:"id"`
+	UserID    string     `json:"user_id" db:"user_id"`
+	Name      string     `json:"name" db:"name"`
+	Address   string     `json:"address" db:"address"`
+	Chain     Chain      `json:"chain" db:"chain"`
+	Type      WalletType `json:"type" db:"type"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // WalletType represents the type of wallet

@@ -80,6 +80,7 @@ func NewService(
 	priceProviders := []PriceProvider{
 		NewUniswapPriceProvider(service.uniswapClient),
 		NewOneInchPriceProvider(service.oneInchClient),
+		NewChainlinkPriceProvider(service.chainlinkClient),
 	}
 
 	service.arbitrageDetector = NewArbitrageDetector(

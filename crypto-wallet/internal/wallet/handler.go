@@ -2,11 +2,10 @@ package wallet
 
 import (
 	"context"
-	"time"
 
+	pb "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/wallet"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
-	pb "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/wallet"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -51,8 +50,8 @@ func (h *GRPCHandler) CreateWallet(ctx context.Context, req *pb.CreateWalletRequ
 			UserId:    resp.Wallet.UserID,
 			Name:      resp.Wallet.Name,
 			Address:   resp.Wallet.Address,
-			Chain:     resp.Wallet.Chain,
-			Type:      resp.Wallet.Type,
+			Chain:     string(resp.Wallet.Chain),
+			Type:      string(resp.Wallet.Type),
 			CreatedAt: timestamppb.New(resp.Wallet.CreatedAt),
 			UpdatedAt: timestamppb.New(resp.Wallet.UpdatedAt),
 		},
@@ -83,8 +82,8 @@ func (h *GRPCHandler) GetWallet(ctx context.Context, req *pb.GetWalletRequest) (
 			UserId:    resp.Wallet.UserID,
 			Name:      resp.Wallet.Name,
 			Address:   resp.Wallet.Address,
-			Chain:     resp.Wallet.Chain,
-			Type:      resp.Wallet.Type,
+			Chain:     string(resp.Wallet.Chain),
+			Type:      string(resp.Wallet.Type),
 			CreatedAt: timestamppb.New(resp.Wallet.CreatedAt),
 			UpdatedAt: timestamppb.New(resp.Wallet.UpdatedAt),
 		},
@@ -117,8 +116,8 @@ func (h *GRPCHandler) ListWallets(ctx context.Context, req *pb.ListWalletsReques
 			UserId:    wallet.UserID,
 			Name:      wallet.Name,
 			Address:   wallet.Address,
-			Chain:     wallet.Chain,
-			Type:      wallet.Type,
+			Chain:     string(wallet.Chain),
+			Type:      string(wallet.Type),
 			CreatedAt: timestamppb.New(wallet.CreatedAt),
 			UpdatedAt: timestamppb.New(wallet.UpdatedAt),
 		}
@@ -178,8 +177,8 @@ func (h *GRPCHandler) ImportWallet(ctx context.Context, req *pb.ImportWalletRequ
 			UserId:    resp.Wallet.UserID,
 			Name:      resp.Wallet.Name,
 			Address:   resp.Wallet.Address,
-			Chain:     resp.Wallet.Chain,
-			Type:      resp.Wallet.Type,
+			Chain:     string(resp.Wallet.Chain),
+			Type:      string(resp.Wallet.Type),
 			CreatedAt: timestamppb.New(resp.Wallet.CreatedAt),
 			UpdatedAt: timestamppb.New(resp.Wallet.UpdatedAt),
 		},

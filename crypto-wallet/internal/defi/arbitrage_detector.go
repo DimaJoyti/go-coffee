@@ -48,25 +48,7 @@ type PriceProvider interface {
 	IsHealthy(ctx context.Context) bool
 }
 
-// ArbitrageConfig holds configuration for the arbitrage detector
-type ArbitrageConfig struct {
-	MinProfitMargin decimal.Decimal `json:"min_profit_margin" yaml:"min_profit_margin"`
-	MaxGasCost      decimal.Decimal `json:"max_gas_cost" yaml:"max_gas_cost"`
-	ScanInterval    time.Duration   `json:"scan_interval" yaml:"scan_interval"`
-	MaxOpportunities int            `json:"max_opportunities" yaml:"max_opportunities"`
-	EnabledChains   []string        `json:"enabled_chains" yaml:"enabled_chains"`
-}
 
-// ArbitrageMetrics holds performance metrics for the arbitrage detector
-type ArbitrageMetrics struct {
-	TotalOpportunities   int64         `json:"total_opportunities"`
-	ProfitableOpportunities int64      `json:"profitable_opportunities"`
-	AverageProfitMargin  decimal.Decimal `json:"average_profit_margin"`
-	LastScanDuration     time.Duration `json:"last_scan_duration"`
-	ErrorCount           int64         `json:"error_count"`
-	LastError            string        `json:"last_error,omitempty"`
-	Uptime               time.Duration `json:"uptime"`
-}
 
 // ArbitrageDetector detects arbitrage opportunities across multiple DEXs.
 // It implements the ArbitrageDetectorInterface and follows Clean Architecture principles.
@@ -462,11 +444,33 @@ func (ad *ArbitrageDetector) calculateArbitrageOpportunity(
 
 // calculateConfidence calculates confidence score for the opportunity
 func (ad *ArbitrageDetector) calculateConfidence(profitMargin, volume decimal.Decimal) decimal.Decimal {
-	// Simple confidence calculation based on profit margin and volume
-	confidence := profitMargin.Mul(decimal.NewFromFloat(10)) // Scale profit margin
-	if volume.GreaterThan(decimal.NewFromFloat(10)) {
-		confidence = confidence.Mul(decimal.NewFromFloat(1.2)) // Boost for higher volume
+	// Base confidence from profit margin (0-1 scale)
+	// Higher profit margin = higher confidence
+	baseConfidence := decimal.Zero
+
+	if profitMargin.GreaterThan(decimal.NewFromFloat(0.05)) { // > 5%
+		baseConfidence = decimal.NewFromFloat(0.9)
+	} else if profitMargin.GreaterThan(decimal.NewFromFloat(0.03)) { // > 3%
+		baseConfidence = decimal.NewFromFloat(0.7)
+	} else if profitMargin.GreaterThan(decimal.NewFromFloat(0.01)) { // > 1%
+		baseConfidence = decimal.NewFromFloat(0.5)
+	} else if profitMargin.GreaterThan(decimal.NewFromFloat(0.005)) { // > 0.5%
+		baseConfidence = decimal.NewFromFloat(0.3)
+	} else {
+		baseConfidence = decimal.NewFromFloat(0.1)
 	}
+
+	// Volume boost (up to 25% increase)
+	volumeBoost := decimal.NewFromFloat(1.0)
+	if volume.GreaterThan(decimal.NewFromFloat(100)) { // Very high volume
+		volumeBoost = decimal.NewFromFloat(1.25)
+	} else if volume.GreaterThan(decimal.NewFromFloat(15)) { // High volume
+		volumeBoost = decimal.NewFromFloat(1.15)
+	} else if volume.GreaterThan(decimal.NewFromFloat(5)) { // Medium volume
+		volumeBoost = decimal.NewFromFloat(1.05)
+	}
+
+	confidence := baseConfidence.Mul(volumeBoost)
 
 	// Cap confidence at 1.0
 	if confidence.GreaterThan(decimal.NewFromFloat(1.0)) {
@@ -478,12 +482,53 @@ func (ad *ArbitrageDetector) calculateConfidence(profitMargin, volume decimal.De
 
 // calculateRisk calculates risk level for the opportunity
 func (ad *ArbitrageDetector) calculateRisk(profitMargin, volume, gasCost decimal.Decimal) RiskLevel {
-	// Calculate risk based on profit margin and gas cost ratio
-	riskRatio := gasCost.Div(profitMargin.Mul(volume))
+	// Calculate multiple risk factors
 
-	if riskRatio.LessThan(decimal.NewFromFloat(0.1)) {
+	// 1. Profit margin risk (lower margin = higher risk)
+	profitRisk := decimal.Zero
+	if profitMargin.LessThan(decimal.NewFromFloat(0.01)) { // < 1%
+		profitRisk = decimal.NewFromFloat(0.8) // High risk
+	} else if profitMargin.LessThan(decimal.NewFromFloat(0.03)) { // < 3%
+		profitRisk = decimal.NewFromFloat(0.5) // Medium risk
+	} else {
+		profitRisk = decimal.NewFromFloat(0.2) // Low risk
+	}
+
+	// 2. Gas cost risk (high gas relative to profit = higher risk)
+	totalProfit := profitMargin.Mul(volume)
+	gasRisk := decimal.Zero
+	if totalProfit.GreaterThan(decimal.Zero) {
+		gasCostRatio := gasCost.Div(totalProfit)
+		if gasCostRatio.GreaterThan(decimal.NewFromFloat(0.5)) { // Gas > 50% of profit
+			gasRisk = decimal.NewFromFloat(0.9) // Very high risk
+		} else if gasCostRatio.GreaterThan(decimal.NewFromFloat(0.2)) { // Gas > 20% of profit
+			gasRisk = decimal.NewFromFloat(0.6) // High risk
+		} else if gasCostRatio.GreaterThan(decimal.NewFromFloat(0.1)) { // Gas > 10% of profit
+			gasRisk = decimal.NewFromFloat(0.3) // Medium risk
+		} else {
+			gasRisk = decimal.NewFromFloat(0.1) // Low risk
+		}
+	}
+
+	// 3. Volume risk (very low volume = higher risk)
+	volumeRisk := decimal.Zero
+	if volume.LessThan(decimal.NewFromFloat(1)) { // < 1 token
+		volumeRisk = decimal.NewFromFloat(0.7) // High risk
+	} else if volume.LessThan(decimal.NewFromFloat(10)) { // < 10 tokens
+		volumeRisk = decimal.NewFromFloat(0.4) // Medium risk
+	} else {
+		volumeRisk = decimal.NewFromFloat(0.1) // Low risk
+	}
+
+	// Combine risks (weighted average)
+	totalRisk := profitRisk.Mul(decimal.NewFromFloat(0.4)).
+		Add(gasRisk.Mul(decimal.NewFromFloat(0.4))).
+		Add(volumeRisk.Mul(decimal.NewFromFloat(0.2)))
+
+	// Determine risk level
+	if totalRisk.LessThan(decimal.NewFromFloat(0.3)) {
 		return RiskLevelLow
-	} else if riskRatio.LessThan(decimal.NewFromFloat(0.3)) {
+	} else if totalRisk.LessThan(decimal.NewFromFloat(0.6)) {
 		return RiskLevelMedium
 	}
 

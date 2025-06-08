@@ -7,8 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common" // New import for common models
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
@@ -18,12 +20,12 @@ import (
 type Analyzer struct {
 	config    config.ContentAnalysisConfig
 	logger    *logger.Logger
-	aiService *ai.Service
+	aiService ai.Service
 	cache     redis.Client
 }
 
 // NewAnalyzer creates a new content analyzer
-func NewAnalyzer(cfg config.ContentAnalysisConfig, logger *logger.Logger, aiService *ai.Service, cache redis.Client) *Analyzer {
+func NewAnalyzer(cfg config.ContentAnalysisConfig, logger *logger.Logger, aiService ai.Service, cache redis.Client) *Analyzer {
 	return &Analyzer{
 		config:    cfg,
 		logger:    logger,
@@ -34,14 +36,14 @@ func NewAnalyzer(cfg config.ContentAnalysisConfig, logger *logger.Logger, aiServ
 
 // AnalyzePost analyzes a Reddit post for classification, sentiment, and topics
 func (a *Analyzer) AnalyzePost(ctx context.Context, post *common.RedditPost) (*common.ContentClassification, error) {
-	a.logger.Info(fmt.Sprintf("Analyzing post: %s", post.ID))
+	a.logger.Info("Analyzing post", zap.String("post_id", post.ID))
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("analysis:post:%s", post.ID)
 	if cached, err := a.cache.Get(ctx, cacheKey); err == nil && cached != "" {
-		var classification reddit.ContentClassification
+		var classification common.ContentClassification
 		if err := json.Unmarshal([]byte(cached), &classification); err == nil {
-			a.logger.Debug(fmt.Sprintf("Cache hit for post analysis: %s", post.ID))
+			a.logger.Debug("Cache hit for post analysis", zap.String("post_id", post.ID))
 			return &classification, nil
 		}
 	}
@@ -64,47 +66,49 @@ func (a *Analyzer) AnalyzePost(ctx context.Context, post *common.RedditPost) (*c
 
 	// Classify content
 	if err := a.classifyContent(ctx, content, classification); err != nil {
-		a.logger.Error(fmt.Sprintf("Failed to classify content: %v", err))
+		a.logger.Error("Failed to classify content", zap.Error(err))
 		return nil, err
 	}
 
 	// Analyze sentiment
 	if a.config.SentimentAnalysis {
 		if err := a.analyzeSentiment(ctx, content, classification); err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to analyze sentiment: %v", err))
+			a.logger.Error("Failed to analyze sentiment", zap.Error(err))
 		}
 	}
 
 	// Extract topics
 	if a.config.TopicModeling {
 		if err := a.extractTopics(ctx, content, classification); err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to extract topics: %v", err))
+			a.logger.Error("Failed to extract topics", zap.Error(err))
 		}
 	}
 
 	// Cache result
 	if data, err := json.Marshal(classification); err == nil {
 		if err := a.cache.Set(ctx, cacheKey, data, 24*time.Hour); err != nil {
-			a.logger.Warn(fmt.Sprintf("Failed to cache analysis result: %v", err))
+			a.logger.Warn("Failed to cache analysis result", zap.Error(err))
 		}
 	}
 
-	a.logger.Info(fmt.Sprintf("Post analysis completed: %s (category: %s, confidence: %.2f)",
-		post.ID, classification.Category, classification.Confidence))
+	a.logger.Info("Post analysis completed",
+		zap.String("post_id", post.ID),
+		zap.String("category", classification.Category),
+		zap.Float64("confidence", classification.Confidence))
 
 	return classification, nil
 }
 
 // AnalyzeComment analyzes a Reddit comment
 func (a *Analyzer) AnalyzeComment(ctx context.Context, comment *common.RedditComment) (*common.ContentClassification, error) {
-	a.logger.Info(fmt.Sprintf("Analyzing comment: %s", comment.ID))
+	a.logger.Info("Analyzing comment", zap.String("comment_id", comment.ID))
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("analysis:comment:%s", comment.ID)
 	if cached, err := a.cache.Get(ctx, cacheKey); err == nil && cached != "" {
-		var classification reddit.ContentClassification
+		var classification common.ContentClassification
 		if err := json.Unmarshal([]byte(cached), &classification); err == nil {
-			a.logger.Debug(fmt.Sprintf("Cache hit for comment analysis: %s", comment.ID))
+			a.logger.Debug("Cache hit for comment analysis", zap.String("comment_id", comment.ID))
 			return &classification, nil
 		}
 	}
@@ -127,33 +131,35 @@ func (a *Analyzer) AnalyzeComment(ctx context.Context, comment *common.RedditCom
 
 	// Classify content
 	if err := a.classifyContent(ctx, content, classification); err != nil {
-		a.logger.Error(fmt.Sprintf("Failed to classify content: %v", err))
+		a.logger.Error("Failed to classify content", zap.Error(err))
 		return nil, err
 	}
 
 	// Analyze sentiment
 	if a.config.SentimentAnalysis {
 		if err := a.analyzeSentiment(ctx, content, classification); err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to analyze sentiment: %v", err))
+			a.logger.Error("Failed to analyze sentiment", zap.Error(err))
 		}
 	}
 
 	// Extract topics
 	if a.config.TopicModeling {
 		if err := a.extractTopics(ctx, content, classification); err != nil {
-			a.logger.Error(fmt.Sprintf("Failed to extract topics: %v", err))
+			a.logger.Error("Failed to extract topics", zap.Error(err))
 		}
 	}
 
 	// Cache result
 	if data, err := json.Marshal(classification); err == nil {
 		if err := a.cache.Set(ctx, cacheKey, data, 24*time.Hour); err != nil {
-			a.logger.Warn(fmt.Sprintf("Failed to cache analysis result: %v", err))
+			a.logger.Warn("Failed to cache analysis result", zap.Error(err))
 		}
 	}
 
-	a.logger.Info(fmt.Sprintf("Comment analysis completed: %s (category: %s, confidence: %.2f)",
-		comment.ID, classification.Category, classification.Confidence))
+	a.logger.Info("Comment analysis completed",
+		zap.String("comment_id", comment.ID),
+		zap.String("category", classification.Category),
+		zap.Float64("confidence", classification.Confidence))
 
 	return classification, nil
 }
@@ -304,7 +310,7 @@ Response:`, content)
 }
 
 // parseClassificationResponse parses AI classification response
-func (a *Analyzer) parseClassificationResponse(response string, classification *reddit.ContentClassification) error {
+func (a *Analyzer) parseClassificationResponse(response string, classification *common.ContentClassification) error {
 	// Try to extract JSON from response
 	jsonStart := strings.Index(response, "{")
 	jsonEnd := strings.LastIndex(response, "}") + 1
@@ -395,9 +401,9 @@ func (a *Analyzer) parseTopicsResponse(response string, classification *common.C
 		return a.parseTopicsFallback(response, classification)
 	}
 
-	classification.Topics = make([]reddit.TopicAnalysis, len(result.Topics))
+	classification.Topics = make([]common.TopicAnalysis, len(result.Topics))
 	for i, topic := range result.Topics {
-		classification.Topics[i] = reddit.TopicAnalysis{
+		classification.Topics[i] = common.TopicAnalysis{
 			Topic:       topic.Topic,
 			Keywords:    topic.Keywords,
 			Probability: topic.Probability,
@@ -466,10 +472,10 @@ func (a *Analyzer) parseTopicsFallback(response string, classification *common.C
 	}
 
 	// Convert to topics
-	classification.Topics = []reddit.TopicAnalysis{}
+	classification.Topics = []common.TopicAnalysis{}
 	for word, count := range topicMap {
 		if count > 1 { // Only include words that appear more than once
-			classification.Topics = append(classification.Topics, reddit.TopicAnalysis{
+			classification.Topics = append(classification.Topics, common.TopicAnalysis{
 				Topic:       word,
 				Keywords:    []string{word},
 				Probability: float64(count) / float64(len(words)),

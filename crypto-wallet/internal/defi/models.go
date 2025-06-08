@@ -1,7 +1,6 @@
 package defi
 
 import (
-	"context"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -356,8 +355,9 @@ type Exchange struct {
 type ExchangeType string
 
 const (
-	ExchangeTypeDEX ExchangeType = "dex"
-	ExchangeTypeCEX ExchangeType = "cex"
+	ExchangeTypeDEX    ExchangeType = "dex"
+	ExchangeTypeCEX    ExchangeType = "cex"
+	ExchangeTypeOracle ExchangeType = "oracle"
 )
 
 // RiskLevel represents risk assessment
@@ -557,72 +557,27 @@ type TokenAnalysis struct {
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
-// Price Provider Wrappers
+// Arbitrage Configuration and Metrics
 
-// UniswapPriceProvider wraps UniswapClient to implement PriceProvider interface
-type UniswapPriceProvider struct {
-	client *UniswapClient
+// ArbitrageConfig holds configuration for the arbitrage detector
+type ArbitrageConfig struct {
+	MinProfitMargin  decimal.Decimal `json:"min_profit_margin" yaml:"min_profit_margin"`
+	MaxGasCost       decimal.Decimal `json:"max_gas_cost" yaml:"max_gas_cost"`
+	ScanInterval     time.Duration   `json:"scan_interval" yaml:"scan_interval"`
+	MaxOpportunities int             `json:"max_opportunities" yaml:"max_opportunities"`
+	EnabledChains    []string        `json:"enabled_chains" yaml:"enabled_chains"`
 }
 
-// NewUniswapPriceProvider creates a new Uniswap price provider
-func NewUniswapPriceProvider(client *UniswapClient) *UniswapPriceProvider {
-	return &UniswapPriceProvider{client: client}
+// ArbitrageMetrics holds performance metrics for the arbitrage detector
+type ArbitrageMetrics struct {
+	TotalOpportunities      int64           `json:"total_opportunities"`
+	ProfitableOpportunities int64           `json:"profitable_opportunities"`
+	AverageProfitMargin     decimal.Decimal `json:"average_profit_margin"`
+	TotalVolume             decimal.Decimal `json:"total_volume"`
+	LastScanDuration        time.Duration   `json:"last_scan_duration"`
+	Uptime                  time.Duration   `json:"uptime"`
+	ErrorCount              int64           `json:"error_count"`
+	LastError               string          `json:"last_error,omitempty"`
 }
 
-// GetPrice implements PriceProvider interface
-func (upp *UniswapPriceProvider) GetPrice(ctx context.Context, token Token) (decimal.Decimal, error) {
-	// Mock implementation - in real scenario, get price from Uniswap pools
-	return decimal.NewFromFloat(2500.0), nil
-}
 
-// GetExchangeInfo implements PriceProvider interface
-func (upp *UniswapPriceProvider) GetExchangeInfo() Exchange {
-	return Exchange{
-		ID:       "uniswap",
-		Name:     "Uniswap V3",
-		Type:     ExchangeTypeDEX,
-		Chain:    ChainEthereum,
-		Protocol: ProtocolTypeUniswap,
-		Fee:      decimal.NewFromFloat(0.003),
-		Active:   true,
-	}
-}
-
-// IsHealthy implements PriceProvider interface
-func (upp *UniswapPriceProvider) IsHealthy(ctx context.Context) bool {
-	return true // Mock implementation
-}
-
-// OneInchPriceProvider wraps OneInchClient to implement PriceProvider interface
-type OneInchPriceProvider struct {
-	client *OneInchClient
-}
-
-// NewOneInchPriceProvider creates a new 1inch price provider
-func NewOneInchPriceProvider(client *OneInchClient) *OneInchPriceProvider {
-	return &OneInchPriceProvider{client: client}
-}
-
-// GetPrice implements PriceProvider interface
-func (oipp *OneInchPriceProvider) GetPrice(ctx context.Context, token Token) (decimal.Decimal, error) {
-	// Mock implementation - in real scenario, get price from 1inch
-	return decimal.NewFromFloat(2500.0), nil
-}
-
-// GetExchangeInfo implements PriceProvider interface
-func (oipp *OneInchPriceProvider) GetExchangeInfo() Exchange {
-	return Exchange{
-		ID:       "1inch",
-		Name:     "1inch",
-		Type:     ExchangeTypeDEX,
-		Chain:    ChainEthereum,
-		Protocol: ProtocolType1inch,
-		Fee:      decimal.Zero,
-		Active:   true,
-	}
-}
-
-// IsHealthy implements PriceProvider interface
-func (oipp *OneInchPriceProvider) IsHealthy(ctx context.Context) bool {
-	return true // Mock implementation
-}

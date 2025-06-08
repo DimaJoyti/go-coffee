@@ -5,21 +5,48 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
 )
+
+// MockPriceProvider мок для PriceProvider інтерфейсу
+type MockPriceProvider struct {
+	mock.Mock
+	exchange Exchange
+}
+
+func (m *MockPriceProvider) GetPrice(ctx context.Context, token Token) (decimal.Decimal, error) {
+	args := m.Called(ctx, token)
+	return args.Get(0).(decimal.Decimal), args.Error(1)
+}
+
+func (m *MockPriceProvider) GetExchangeInfo() Exchange {
+	return m.exchange
+}
+
+func (m *MockPriceProvider) IsHealthy(ctx context.Context) bool {
+	args := m.Called(ctx)
+	return args.Bool(0)
+}
+
+// NewMockPriceProvider створює новий мок провайдера цін
+func NewMockPriceProvider(exchangeID, exchangeName string) *MockPriceProvider {
+	return &MockPriceProvider{
+		exchange: Exchange{
+			ID:   exchangeID,
+			Name: exchangeName,
+			Type: ExchangeTypeDEX,
+		},
+	}
+}
 
 // MockRedisClient мок для Redis клієнта
 type MockRedisClient struct {
 	mock.Mock
-}
-
-func (m *MockRedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	args := m.Called(ctx, key, value, expiration)
-	return args.Error(0)
 }
 
 func (m *MockRedisClient) Get(ctx context.Context, key string) (string, error) {
@@ -27,44 +54,77 @@ func (m *MockRedisClient) Get(ctx context.Context, key string) (string, error) {
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockRedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	args := m.Called(ctx, key, value, expiration)
+	return args.Error(0)
+}
+
 func (m *MockRedisClient) Del(ctx context.Context, keys ...string) error {
 	args := m.Called(ctx, keys)
 	return args.Error(0)
 }
 
-// MockUniswapClient мок для Uniswap клієнта
-type MockUniswapClient struct {
-	mock.Mock
+func (m *MockRedisClient) Exists(ctx context.Context, keys ...string) (bool, error) {
+	args := m.Called(ctx, keys)
+	return args.Bool(0), args.Error(1)
 }
 
-func (m *MockUniswapClient) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*GetSwapQuoteResponse, error) {
-	args := m.Called(ctx, req)
-	return args.Get(0).(*GetSwapQuoteResponse), args.Error(1)
+func (m *MockRedisClient) Incr(ctx context.Context, key string) (int64, error) {
+	args := m.Called(ctx, key)
+	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockUniswapClient) GetLiquidityPools(ctx context.Context, req *GetLiquidityPoolsRequest) (*GetLiquidityPoolsResponse, error) {
-	args := m.Called(ctx, req)
-	return args.Get(0).(*GetLiquidityPoolsResponse), args.Error(1)
+func (m *MockRedisClient) HGet(ctx context.Context, key, field string) (string, error) {
+	args := m.Called(ctx, key, field)
+	return args.String(0), args.Error(1)
 }
 
-// MockOneInchClient мок для 1inch клієнта
-type MockOneInchClient struct {
-	mock.Mock
+func (m *MockRedisClient) HSet(ctx context.Context, key string, values ...interface{}) error {
+	args := m.Called(ctx, key, values)
+	return args.Error(0)
 }
 
-func (m *MockOneInchClient) GetSwapQuote(ctx context.Context, req *GetSwapQuoteRequest) (*GetSwapQuoteResponse, error) {
-	args := m.Called(ctx, req)
-	return args.Get(0).(*GetSwapQuoteResponse), args.Error(1)
+func (m *MockRedisClient) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	args := m.Called(ctx, key)
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
+func (m *MockRedisClient) HDel(ctx context.Context, key string, fields ...string) error {
+	args := m.Called(ctx, key, fields)
+	return args.Error(0)
+}
+
+func (m *MockRedisClient) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	args := m.Called(ctx, key, expiration)
+	return args.Error(0)
+}
+
+func (m *MockRedisClient) Pipeline() redis.Pipeline {
+	args := m.Called()
+	return args.Get(0).(redis.Pipeline)
+}
+
+func (m *MockRedisClient) Close() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockRedisClient) Ping(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
 }
 
 func TestArbitrageDetector_DetectArbitrageForToken(t *testing.T) {
 	// Arrange
 	logger := logger.New("test")
 	mockRedis := &MockRedisClient{}
-	mockUniswap := &MockUniswapClient{}
-	mockOneInch := &MockOneInchClient{}
 
-	detector := NewArbitrageDetector(logger, mockRedis, mockUniswap, mockOneInch)
+	// Create mock price providers
+	mockUniswap := NewMockPriceProvider("uniswap-v3", "Uniswap V3")
+	mockOneInch := NewMockPriceProvider("1inch-aggregator", "1inch Aggregator")
+
+	priceProviders := []PriceProvider{mockUniswap, mockOneInch}
+	detector := NewArbitrageDetector(logger, mockRedis, priceProviders)
 
 	ctx := context.Background()
 	testToken := Token{
@@ -73,21 +133,12 @@ func TestArbitrageDetector_DetectArbitrageForToken(t *testing.T) {
 		Chain:   ChainEthereum,
 	}
 
-	// Mock Uniswap response
-	uniswapQuote := &GetSwapQuoteResponse{
-		AmountOut:    decimal.NewFromFloat(2500.0), // $2500 per token
-		PriceImpact:  decimal.NewFromFloat(0.001),
-		GasEstimate:  decimal.NewFromFloat(0.005),
-	}
-	mockUniswap.On("GetSwapQuote", ctx, mock.AnythingOfType("*defi.GetSwapQuoteRequest")).Return(uniswapQuote, nil)
+	// Mock price provider responses
+	mockUniswap.On("IsHealthy", ctx).Return(true)
+	mockUniswap.On("GetPrice", ctx, testToken).Return(decimal.NewFromFloat(2500.0), nil)
 
-	// Mock 1inch response (higher price for arbitrage opportunity)
-	oneInchQuote := &GetSwapQuoteResponse{
-		AmountOut:    decimal.NewFromFloat(2530.0), // $2530 per token (1.2% higher)
-		PriceImpact:  decimal.NewFromFloat(0.001),
-		GasEstimate:  decimal.NewFromFloat(0.005),
-	}
-	mockOneInch.On("GetSwapQuote", ctx, mock.AnythingOfType("*defi.GetSwapQuoteRequest")).Return(oneInchQuote, nil)
+	mockOneInch.On("IsHealthy", ctx).Return(true)
+	mockOneInch.On("GetPrice", ctx, testToken).Return(decimal.NewFromFloat(2530.0), nil) // 1.2% higher
 
 	// Act
 	opportunities, err := detector.DetectArbitrageForToken(ctx, testToken)
@@ -113,10 +164,13 @@ func TestArbitrageDetector_CalculateArbitrageOpportunity(t *testing.T) {
 	// Arrange
 	logger := logger.New("test")
 	mockRedis := &MockRedisClient{}
-	mockUniswap := &MockUniswapClient{}
-	mockOneInch := &MockOneInchClient{}
 
-	detector := NewArbitrageDetector(logger, mockRedis, mockUniswap, mockOneInch)
+	// Create mock price providers
+	mockUniswap := NewMockPriceProvider("uniswap-v3", "Uniswap V3")
+	mockOneInch := NewMockPriceProvider("1inch-aggregator", "1inch Aggregator")
+
+	priceProviders := []PriceProvider{mockUniswap, mockOneInch}
+	detector := NewArbitrageDetector(logger, mockRedis, priceProviders)
 
 	testToken := Token{
 		Address: "0xA0b86a33E6441b8C4505B6B8C0E4F7c3C4b5C8E1",
@@ -161,10 +215,13 @@ func TestArbitrageDetector_MinimumProfitMargin(t *testing.T) {
 	// Arrange
 	logger := logger.New("test")
 	mockRedis := &MockRedisClient{}
-	mockUniswap := &MockUniswapClient{}
-	mockOneInch := &MockOneInchClient{}
 
-	detector := NewArbitrageDetector(logger, mockRedis, mockUniswap, mockOneInch)
+	// Create mock price providers
+	mockUniswap := NewMockPriceProvider("uniswap-v3", "Uniswap V3")
+	mockOneInch := NewMockPriceProvider("1inch-aggregator", "1inch Aggregator")
+
+	priceProviders := []PriceProvider{mockUniswap, mockOneInch}
+	detector := NewArbitrageDetector(logger, mockRedis, priceProviders)
 
 	testToken := Token{Symbol: "TEST", Chain: ChainEthereum}
 	sourceExchange := Exchange{ID: "source", Name: "Source"}
@@ -194,10 +251,13 @@ func TestArbitrageDetector_RiskCalculation(t *testing.T) {
 	// Arrange
 	logger := logger.New("test")
 	mockRedis := &MockRedisClient{}
-	mockUniswap := &MockUniswapClient{}
-	mockOneInch := &MockOneInchClient{}
 
-	detector := NewArbitrageDetector(logger, mockRedis, mockUniswap, mockOneInch)
+	// Create mock price providers
+	mockUniswap := NewMockPriceProvider("uniswap-v3", "Uniswap V3")
+	mockOneInch := NewMockPriceProvider("1inch-aggregator", "1inch Aggregator")
+
+	priceProviders := []PriceProvider{mockUniswap, mockOneInch}
+	detector := NewArbitrageDetector(logger, mockRedis, priceProviders)
 
 	// Test different risk scenarios
 	testCases := []struct {
@@ -245,10 +305,13 @@ func TestArbitrageDetector_ConfidenceCalculation(t *testing.T) {
 	// Arrange
 	logger := logger.New("test")
 	mockRedis := &MockRedisClient{}
-	mockUniswap := &MockUniswapClient{}
-	mockOneInch := &MockOneInchClient{}
 
-	detector := NewArbitrageDetector(logger, mockRedis, mockUniswap, mockOneInch)
+	// Create mock price providers
+	mockUniswap := NewMockPriceProvider("uniswap-v3", "Uniswap V3")
+	mockOneInch := NewMockPriceProvider("1inch-aggregator", "1inch Aggregator")
+
+	priceProviders := []PriceProvider{mockUniswap, mockOneInch}
+	detector := NewArbitrageDetector(logger, mockRedis, priceProviders)
 
 	// Test confidence calculation
 	testCases := []struct {
@@ -299,10 +362,13 @@ func TestArbitrageDetector_ConfidenceCalculation(t *testing.T) {
 func BenchmarkArbitrageDetector_CalculateOpportunity(b *testing.B) {
 	logger := logger.New("benchmark")
 	mockRedis := &MockRedisClient{}
-	mockUniswap := &MockUniswapClient{}
-	mockOneInch := &MockOneInchClient{}
 
-	detector := NewArbitrageDetector(logger, mockRedis, mockUniswap, mockOneInch)
+	// Create mock price providers
+	mockUniswap := NewMockPriceProvider("uniswap-v3", "Uniswap V3")
+	mockOneInch := NewMockPriceProvider("1inch-aggregator", "1inch Aggregator")
+
+	priceProviders := []PriceProvider{mockUniswap, mockOneInch}
+	detector := NewArbitrageDetector(logger, mockRedis, priceProviders)
 
 	testToken := Token{Symbol: "BENCH", Chain: ChainEthereum}
 	sourceExchange := Exchange{ID: "source", Name: "Source"}
@@ -325,10 +391,13 @@ func TestArbitrageDetector_Integration(t *testing.T) {
 	// Arrange
 	logger := logger.New("integration-test")
 	mockRedis := &MockRedisClient{}
-	mockUniswap := &MockUniswapClient{}
-	mockOneInch := &MockOneInchClient{}
 
-	detector := NewArbitrageDetector(logger, mockRedis, mockUniswap, mockOneInch)
+	// Create mock price providers
+	mockUniswap := NewMockPriceProvider("uniswap-v3", "Uniswap V3")
+	mockOneInch := NewMockPriceProvider("1inch-aggregator", "1inch Aggregator")
+
+	priceProviders := []PriceProvider{mockUniswap, mockOneInch}
+	detector := NewArbitrageDetector(logger, mockRedis, priceProviders)
 
 	ctx := context.Background()
 
@@ -342,22 +411,12 @@ func TestArbitrageDetector_Integration(t *testing.T) {
 	}
 
 	for _, token := range tokens {
-		uniswapQuote := &GetSwapQuoteResponse{
-			AmountOut:   decimal.NewFromFloat(1000.0),
-			PriceImpact: decimal.NewFromFloat(0.001),
-		}
-		oneInchQuote := &GetSwapQuoteResponse{
-			AmountOut:   decimal.NewFromFloat(1015.0), // 1.5% higher
-			PriceImpact: decimal.NewFromFloat(0.001),
-		}
+		// Mock price provider responses
+		mockUniswap.On("IsHealthy", ctx).Return(true)
+		mockUniswap.On("GetPrice", ctx, token).Return(decimal.NewFromFloat(1000.0), nil)
 
-		mockUniswap.On("GetSwapQuote", ctx, mock.MatchedBy(func(req *GetSwapQuoteRequest) bool {
-			return req.TokenIn == token.Address
-		})).Return(uniswapQuote, nil)
-
-		mockOneInch.On("GetSwapQuote", ctx, mock.MatchedBy(func(req *GetSwapQuoteRequest) bool {
-			return req.TokenIn == token.Address
-		})).Return(oneInchQuote, nil)
+		mockOneInch.On("IsHealthy", ctx).Return(true)
+		mockOneInch.On("GetPrice", ctx, token).Return(decimal.NewFromFloat(1015.0), nil) // 1.5% higher
 	}
 
 	// Act & Assert

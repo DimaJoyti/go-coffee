@@ -55,7 +55,7 @@ func (s *Service) CreateWallet(ctx context.Context, req *models.CreateWalletRequ
 	s.logger.Info(fmt.Sprintf("Creating wallet for user %s on chain %s", req.UserID, req.Chain))
 
 	// Generate key pair based on chain
-	var privateKey, publicKey, address string
+	var privateKey, address string
 	var mnemonic string
 	var derivationPath string
 	var err error
@@ -63,7 +63,7 @@ func (s *Service) CreateWallet(ctx context.Context, req *models.CreateWalletRequ
 	switch req.Chain {
 	case models.ChainSolana:
 		// Generate Solana key pair
-		privateKey, publicKey, address, err = s.keyManager.GenerateSolanaKeyPair()
+		privateKey, _, address, err = s.keyManager.GenerateSolanaKeyPair()
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to generate Solana key pair: %v", err))
 			return nil, fmt.Errorf("failed to generate Solana key pair: %w", err)
@@ -71,7 +71,7 @@ func (s *Service) CreateWallet(ctx context.Context, req *models.CreateWalletRequ
 		derivationPath = "m/44'/501'/0'/0'" // Solana derivation path
 	default:
 		// Generate EVM key pair
-		privateKey, publicKey, address, err = s.keyManager.GenerateKeyPair()
+		privateKey, _, address, err = s.keyManager.GenerateKeyPair()
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to generate key pair: %v", err))
 			return nil, fmt.Errorf("failed to generate key pair: %w", err)
@@ -92,8 +92,8 @@ func (s *Service) CreateWallet(ctx context.Context, req *models.CreateWalletRequ
 		UserID:    req.UserID,
 		Name:      req.Name,
 		Address:   address,
-		Chain:     string(req.Chain),
-		Type:      string(req.Type),
+		Chain:     req.Chain,
+		Type:      req.Type,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -156,7 +156,16 @@ func (s *Service) ListWallets(ctx context.Context, req *models.ListWalletsReques
 	s.logger.Info(fmt.Sprintf("Listing wallets for user %s", req.UserID))
 
 	// Get wallets from database
-	wallets, total, err := s.repo.ListWallets(ctx, req.UserID, string(req.Chain), string(req.Type), req.Limit, req.Offset)
+	chainFilter := ""
+	if req.Chain != "" {
+		chainFilter = string(req.Chain)
+	}
+	typeFilter := ""
+	if req.Type != "" {
+		typeFilter = string(req.Type)
+	}
+
+	wallets, total, err := s.repo.ListWallets(ctx, req.UserID, chainFilter, typeFilter, req.Limit, req.Offset)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to list wallets: %v", err))
 		return nil, fmt.Errorf("failed to list wallets: %w", err)
@@ -187,7 +196,7 @@ func (s *Service) GetBalance(ctx context.Context, req *models.GetBalanceRequest)
 	}
 
 	// Handle different chains
-	switch models.Chain(wallet.Chain) {
+	switch wallet.Chain {
 	case models.ChainSolana:
 		return s.getSolanaBalance(ctx, wallet, req)
 	default:
@@ -226,8 +235,8 @@ func (s *Service) ImportWallet(ctx context.Context, req *models.ImportWalletRequ
 		UserID:    req.UserID,
 		Name:      req.Name,
 		Address:   address,
-		Chain:     string(req.Chain),
-		Type:      string(models.WalletTypeImported),
+		Chain:     req.Chain,
+		Type:      models.WalletTypeImported,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -384,7 +393,7 @@ func (s *Service) getEVMBalance(ctx context.Context, wallet *models.Wallet, req 
 	var symbol string
 	var decimals int
 
-	switch models.Chain(wallet.Chain) {
+	switch wallet.Chain {
 	case models.ChainEthereum:
 		client = s.ethClient
 		symbol = "ETH"

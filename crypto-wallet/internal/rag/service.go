@@ -17,7 +17,7 @@ import (
 type Service struct {
 	config         config.RAGConfig
 	logger         *logger.Logger
-	aiService      *ai.Service
+	aiService      ai.Service
 	cache          redis.Client
 	vectorStore    VectorStore
 	embeddings     EmbeddingsService
@@ -56,7 +56,7 @@ type Generator interface {
 func NewService(
 	cfg config.RAGConfig,
 	logger *logger.Logger,
-	aiService *ai.Service,
+	aiService ai.Service,
 	cache redis.Client,
 	vectorStore VectorStore,
 	embeddings EmbeddingsService,
@@ -71,8 +71,8 @@ func NewService(
 	}
 
 	// Initialize retriever and generator
-	service.retriever = NewRetriever(vectorStore, embeddings, logger)
-	service.generator = NewGenerator(aiService, logger)
+	service.retriever = newRetriever(vectorStore, embeddings, logger)
+	service.generator = newGenerator(aiService, logger)
 
 	logger.Info("RAG service initialized successfully")
 	return service
@@ -376,3 +376,60 @@ func hashQuery(query string) string {
 	// Simple hash function for caching
 	return fmt.Sprintf("%x", []byte(strings.ToLower(strings.TrimSpace(query))))
 }
+
+// newRetriever creates a new retriever instance (placeholder implementation)
+func newRetriever(vectorStore VectorStore, embeddings EmbeddingsService, logger *logger.Logger) Retriever {
+	// TODO: Implement proper retriever
+	return &mockRetriever{
+		vectorStore: vectorStore,
+		embeddings:  embeddings,
+		logger:      logger,
+	}
+}
+
+// newGenerator creates a new generator instance (placeholder implementation)
+func newGenerator(aiService interface{}, logger *logger.Logger) Generator {
+	// TODO: Implement proper generator
+	return &mockGenerator{
+		aiService: aiService,
+		logger:    logger,
+	}
+}
+
+// mockRetriever is a placeholder implementation of Retriever
+type mockRetriever struct {
+	vectorStore VectorStore
+	embeddings  EmbeddingsService
+	logger      *logger.Logger
+}
+
+func (r *mockRetriever) Retrieve(ctx context.Context, query Query, config RetrievalConfig) ([]RetrievalResult, error) {
+	// Simple mock implementation
+	return []RetrievalResult{}, nil
+}
+
+func (r *mockRetriever) RetrieveWithReranking(ctx context.Context, query Query, config RetrievalConfig) ([]RetrievalResult, error) {
+	// Simple mock implementation
+	return []RetrievalResult{}, nil
+}
+
+// mockGenerator is a placeholder implementation of Generator
+type mockGenerator struct {
+	aiService interface{}
+	logger    *logger.Logger
+}
+
+func (g *mockGenerator) Generate(ctx context.Context, query Query, sources []RetrievalResult, config GenerationConfig) (*RAGResponse, error) {
+	// Simple mock implementation
+	return &RAGResponse{
+		ID:            generateResponseID(),
+		QueryID:       query.ID,
+		GeneratedText: "Mock response - RAG functionality not yet fully implemented",
+		Sources:       sources,
+		Confidence:    0.5,
+		ModelUsed:     "mock",
+		CreatedAt:     time.Now(),
+	}, nil
+}
+
+

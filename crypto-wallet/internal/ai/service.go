@@ -15,6 +15,7 @@ type Service interface {
 	GetCoffeeRecommendation(ctx context.Context, preferences map[string]interface{}) (string, error)
 	AnalyzeSpending(ctx context.Context, userID string) (string, error)
 	GetMarketInsights(ctx context.Context) (string, error)
+	GenerateResponse(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error)
 	Close() error
 }
 
@@ -27,7 +28,7 @@ type SimpleService struct {
 }
 
 // NewService creates a new simple AI service
-func NewService(cfg config.AIConfig, logger *logger.Logger, redisClient redis.Client) (*SimpleService, error) {
+func NewService(cfg config.AIConfig, logger *logger.Logger, redisClient redis.Client) (Service, error) {
 	// Create simple AI service
 	simpleAI, err := NewSimpleAIService(cfg, logger, redisClient)
 	if err != nil {
@@ -89,10 +90,59 @@ func (s *SimpleService) GetMarketInsights(ctx context.Context) (string, error) {
 	return response.Response, nil
 }
 
+// GenerateResponse generates an AI response for content analysis
+func (s *SimpleService) GenerateResponse(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error) {
+	// Convert GenerateRequest to SimpleAIRequest
+	simpleReq := &SimpleAIRequest{
+		Message:     req.Message,
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+		Context: map[string]interface{}{
+			"user_id": req.UserID,
+			"context": req.Context,
+		},
+	}
+
+	// Add metadata to context
+	if req.Metadata != nil {
+		for k, v := range req.Metadata {
+			simpleReq.Context[k] = v
+		}
+	}
+
+	// Process the message using simple AI
+	response, err := s.simpleAI.ProcessMessage(ctx, simpleReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate response: %w", err)
+	}
+
+	// Convert SimpleAIResponse to GenerateResponse
+	return &GenerateResponse{
+		Text:        response.Response,
+		Provider:    "simple_ai",
+		Confidence:  0.85, // Default confidence for simple AI
+		Metadata:    convertMetadata(response.Metadata),
+		GeneratedAt: response.Timestamp,
+	}, nil
+}
+
 // Close closes the AI service
 func (s *SimpleService) Close() error {
 	if s.simpleAI != nil {
 		return s.simpleAI.Close()
 	}
 	return nil
+}
+
+// convertMetadata converts map[string]interface{} to map[string]string
+func convertMetadata(metadata map[string]interface{}) map[string]string {
+	result := make(map[string]string)
+	for k, v := range metadata {
+		if str, ok := v.(string); ok {
+			result[k] = str
+		} else {
+			result[k] = fmt.Sprintf("%v", v)
+		}
+	}
+	return result
 }

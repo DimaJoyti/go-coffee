@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
+	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/content"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/rag"
 	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/reddit"
@@ -27,7 +28,7 @@ import (
 type ContentAnalysisService struct {
 	config        *config.Config
 	logger        *logger.Logger
-	aiService     *ai.SimpleService
+	aiService     ai.Service
 	redditService *reddit.Service
 	ragService    *rag.Service
 	analyzer      *content.Analyzer
@@ -224,7 +225,7 @@ func (s *ContentAnalysisService) getRedditStats(c *gin.Context) {
 }
 
 func (s *ContentAnalysisService) analyzePost(c *gin.Context) {
-	var post reddit.RedditPost
+	var post common.RedditPost
 	if err := c.ShouldBindJSON(&post); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -241,7 +242,7 @@ func (s *ContentAnalysisService) analyzePost(c *gin.Context) {
 }
 
 func (s *ContentAnalysisService) analyzeComment(c *gin.Context) {
-	var comment reddit.RedditComment
+	var comment common.RedditComment
 	if err := c.ShouldBindJSON(&comment); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
