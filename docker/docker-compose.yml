@@ -1,0 +1,246 @@
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  redis:
+    image: redis:8-alpine
+    container_name: go-coffee-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - go-coffee-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: go-coffee-postgres
+    environment:
+      POSTGRES_DB: go_coffee
+      POSTGRES_USER: go_coffee_user
+      POSTGRES_PASSWORD: go_coffee_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U go_coffee_user -d go_coffee"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - go-coffee-network
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: go-coffee-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - go-coffee-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: go-coffee-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - go-coffee-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: go-coffee-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - go-coffee-network
+
+  # Go Coffee Microservices
+  ai-search:
+    build:
+      context: .
+      dockerfile: deployments/ai-search/Dockerfile
+    container_name: go-coffee-ai-search
+    ports:
+      - "8092:8092"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8092/api/v1/ai-search/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - go-coffee-network
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: deployments/auth-service/Dockerfile
+    container_name: go-coffee-auth-service
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://go_coffee_user:go_coffee_password@postgres:5432/go_coffee?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
+      - LOG_LEVEL=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - go-coffee-network
+
+  kitchen-service:
+    build:
+      context: .
+      dockerfile: deployments/kitchen-service/Dockerfile
+    container_name: go-coffee-kitchen-service
+    ports:
+      - "50052:50052"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgres://go_coffee_user:go_coffee_password@postgres:5432/go_coffee?sslmode=disable
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - go-coffee-network
+
+  communication-hub:
+    build:
+      context: .
+      dockerfile: deployments/communication-hub/Dockerfile
+    container_name: go-coffee-communication-hub
+    ports:
+      - "50053:50053"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - go-coffee-network
+
+  user-gateway:
+    build:
+      context: .
+      dockerfile: deployments/user-gateway/Dockerfile
+    container_name: go-coffee-user-gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - AI_ORDER_SERVICE_ADDR=ai-search:8092
+      - KITCHEN_SERVICE_ADDR=kitchen-service:50052
+      - COMMUNICATION_HUB_ADDR=communication-hub:50053
+      - LOG_LEVEL=info
+    depends_on:
+      - ai-search
+      - kitchen-service
+      - communication-hub
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - go-coffee-network
+
+  redis-mcp-server:
+    build:
+      context: .
+      dockerfile: deployments/redis-mcp-server/Dockerfile
+    container_name: go-coffee-redis-mcp-server
+    ports:
+      - "8093:8093"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SERVER_PORT=8093
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8093/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - go-coffee-network
+
+  # Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: go-coffee-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - user-gateway
+      - ai-search
+      - auth-service
+    networks:
+      - go-coffee-network
+
+  # Optional: Ollama for local AI
+  ollama:
+    image: ollama/ollama:latest
+    container_name: go-coffee-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - go-coffee-network
+
+volumes:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  ollama_data:
+
+networks:
+  go-coffee-network:
+    driver: bridge

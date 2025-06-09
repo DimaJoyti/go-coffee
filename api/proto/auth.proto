@@ -1,0 +1,252 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/DimaJoyti/go-coffee/api/proto";
+
+import "google/protobuf/timestamp.proto";
+
+// Authentication Service
+service AuthService {
+  // User registration
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  
+  // User login
+  rpc Login(LoginRequest) returns (LoginResponse);
+  
+  // User logout
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  
+  // Refresh access token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  
+  // Validate access token
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  
+  // Change user password
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+  
+  // Get user information
+  rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse);
+  
+  // Get user sessions
+  rpc GetUserSessions(GetUserSessionsRequest) returns (GetUserSessionsResponse);
+  
+  // Revoke session
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  
+  // Revoke all user sessions
+  rpc RevokeAllUserSessions(RevokeAllUserSessionsRequest) returns (RevokeAllUserSessionsResponse);
+}
+
+// User status enumeration
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_INACTIVE = 2;
+  USER_STATUS_SUSPENDED = 3;
+  USER_STATUS_LOCKED = 4;
+}
+
+// User role enumeration
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_CUSTOMER = 1;
+  USER_ROLE_STAFF = 2;
+  USER_ROLE_MANAGER = 3;
+  USER_ROLE_ADMIN = 4;
+}
+
+// Token type enumeration
+enum TokenType {
+  TOKEN_TYPE_UNSPECIFIED = 0;
+  TOKEN_TYPE_ACCESS = 1;
+  TOKEN_TYPE_REFRESH = 2;
+}
+
+// User message
+message User {
+  string id = 1;
+  string email = 2;
+  string first_name = 3;
+  string last_name = 4;
+  UserRole role = 5;
+  UserStatus status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp last_login_at = 9;
+  int32 failed_login_attempts = 10;
+  google.protobuf.Timestamp locked_until = 11;
+  bool email_verified = 12;
+  bool mfa_enabled = 13;
+}
+
+// Session message
+message Session {
+  string id = 1;
+  string user_id = 2;
+  string access_token = 3;
+  string refresh_token = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  google.protobuf.Timestamp last_used_at = 7;
+  string ip_address = 8;
+  string user_agent = 9;
+  bool is_active = 10;
+}
+
+// Token claims message
+message TokenClaims {
+  string user_id = 1;
+  string email = 2;
+  UserRole role = 3;
+  TokenType token_type = 4;
+  google.protobuf.Timestamp issued_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string issuer = 7;
+  string audience = 8;
+  string session_id = 9;
+}
+
+// Register Request
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string first_name = 3;
+  string last_name = 4;
+  UserRole role = 5;
+}
+
+// Register Response
+message RegisterResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+  int64 expires_in = 4;
+  string token_type = 5;
+  bool success = 6;
+  string message = 7;
+}
+
+// Login Request
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string ip_address = 3;
+  string user_agent = 4;
+}
+
+// Login Response
+message LoginResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+  int64 expires_in = 4;
+  string token_type = 5;
+  bool success = 6;
+  string message = 7;
+}
+
+// Logout Request
+message LogoutRequest {
+  string access_token = 1;
+  string refresh_token = 2;
+  bool revoke_all_sessions = 3;
+}
+
+// Logout Response
+message LogoutResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Refresh Token Request
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+// Refresh Token Response
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_in = 3;
+  string token_type = 4;
+  bool success = 5;
+  string message = 6;
+}
+
+// Validate Token Request
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+// Validate Token Response
+message ValidateTokenResponse {
+  bool valid = 1;
+  User user = 2;
+  TokenClaims claims = 3;
+  string message = 4;
+}
+
+// Change Password Request
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+// Change Password Response
+message ChangePasswordResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Get User Info Request
+message GetUserInfoRequest {
+  string user_id = 1;
+}
+
+// Get User Info Response
+message GetUserInfoResponse {
+  User user = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Get User Sessions Request
+message GetUserSessionsRequest {
+  string user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+// Get User Sessions Response
+message GetUserSessionsResponse {
+  repeated Session sessions = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Revoke Session Request
+message RevokeSessionRequest {
+  string session_id = 1;
+}
+
+// Revoke Session Response
+message RevokeSessionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Revoke All User Sessions Request
+message RevokeAllUserSessionsRequest {
+  string user_id = 1;
+  string except_session_id = 2;
+}
+
+// Revoke All User Sessions Response
+message RevokeAllUserSessionsResponse {
+  int32 revoked_count = 1;
+  bool success = 2;
+  string message = 3;
+}

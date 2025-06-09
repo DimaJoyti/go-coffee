@@ -1,0 +1,187 @@
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  redis:
+    image: redis:8-alpine
+    container_name: order-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - order-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: order-postgres
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: order_user
+      POSTGRES_PASSWORD: order_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-order-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U order_user -d order_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - order-network
+
+  # Order Service
+  order-service:
+    build:
+      context: .
+      dockerfile: cmd/order-service/Dockerfile
+    container_name: order-service
+    ports:
+      - "8081:8081"  # HTTP port
+      - "50051:50051"  # gRPC port
+    environment:
+      - HTTP_PORT=8081
+      - GRPC_PORT=50051
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgres://order_user:order_password@postgres:5432/order_db?sslmode=disable
+      - LOG_LEVEL=info
+      - SERVICE_NAME=order-service
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - order-network
+    volumes:
+      - ./logs:/app/logs
+
+  # Payment Service (for integration)
+  payment-service:
+    build:
+      context: .
+      dockerfile: cmd/payment-service/Dockerfile
+    container_name: payment-service
+    ports:
+      - "8082:8082"
+    environment:
+      - HTTP_PORT=8082
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+      - SERVICE_NAME=payment-service
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - order-network
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: order-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus-order.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - order-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: order-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - order-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: order-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - order-network
+
+  # Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: order-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/order-nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - order-service
+      - payment-service
+    networks:
+      - order-network
+
+  # Redis Insight for Redis management
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: order-redis-insight
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+    networks:
+      - order-network
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  order-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

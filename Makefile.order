@@ -1,0 +1,188 @@
+# Order Service Makefile
+
+.PHONY: help build test clean run docker-build docker-run docker-stop docker-clean logs
+
+# Variables
+SERVICE_NAME := order-service
+DOCKER_COMPOSE_FILE := docker-compose.order.yml
+BINARY_NAME := order-service
+BUILD_DIR := ./build
+CMD_DIR := ./cmd/order-service
+
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[0;33m
+BLUE := \033[0;34m
+NC := \033[0m # No Color
+
+# Default target
+help: ## Show this help message
+	@echo "$(BLUE)Order Service Makefile$(NC)"
+	@echo "$(YELLOW)Available targets:$(NC)"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# Build targets
+build: ## Build the order service binary
+	@echo "$(BLUE)Building $(SERVICE_NAME)...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@cd $(CMD_DIR) && go build -o ../../$(BUILD_DIR)/$(BINARY_NAME) .
+	@echo "$(GREEN)✅ Build completed: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"
+
+build-linux: ## Build the order service binary for Linux
+	@echo "$(BLUE)Building $(SERVICE_NAME) for Linux...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@cd $(CMD_DIR) && GOOS=linux GOARCH=amd64 go build -o ../../$(BUILD_DIR)/$(BINARY_NAME)-linux .
+	@echo "$(GREEN)✅ Linux build completed: $(BUILD_DIR)/$(BINARY_NAME)-linux$(NC)"
+
+# Test targets
+test: ## Run tests for order service
+	@echo "$(BLUE)Running tests for $(SERVICE_NAME)...$(NC)"
+	@go test -v ./internal/order/...
+	@echo "$(GREEN)✅ Tests completed$(NC)"
+
+test-coverage: ## Run tests with coverage
+	@echo "$(BLUE)Running tests with coverage for $(SERVICE_NAME)...$(NC)"
+	@go test -v -coverprofile=coverage.out ./internal/order/...
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "$(GREEN)✅ Coverage report generated: coverage.html$(NC)"
+
+test-integration: ## Run integration tests
+	@echo "$(BLUE)Running integration tests for $(SERVICE_NAME)...$(NC)"
+	@go test -v -tags=integration ./internal/order/...
+	@echo "$(GREEN)✅ Integration tests completed$(NC)"
+
+# Development targets
+run: ## Run the order service locally
+	@echo "$(BLUE)Starting $(SERVICE_NAME) locally...$(NC)"
+	@cd $(CMD_DIR) && go run . 
+
+run-dev: ## Run the order service in development mode with hot reload
+	@echo "$(BLUE)Starting $(SERVICE_NAME) in development mode...$(NC)"
+	@cd $(CMD_DIR) && air
+
+# Docker targets
+docker-build: ## Build Docker image for order service
+	@echo "$(BLUE)Building Docker image for $(SERVICE_NAME)...$(NC)"
+	@docker build -f $(CMD_DIR)/Dockerfile -t $(SERVICE_NAME):latest .
+	@echo "$(GREEN)✅ Docker image built: $(SERVICE_NAME):latest$(NC)"
+
+docker-run: ## Run order service with Docker Compose
+	@echo "$(BLUE)Starting $(SERVICE_NAME) with Docker Compose...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo "$(GREEN)✅ Services started. Check status with: make docker-status$(NC)"
+
+docker-stop: ## Stop order service Docker containers
+	@echo "$(BLUE)Stopping $(SERVICE_NAME) containers...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down
+	@echo "$(GREEN)✅ Containers stopped$(NC)"
+
+docker-restart: ## Restart order service Docker containers
+	@echo "$(BLUE)Restarting $(SERVICE_NAME) containers...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) restart
+	@echo "$(GREEN)✅ Containers restarted$(NC)"
+
+docker-status: ## Show status of Docker containers
+	@echo "$(BLUE)Docker containers status:$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) ps
+
+docker-logs: ## Show logs from Docker containers
+	@echo "$(BLUE)Showing logs for $(SERVICE_NAME)...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) logs -f order-service
+
+docker-logs-all: ## Show logs from all Docker containers
+	@echo "$(BLUE)Showing logs for all services...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) logs -f
+
+# Database targets
+db-migrate: ## Run database migrations
+	@echo "$(BLUE)Running database migrations...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U order_user -d order_db -f /docker-entrypoint-initdb.d/init.sql
+	@echo "$(GREEN)✅ Database migrations completed$(NC)"
+
+db-reset: ## Reset database (WARNING: This will delete all data)
+	@echo "$(RED)⚠️  WARNING: This will delete all data in the database!$(NC)"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo "$(BLUE)Resetting database...$(NC)"; \
+		docker-compose -f $(DOCKER_COMPOSE_FILE) down -v; \
+		docker-compose -f $(DOCKER_COMPOSE_FILE) up -d postgres; \
+		sleep 10; \
+		make db-migrate; \
+		echo "$(GREEN)✅ Database reset completed$(NC)"; \
+	else \
+		echo "$(YELLOW)Database reset cancelled$(NC)"; \
+	fi
+
+db-shell: ## Connect to database shell
+	@echo "$(BLUE)Connecting to database...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U order_user -d order_db
+
+# Monitoring targets
+logs: ## Show application logs
+	@echo "$(BLUE)Showing application logs...$(NC)"
+	@tail -f ./logs/order-service.log 2>/dev/null || echo "$(YELLOW)No log file found. Start the service first.$(NC)"
+
+metrics: ## Show Prometheus metrics
+	@echo "$(BLUE)Opening Prometheus metrics...$(NC)"
+	@curl -s http://localhost:9090/metrics || echo "$(RED)Prometheus not available. Start with: make docker-run$(NC)"
+
+grafana: ## Open Grafana dashboard
+	@echo "$(BLUE)Opening Grafana dashboard...$(NC)"
+	@echo "$(GREEN)Grafana available at: http://localhost:3000$(NC)"
+	@echo "$(GREEN)Default credentials: admin/admin$(NC)"
+
+# Cleanup targets
+clean: ## Clean build artifacts
+	@echo "$(BLUE)Cleaning build artifacts...$(NC)"
+	@rm -rf $(BUILD_DIR)
+	@rm -f coverage.out coverage.html
+	@echo "$(GREEN)✅ Cleanup completed$(NC)"
+
+docker-clean: ## Clean Docker images and volumes
+	@echo "$(BLUE)Cleaning Docker resources...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) down -v --rmi all
+	@docker system prune -f
+	@echo "$(GREEN)✅ Docker cleanup completed$(NC)"
+
+# Health check targets
+health: ## Check service health
+	@echo "$(BLUE)Checking service health...$(NC)"
+	@curl -f http://localhost:8081/health && echo "$(GREEN)✅ Order Service is healthy$(NC)" || echo "$(RED)❌ Order Service is not responding$(NC)"
+	@curl -f http://localhost:8082/health && echo "$(GREEN)✅ Payment Service is healthy$(NC)" || echo "$(RED)❌ Payment Service is not responding$(NC)"
+
+# API testing targets
+test-api: ## Test API endpoints
+	@echo "$(BLUE)Testing API endpoints...$(NC)"
+	@echo "$(YELLOW)Testing health endpoint...$(NC)"
+	@curl -s http://localhost:8081/health | jq . || echo "$(RED)Health endpoint failed$(NC)"
+	@echo "$(YELLOW)Testing order creation...$(NC)"
+	@curl -s -X POST http://localhost:8081/api/v1/orders \
+		-H "Content-Type: application/json" \
+		-d '{"customer_id":"test-customer","items":[{"product_id":"coffee-001","name":"Test Coffee","quantity":1,"unit_price":500}]}' \
+		| jq . || echo "$(RED)Order creation failed$(NC)"
+
+# Development setup
+setup: ## Setup development environment
+	@echo "$(BLUE)Setting up development environment...$(NC)"
+	@go mod download
+	@go install github.com/cosmtrek/air@latest
+	@echo "$(GREEN)✅ Development environment setup completed$(NC)"
+
+# Production targets
+deploy: ## Deploy to production (placeholder)
+	@echo "$(BLUE)Deploying $(SERVICE_NAME) to production...$(NC)"
+	@echo "$(YELLOW)⚠️  Production deployment not implemented yet$(NC)"
+
+# All-in-one targets
+all: clean build test docker-build ## Build, test, and create Docker image
+	@echo "$(GREEN)✅ All tasks completed successfully$(NC)"
+
+dev: docker-run ## Start development environment
+	@echo "$(GREEN)✅ Development environment started$(NC)"
+	@echo "$(BLUE)Services available at:$(NC)"
+	@echo "  - Order Service: http://localhost:8081"
+	@echo "  - Payment Service: http://localhost:8082"
+	@echo "  - Grafana: http://localhost:3000"
+	@echo "  - Prometheus: http://localhost:9090"
+	@echo "  - Jaeger: http://localhost:16686"

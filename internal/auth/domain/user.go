@@ -60,6 +60,8 @@ type DeviceFingerprint struct {
 
 // User represents a user entity in the domain
 type User struct {
+	AggregateRoot // Embed aggregate root for event functionality
+
 	ID                string            `json:"id"`
 	Email             string            `json:"email"`
 	PasswordHash      string            `json:"-"` // Never serialize password hash
@@ -114,16 +116,24 @@ func NewUser(email, passwordHash string, role UserRole) (*User, error) {
 	}
 
 	now := time.Now()
-	return &User{
-		ID:           uuid.New().String(),
-		Email:        email,
-		PasswordHash: passwordHash,
-		Role:         role,
-		Status:       UserStatusActive,
-		Metadata:     make(map[string]string),
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}, nil
+	user := &User{
+		ID:            uuid.New().String(),
+		Email:         email,
+		PasswordHash:  passwordHash,
+		Role:          role,
+		Status:        UserStatusActive,
+		Metadata:      make(map[string]string),
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		SecurityLevel: SecurityLevelLow,
+		RiskScore:     0.0,
+	}
+
+	// Generate user registered event
+	event := CreateUserRegisteredEvent(user.ID, user.Email, user.Role)
+	user.AddEvent(*event)
+
+	return user, nil
 }
 
 // ValidateEmail validates email format
@@ -154,10 +164,14 @@ func (u *User) IsActive() bool {
 }
 
 // Lock locks the user account until the specified time
-func (u *User) Lock(until time.Time) {
+func (u *User) Lock(until time.Time, reason string) {
 	u.Status = UserStatusLocked
 	u.LockedUntil = &until
 	u.UpdatedAt = time.Now()
+
+	// Generate user locked event
+	event := CreateUserLockedEvent(u.ID, reason, until)
+	u.AddEvent(*event)
 }
 
 // Unlock unlocks the user account
@@ -190,12 +204,26 @@ func (u *User) UpdateLastLogin() {
 	u.UpdatedAt = now
 }
 
+// RecordSuccessfulLogin records a successful login with event generation
+func (u *User) RecordSuccessfulLogin(ipAddress, userAgent, sessionID string, mfaUsed bool) {
+	u.UpdateLastLogin()
+	u.ResetFailedLogin()
+
+	// Generate successful login event
+	event := CreateUserLoggedInEvent(u.ID, u.Email, ipAddress, userAgent, sessionID, mfaUsed)
+	u.AddEvent(*event)
+}
+
 // ChangePassword updates the password hash
-func (u *User) ChangePassword(newPasswordHash string) {
+func (u *User) ChangePassword(newPasswordHash string, forced bool) {
 	u.PasswordHash = newPasswordHash
 	now := time.Now()
 	u.LastPasswordChange = &now
 	u.UpdatedAt = now
+
+	// Generate password changed event
+	event := CreatePasswordChangedEvent(u.ID, forced)
+	u.AddEvent(*event)
 }
 
 // EnableMFA enables multi-factor authentication

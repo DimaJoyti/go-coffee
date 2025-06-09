@@ -1,0 +1,333 @@
+version: '3.8'
+
+services:
+  # Fintech API Server
+  fintech-api:
+    build:
+      context: .
+      dockerfile: web3-wallet-backend/Dockerfile
+      target: fintech-api
+    container_name: fintech-api
+    ports:
+      - "8080:8080"
+      - "9090:9090" # Metrics port
+    environment:
+      - CONFIG_PATH=/app/config/fintech-config.yaml
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=fintech_platform
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-your-webhook-secret}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMS_API_KEY=${SMS_API_KEY}
+      - SMS_API_SECRET=${SMS_API_SECRET}
+      - SMS_FROM_NUMBER=${SMS_FROM_NUMBER}
+      - PUSH_API_KEY=${PUSH_API_KEY}
+      - PUSH_PROJECT_ID=${PUSH_PROJECT_ID}
+      - ETHEREUM_RPC_URL=${ETHEREUM_RPC_URL}
+      - ETHEREUM_PRIVATE_KEY=${ETHEREUM_PRIVATE_KEY}
+      - BITCOIN_RPC_URL=${BITCOIN_RPC_URL}
+      - BITCOIN_RPC_USERNAME=${BITCOIN_RPC_USERNAME}
+      - BITCOIN_RPC_PASSWORD=${BITCOIN_RPC_PASSWORD}
+      - SOLANA_RPC_URL=${SOLANA_RPC_URL}
+      - SOLANA_PRIVATE_KEY=${SOLANA_PRIVATE_KEY}
+      - JUMIO_API_TOKEN=${JUMIO_API_TOKEN}
+      - JUMIO_API_SECRET=${JUMIO_API_SECRET}
+      - ONFIDO_API_TOKEN=${ONFIDO_API_TOKEN}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - CIRCLE_API_KEY=${CIRCLE_API_KEY}
+      - MARQETA_USERNAME=${MARQETA_USERNAME}
+      - MARQETA_PASSWORD=${MARQETA_PASSWORD}
+      - GALILEO_API_LOGIN=${GALILEO_API_LOGIN}
+      - GALILEO_API_PASSWORD=${GALILEO_API_PASSWORD}
+      - CMC_API_KEY=${CMC_API_KEY}
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY}
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - prometheus
+    networks:
+      - fintech-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: fintech-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=fintech_platform
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/fintech-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./scripts/fintech-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    networks:
+      - fintech-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: fintech-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - fintech-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fintech-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fintech-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Jaeger Tracing (Optional)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: fintech-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: fintech-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/html:/usr/share/nginx/html
+    depends_on:
+      - fintech-api
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Background Job Processor (Optional)
+  job-processor:
+    build:
+      context: .
+      dockerfile: web3-wallet-backend/Dockerfile
+      target: job-processor
+    container_name: fintech-job-processor
+    environment:
+      - CONFIG_PATH=/app/config/fintech-config.yaml
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=fintech_platform
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Webhook Processor (Optional)
+  webhook-processor:
+    build:
+      context: .
+      dockerfile: web3-wallet-backend/Dockerfile
+      target: webhook-processor
+    container_name: fintech-webhook-processor
+    environment:
+      - CONFIG_PATH=/app/config/fintech-config.yaml
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=fintech_platform
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # API Documentation (Swagger UI)
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    container_name: fintech-swagger-ui
+    ports:
+      - "8081:8080"
+    environment:
+      - SWAGGER_JSON=/app/swagger.json
+    volumes:
+      - ./docs/swagger.json:/app/swagger.json
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Database Admin (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: fintech-pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@fintech.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Redis Admin (RedisInsight)
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: fintech-redis-insight
+    ports:
+      - "8001:8001"
+    volumes:
+      - redis_insight_data:/db
+    depends_on:
+      - redis
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  # Log Aggregation (ELK Stack - Optional)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: fintech-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.8.0
+    container_name: fintech-logstash
+    volumes:
+      - ./monitoring/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./logs:/app/logs
+    depends_on:
+      - elasticsearch
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: fintech-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - fintech-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  pgadmin_data:
+  redis_insight_data:
+  elasticsearch_data:
+
+networks:
+  fintech-network:
+    driver: bridge

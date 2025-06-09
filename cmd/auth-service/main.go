@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,14 +12,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
-	"github.com/spf13/viper"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 
 	"github.com/DimaJoyti/go-coffee/internal/auth/application"
+	"github.com/DimaJoyti/go-coffee/internal/auth/config"
 	"github.com/DimaJoyti/go-coffee/internal/auth/domain"
 	"github.com/DimaJoyti/go-coffee/internal/auth/infrastructure/repository"
 	"github.com/DimaJoyti/go-coffee/internal/auth/infrastructure/security"
+	grpcTransport "github.com/DimaJoyti/go-coffee/internal/auth/transport/grpc"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
 )
 
@@ -28,82 +26,16 @@ const (
 	serviceName = "auth-service"
 )
 
-// Config represents the application configuration
-type Config struct {
-	Server struct {
-		HTTPPort         int           `mapstructure:"http_port"`
-		GRPCPort         int           `mapstructure:"grpc_port"`
-		Host             string        `mapstructure:"host"`
-		ReadTimeout      time.Duration `mapstructure:"read_timeout"`
-		WriteTimeout     time.Duration `mapstructure:"write_timeout"`
-		IdleTimeout      time.Duration `mapstructure:"idle_timeout"`
-		ShutdownTimeout  time.Duration `mapstructure:"shutdown_timeout"`
-	} `mapstructure:"server"`
-
-	Redis struct {
-		URL             string        `mapstructure:"url"`
-		DB              int           `mapstructure:"db"`
-		MaxRetries      int           `mapstructure:"max_retries"`
-		PoolSize        int           `mapstructure:"pool_size"`
-		MinIdleConns    int           `mapstructure:"min_idle_conns"`
-		DialTimeout     time.Duration `mapstructure:"dial_timeout"`
-		ReadTimeout     time.Duration `mapstructure:"read_timeout"`
-		WriteTimeout    time.Duration `mapstructure:"write_timeout"`
-		PoolTimeout     time.Duration `mapstructure:"pool_timeout"`
-		IdleTimeout     time.Duration `mapstructure:"idle_timeout"`
-	} `mapstructure:"redis"`
-
-	Security struct {
-		JWTSecret        string        `mapstructure:"jwt_secret"`
-		AccessTokenTTL   time.Duration `mapstructure:"access_token_ttl"`
-		RefreshTokenTTL  time.Duration `mapstructure:"refresh_token_ttl"`
-		BcryptCost       int           `mapstructure:"bcrypt_cost"`
-		MaxLoginAttempts int           `mapstructure:"max_login_attempts"`
-		LockoutDuration  time.Duration `mapstructure:"lockout_duration"`
-		PasswordPolicy   struct {
-			MinLength        int  `mapstructure:"min_length"`
-			RequireUppercase bool `mapstructure:"require_uppercase"`
-			RequireLowercase bool `mapstructure:"require_lowercase"`
-			RequireNumbers   bool `mapstructure:"require_numbers"`
-			RequireSymbols   bool `mapstructure:"require_symbols"`
-		} `mapstructure:"password_policy"`
-	} `mapstructure:"security"`
-
-	RateLimiting struct {
-		Enabled           bool          `mapstructure:"enabled"`
-		RequestsPerMinute int           `mapstructure:"requests_per_minute"`
-		BurstSize         int           `mapstructure:"burst_size"`
-		CleanupInterval   time.Duration `mapstructure:"cleanup_interval"`
-	} `mapstructure:"rate_limiting"`
-
-	CORS struct {
-		AllowedOrigins   []string `mapstructure:"allowed_origins"`
-		AllowedMethods   []string `mapstructure:"allowed_methods"`
-		AllowedHeaders   []string `mapstructure:"allowed_headers"`
-		ExposeHeaders    []string `mapstructure:"expose_headers"`
-		AllowCredentials bool     `mapstructure:"allow_credentials"`
-		MaxAge           int      `mapstructure:"max_age"`
-	} `mapstructure:"cors"`
-
-	Logging struct {
-		Level      string `mapstructure:"level"`
-		Format     string `mapstructure:"format"`
-		Output     string `mapstructure:"output"`
-		FilePath   string `mapstructure:"file_path"`
-		MaxSize    int    `mapstructure:"max_size"`
-		MaxAge     int    `mapstructure:"max_age"`
-		MaxBackups int    `mapstructure:"max_backups"`
-		Compress   bool   `mapstructure:"compress"`
-	} `mapstructure:"logging"`
-
-	Environment string `mapstructure:"environment"`
-}
-
 func main() {
 	// Load configuration
-	config, err := loadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Validate configuration
+	if err := config.ValidateConfig(cfg); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
 	// Initialize logger
@@ -111,7 +43,7 @@ func main() {
 	logger.Info("🚀 Starting Auth Service...")
 
 	// Initialize Redis client
-	redisClient, err := initializeRedis(config, logger)
+	redisClient, err := initializeRedis(cfg, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to initialize Redis")
 	}
@@ -123,22 +55,22 @@ func main() {
 
 	// Initialize security services
 	jwtConfig := &security.JWTConfig{
-		Secret:          config.Security.JWTSecret,
-		AccessTokenTTL:  config.Security.AccessTokenTTL,
-		RefreshTokenTTL: config.Security.RefreshTokenTTL,
-		Issuer:          serviceName,
-		Audience:        "auth-service-users",
+		Secret:          cfg.Security.JWT.Secret,
+		AccessTokenTTL:  cfg.Security.JWT.AccessTokenTTL,
+		RefreshTokenTTL: cfg.Security.JWT.RefreshTokenTTL,
+		Issuer:          cfg.Security.JWT.Issuer,
+		Audience:        cfg.Security.JWT.Audience,
 	}
 	jwtService := security.NewJWTService(jwtConfig, logger)
 
 	passwordConfig := &security.PasswordConfig{
-		BcryptCost: config.Security.BcryptCost,
+		BcryptCost: cfg.Security.Password.BcryptCost,
 		PasswordPolicy: &application.PasswordPolicy{
-			MinLength:        config.Security.PasswordPolicy.MinLength,
-			RequireUppercase: config.Security.PasswordPolicy.RequireUppercase,
-			RequireLowercase: config.Security.PasswordPolicy.RequireLowercase,
-			RequireNumbers:   config.Security.PasswordPolicy.RequireNumbers,
-			RequireSymbols:   config.Security.PasswordPolicy.RequireSymbols,
+			MinLength:        cfg.Security.Password.Policy.MinLength,
+			RequireUppercase: cfg.Security.Password.Policy.RequireUppercase,
+			RequireLowercase: cfg.Security.Password.Policy.RequireLowercase,
+			RequireNumbers:   cfg.Security.Password.Policy.RequireNumbers,
+			RequireSymbols:   cfg.Security.Password.Policy.RequireSymbols,
 		},
 	}
 	passwordService := security.NewPasswordService(passwordConfig, logger)
@@ -148,10 +80,10 @@ func main() {
 
 	// Initialize auth service
 	authConfig := &application.AuthConfig{
-		AccessTokenTTL:   config.Security.AccessTokenTTL,
-		RefreshTokenTTL:  config.Security.RefreshTokenTTL,
-		MaxLoginAttempts: config.Security.MaxLoginAttempts,
-		LockoutDuration:  config.Security.LockoutDuration,
+		AccessTokenTTL:   cfg.Security.JWT.AccessTokenTTL,
+		RefreshTokenTTL:  cfg.Security.JWT.RefreshTokenTTL,
+		MaxLoginAttempts: cfg.Security.Account.MaxLoginAttempts,
+		LockoutDuration:  cfg.Security.Account.LockoutDuration,
 	}
 	authService := application.NewAuthService(
 		userRepo,
@@ -164,10 +96,13 @@ func main() {
 	)
 
 	// Start HTTP server
-	httpServer := startHTTPServer(config, authService, logger)
+	httpServer := startHTTPServer(cfg, authService, logger)
 
 	// Start gRPC server
-	grpcServer := startGRPCServer(config, authService, logger)
+	grpcServer := grpcTransport.NewServer(cfg, authService, logger)
+	if err := grpcServer.Start(); err != nil {
+		logger.WithError(err).Fatal("Failed to start gRPC server")
+	}
 
 	// Wait for interrupt signal
 	c := make(chan os.Signal, 1)
@@ -179,7 +114,7 @@ func main() {
 	logger.Info("🛑 Shutting down Auth Service...")
 
 	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), config.Server.ShutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer cancel()
 
 	// Shutdown HTTP server
@@ -188,78 +123,29 @@ func main() {
 	}
 
 	// Shutdown gRPC server
-	grpcServer.GracefulStop()
+	if err := grpcServer.Stop(); err != nil {
+		logger.WithError(err).Error("gRPC server shutdown error")
+	}
 
 	logger.Info("✅ Auth Service stopped gracefully")
 }
 
-// loadConfig loads configuration from file and environment variables
-func loadConfig() (*Config, error) {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./cmd/auth-service/config")
-	viper.AddConfigPath("./config")
-	viper.AddConfigPath(".")
-
-	// Set default values
-	setDefaults()
-
-	// Enable environment variable support
-	viper.AutomaticEnv()
-
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-
-	return &config, nil
-}
-
-// setDefaults sets default configuration values
-func setDefaults() {
-	viper.SetDefault("server.http_port", 8080)
-	viper.SetDefault("server.grpc_port", 50053)
-	viper.SetDefault("server.host", "0.0.0.0")
-	viper.SetDefault("server.read_timeout", "30s")
-	viper.SetDefault("server.write_timeout", "30s")
-	viper.SetDefault("server.idle_timeout", "120s")
-	viper.SetDefault("server.shutdown_timeout", "30s")
-
-	viper.SetDefault("redis.url", "redis://localhost:6379")
-	viper.SetDefault("redis.db", 0)
-	viper.SetDefault("redis.max_retries", 3)
-	viper.SetDefault("redis.pool_size", 10)
-	viper.SetDefault("redis.min_idle_conns", 5)
-
-	viper.SetDefault("security.access_token_ttl", "15m")
-	viper.SetDefault("security.refresh_token_ttl", "168h")
-	viper.SetDefault("security.bcrypt_cost", 12)
-	viper.SetDefault("security.max_login_attempts", 5)
-	viper.SetDefault("security.lockout_duration", "30m")
-
-	viper.SetDefault("environment", "development")
-}
-
 // initializeRedis initializes Redis client
-func initializeRedis(config *Config, logger *logger.Logger) (*redis.Client, error) {
-	opt, err := redis.ParseURL(config.Redis.URL)
+func initializeRedis(cfg *config.Config, logger *logger.Logger) (*redis.Client, error) {
+	opt, err := redis.ParseURL(cfg.Redis.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
 	}
 
-	opt.DB = config.Redis.DB
-	opt.MaxRetries = config.Redis.MaxRetries
-	opt.PoolSize = config.Redis.PoolSize
-	opt.MinIdleConns = config.Redis.MinIdleConns
-	opt.DialTimeout = config.Redis.DialTimeout
-	opt.ReadTimeout = config.Redis.ReadTimeout
-	opt.WriteTimeout = config.Redis.WriteTimeout
-	opt.PoolTimeout = config.Redis.PoolTimeout
-	opt.IdleTimeout = config.Redis.IdleTimeout
+	opt.DB = cfg.Redis.DB
+	opt.MaxRetries = cfg.Redis.MaxRetries
+	opt.PoolSize = cfg.Redis.PoolSize
+	opt.MinIdleConns = cfg.Redis.MinIdleConns
+	opt.DialTimeout = cfg.Redis.DialTimeout
+	opt.ReadTimeout = cfg.Redis.ReadTimeout
+	opt.WriteTimeout = cfg.Redis.WriteTimeout
+	opt.PoolTimeout = cfg.Redis.PoolTimeout
+	opt.IdleTimeout = cfg.Redis.IdleTimeout
 
 	client := redis.NewClient(opt)
 
@@ -342,8 +228,8 @@ func (m *MockSecurityService) GetSecurityEvents(ctx context.Context, userID stri
 }
 
 // startHTTPServer starts the HTTP server
-func startHTTPServer(config *Config, authService *application.AuthServiceImpl, logger *logger.Logger) *http.Server {
-	if config.Environment == "production" {
+func startHTTPServer(cfg *config.Config, authService *application.AuthServiceImpl, logger *logger.Logger) *http.Server {
+	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -376,48 +262,21 @@ func startHTTPServer(config *Config, authService *application.AuthServiceImpl, l
 	}
 
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.HTTPPort),
+		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.HTTPPort),
 		Handler:      router,
-		ReadTimeout:  config.Server.ReadTimeout,
-		WriteTimeout: config.Server.WriteTimeout,
-		IdleTimeout:  config.Server.IdleTimeout,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
+		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
 	go func() {
-		logger.WithField("port", config.Server.HTTPPort).Info("🌐 HTTP Server listening")
+		logger.WithField("port", cfg.Server.HTTPPort).Info("🌐 HTTP Server listening")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.WithError(err).Fatal("Failed to start HTTP server")
 		}
 	}()
 
 	return server
-}
-
-// startGRPCServer starts the gRPC server
-func startGRPCServer(config *Config, authService *application.AuthServiceImpl, logger *logger.Logger) *grpc.Server {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", config.Server.Host, config.Server.GRPCPort))
-	if err != nil {
-		logger.WithError(err).Fatal("Failed to listen for gRPC")
-	}
-
-	grpcServer := grpc.NewServer()
-
-	// Register services here when gRPC handlers are implemented
-	// auth.RegisterAuthServiceServer(grpcServer, grpcHandler)
-
-	// Enable reflection for development
-	if config.Environment == "development" {
-		reflection.Register(grpcServer)
-	}
-
-	go func() {
-		logger.WithField("port", config.Server.GRPCPort).Info("🌐 gRPC Server listening")
-		if err := grpcServer.Serve(listener); err != nil {
-			logger.WithError(err).Fatal("Failed to serve gRPC")
-		}
-	}()
-
-	return grpcServer
 }
 
 // HTTP Handlers (placeholder implementations)

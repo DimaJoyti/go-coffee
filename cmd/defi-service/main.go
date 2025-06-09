@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/internal/defi"
+	httpTransport "github.com/DimaJoyti/go-coffee/internal/defi/transport/http"
 	"github.com/DimaJoyti/go-coffee/pkg/blockchain"
 	"github.com/DimaJoyti/go-coffee/pkg/config"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
-	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -64,67 +64,34 @@ func main() {
 		logger.Fatal("Failed to start DeFi service: %v", err)
 	}
 
-	// Create HTTP server
-	router := gin.Default()
-	
-	// Add middleware
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
+	// Create HTTP handler and middleware
+	handler := httpTransport.NewHandler(defiService, logger)
+	middleware := httpTransport.NewMiddleware(logger)
 
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "healthy",
-			"service":   "defi-service",
-			"timestamp": time.Now().Unix(),
-		})
-	})
+	// Setup routes
+	mux := http.NewServeMux()
+	handler.SetupRoutes(mux)
 
-	// DeFi API endpoints
-	api := router.Group("/api/v1")
-	{
-		// Token price endpoints
-		api.POST("/tokens/price", handleGetTokenPrice(defiService))
-		
-		// Swap endpoints
-		api.POST("/swaps/quote", handleGetSwapQuote(defiService))
-		api.POST("/swaps/execute", handleExecuteSwap(defiService))
-		
-		// Liquidity pool endpoints
-		api.GET("/pools", handleGetLiquidityPools(defiService))
-		
-		// Arbitrage endpoints
-		api.GET("/arbitrage/opportunities", handleGetArbitrageOpportunities(defiService))
-		
-		// Yield farming endpoints
-		api.GET("/yield/opportunities", handleGetYieldOpportunities(defiService))
-		
-		// Trading bot endpoints
-		bots := api.Group("/bots")
-		{
-			bots.POST("", handleCreateTradingBot(defiService))
-			bots.GET("", handleGetAllTradingBots(defiService))
-			bots.GET("/:id", handleGetTradingBot(defiService))
-			bots.POST("/:id/start", handleStartTradingBot(defiService))
-			bots.POST("/:id/stop", handleStopTradingBot(defiService))
-			bots.DELETE("/:id", handleDeleteTradingBot(defiService))
-			bots.GET("/:id/performance", handleGetTradingBotPerformance(defiService))
-		}
-		
-		// On-chain analysis endpoints
-		analysis := api.Group("/analysis")
-		{
-			analysis.GET("/signals", handleGetMarketSignals(defiService))
-			analysis.GET("/whales", handleGetWhaleActivity(defiService))
-			analysis.GET("/tokens/:address", handleGetTokenAnalysis(defiService))
-		}
-	}
+	// Apply middleware chain
+	finalHandler := middleware.Chain(
+		mux.ServeHTTP,
+		middleware.LoggingMiddleware,
+		middleware.RecoveryMiddleware,
+		middleware.CORSMiddleware,
+		middleware.SecurityHeadersMiddleware,
+		middleware.RateLimitMiddleware,
+		middleware.AuthMiddleware,
+		middleware.MetricsMiddleware,
+	)
 
 	// Start HTTP server
 	port := 8093 // DeFi service port
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: router,
+		Addr:         fmt.Sprintf(":%d", port),
+		Handler:      http.HandlerFunc(finalHandler),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	// Start server in a goroutine

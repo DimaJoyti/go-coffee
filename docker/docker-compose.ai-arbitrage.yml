@@ -1,0 +1,293 @@
+version: '3.8'
+
+services:
+  # Redis for AI Arbitrage data storage and caching
+  redis:
+    image: redis:7-alpine
+    container_name: ai-arbitrage-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ai-arbitrage-redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+
+  # AI Arbitrage Service - Main arbitrage engine
+  ai-arbitrage-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ai-arbitrage
+    container_name: ai-arbitrage-service
+    ports:
+      - "50054:50054"
+    environment:
+      - GRPC_PORT=50054
+      - REDIS_URL=redis://redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
+      - LOG_LEVEL=info
+      - ENVIRONMENT=docker
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50054"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+    volumes:
+      - ./logs:/app/logs
+
+  # Market Data Service - Real-time market data aggregation
+  market-data-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.market-data
+    container_name: market-data-service
+    ports:
+      - "50055:50055"
+    environment:
+      - GRPC_PORT=50055
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+      - ENVIRONMENT=docker
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50055"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+    volumes:
+      - ./logs:/app/logs
+
+  # Matching Engine Service - Buyer-seller matching
+  matching-engine-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.matching-engine
+    container_name: matching-engine-service
+    ports:
+      - "50056:50056"
+    environment:
+      - GRPC_PORT=50056
+      - REDIS_URL=redis://redis:6379
+      - AI_ARBITRAGE_SERVICE_URL=ai-arbitrage-service:50054
+      - MARKET_DATA_SERVICE_URL=market-data-service:50055
+      - LOG_LEVEL=info
+      - ENVIRONMENT=docker
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-arbitrage-service:
+        condition: service_healthy
+      market-data-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50056"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+    volumes:
+      - ./logs:/app/logs
+
+  # Risk Management Service - Risk assessment and limits
+  risk-management-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.risk-management
+    container_name: risk-management-service
+    ports:
+      - "50057:50057"
+    environment:
+      - GRPC_PORT=50057
+      - REDIS_URL=redis://redis:6379
+      - AI_ARBITRAGE_SERVICE_URL=ai-arbitrage-service:50054
+      - LOG_LEVEL=info
+      - ENVIRONMENT=docker
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-arbitrage-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50057"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+    volumes:
+      - ./logs:/app/logs
+
+  # Execution Service - Trade execution and settlement
+  execution-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.execution
+    container_name: execution-service
+    ports:
+      - "50058:50058"
+    environment:
+      - GRPC_PORT=50058
+      - REDIS_URL=redis://redis:6379
+      - AI_ARBITRAGE_SERVICE_URL=ai-arbitrage-service:50054
+      - MARKET_DATA_SERVICE_URL=market-data-service:50055
+      - RISK_MANAGEMENT_SERVICE_URL=risk-management-service:50057
+      - LOG_LEVEL=info
+      - ENVIRONMENT=docker
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-arbitrage-service:
+        condition: service_healthy
+      market-data-service:
+        condition: service_healthy
+      risk-management-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50058"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+    volumes:
+      - ./logs:/app/logs
+
+  # API Gateway for HTTP access
+  arbitrage-gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.arbitrage-gateway
+    container_name: arbitrage-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - HTTP_PORT=8080
+      - AI_ARBITRAGE_SERVICE_URL=ai-arbitrage-service:50054
+      - MARKET_DATA_SERVICE_URL=market-data-service:50055
+      - MATCHING_ENGINE_SERVICE_URL=matching-engine-service:50056
+      - RISK_MANAGEMENT_SERVICE_URL=risk-management-service:50057
+      - EXECUTION_SERVICE_URL=execution-service:50058
+      - LOG_LEVEL=info
+      - ENVIRONMENT=docker
+      - CORS_ENABLED=true
+    depends_on:
+      ai-arbitrage-service:
+        condition: service_healthy
+      market-data-service:
+        condition: service_healthy
+      matching-engine-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+    volumes:
+      - ./logs:/app/logs
+
+  # Monitoring and Observability
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ai-arbitrage-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ai-arbitrage-prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ai-arbitrage-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ai-arbitrage-grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: ai-arbitrage-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+
+  # Web Dashboard for AI Arbitrage
+  arbitrage-dashboard:
+    build:
+      context: ./web/arbitrage-dashboard
+      dockerfile: Dockerfile
+    container_name: arbitrage-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+      - REACT_APP_WS_URL=ws://localhost:8080/ws
+    depends_on:
+      - arbitrage-gateway
+    restart: unless-stopped
+    networks:
+      - ai-arbitrage-network
+
+volumes:
+  ai-arbitrage-redis-data:
+    driver: local
+  ai-arbitrage-prometheus-data:
+    driver: local
+  ai-arbitrage-grafana-data:
+    driver: local
+
+networks:
+  ai-arbitrage-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
