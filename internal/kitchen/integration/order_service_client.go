@@ -5,29 +5,29 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	orderPb "github.com/DimaJoyti/go-coffee/api/proto"
 	"github.com/DimaJoyti/go-coffee/internal/kitchen/application"
 	"github.com/DimaJoyti/go-coffee/internal/kitchen/domain"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
-	orderPb "github.com/DimaJoyti/go-coffee/proto/order"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // OrderServiceClient represents a client for the order service
 type OrderServiceClient struct {
-	client orderPb.OrderServiceClient
+	client orderPb.AIOrderServiceClient
 	conn   *grpc.ClientConn
 	logger *logger.Logger
 }
 
 // NewOrderServiceClient creates a new order service client
 func NewOrderServiceClient(address string, logger *logger.Logger) (*OrderServiceClient, error) {
-	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to order service: %w", err)
 	}
 
-	client := orderPb.NewOrderServiceClient(conn)
+	client := orderPb.NewAIOrderServiceClient(conn)
 
 	return &OrderServiceClient{
 		client: client,
@@ -44,7 +44,8 @@ func (c *OrderServiceClient) Close() error {
 // GetOrder retrieves an order from the order service
 func (c *OrderServiceClient) GetOrder(ctx context.Context, orderID string) (*OrderInfo, error) {
 	req := &orderPb.GetOrderRequest{
-		Id: orderID,
+		OrderId:           orderID,
+		IncludeAiInsights: true,
 	}
 
 	resp, err := c.client.GetOrder(ctx, req)
@@ -53,14 +54,16 @@ func (c *OrderServiceClient) GetOrder(ctx context.Context, orderID string) (*Ord
 		return nil, fmt.Errorf("failed to get order: %w", err)
 	}
 
-	return c.convertOrderFromProto(resp), nil
+	return c.convertOrderFromProto(resp.Order), nil
 }
 
 // UpdateOrderStatus updates the order status in the order service
 func (c *OrderServiceClient) UpdateOrderStatus(ctx context.Context, orderID string, status domain.OrderStatus) error {
 	req := &orderPb.UpdateOrderStatusRequest{
-		Id:     orderID,
-		Status: c.convertOrderStatusToProto(status),
+		OrderId:        orderID,
+		NewStatus:      c.convertOrderStatusToProto(status),
+		Reason:         fmt.Sprintf("Kitchen status update: %s", status.String()),
+		NotifyCustomer: true,
 	}
 
 	_, err := c.client.UpdateOrderStatus(ctx, req)
@@ -82,13 +85,15 @@ func (c *OrderServiceClient) UpdateOrderStatus(ctx context.Context, orderID stri
 
 // NotifyOrderReady notifies the order service that an order is ready
 func (c *OrderServiceClient) NotifyOrderReady(ctx context.Context, orderID string, estimatedTime int32) error {
-	req := &orderPb.NotifyOrderReadyRequest{
-		Id:            orderID,
-		EstimatedTime: estimatedTime,
-		ReadyAt:       time.Now().Unix(),
+	// Use UpdateOrderStatus to mark order as ready since AI service doesn't have specific ready notification
+	req := &orderPb.UpdateOrderStatusRequest{
+		OrderId:        orderID,
+		NewStatus:      orderPb.OrderStatus_ORDER_STATUS_READY,
+		Reason:         fmt.Sprintf("Order ready for pickup (estimated time: %d seconds)", estimatedTime),
+		NotifyCustomer: true,
 	}
 
-	_, err := c.client.NotifyOrderReady(ctx, req)
+	_, err := c.client.UpdateOrderStatus(ctx, req)
 	if err != nil {
 		c.logger.WithError(err).WithField("order_id", orderID).Error("Failed to notify order ready")
 		return fmt.Errorf("failed to notify order ready: %w", err)
@@ -100,13 +105,15 @@ func (c *OrderServiceClient) NotifyOrderReady(ctx context.Context, orderID strin
 
 // NotifyOrderCompleted notifies the order service that an order is completed
 func (c *OrderServiceClient) NotifyOrderCompleted(ctx context.Context, orderID string, actualTime int32) error {
-	req := &orderPb.NotifyOrderCompletedRequest{
-		Id:          orderID,
-		ActualTime:  actualTime,
-		CompletedAt: time.Now().Unix(),
+	// Use UpdateOrderStatus to mark order as completed since AI service doesn't have specific completion notification
+	req := &orderPb.UpdateOrderStatusRequest{
+		OrderId:        orderID,
+		NewStatus:      orderPb.OrderStatus_ORDER_STATUS_COMPLETED,
+		Reason:         fmt.Sprintf("Order completed (actual time: %d seconds)", actualTime),
+		NotifyCustomer: true,
 	}
 
-	_, err := c.client.NotifyOrderCompleted(ctx, req)
+	_, err := c.client.UpdateOrderStatus(ctx, req)
 	if err != nil {
 		c.logger.WithError(err).WithField("order_id", orderID).Error("Failed to notify order completed")
 		return fmt.Errorf("failed to notify order completed: %w", err)
@@ -119,8 +126,8 @@ func (c *OrderServiceClient) NotifyOrderCompleted(ctx context.Context, orderID s
 // ListPendingOrders retrieves pending orders from the order service
 func (c *OrderServiceClient) ListPendingOrders(ctx context.Context) ([]*OrderInfo, error) {
 	req := &orderPb.ListOrdersRequest{
-		Status: orderPb.OrderStatus_ORDER_STATUS_PENDING,
-		Limit:  100, // Reasonable limit
+		Status:   orderPb.OrderStatus_ORDER_STATUS_PENDING,
+		PageSize: 100, // Reasonable limit
 	}
 
 	resp, err := c.client.ListOrders(ctx, req)
@@ -163,29 +170,33 @@ type OrderItemInfo struct {
 
 // Conversion methods
 
-func (c *OrderServiceClient) convertOrderFromProto(order *orderPb.OrderResponse) *OrderInfo {
+func (c *OrderServiceClient) convertOrderFromProto(order *orderPb.Order) *OrderInfo {
 	items := make([]*OrderItemInfo, len(order.Items))
 	for i, item := range order.Items {
 		items[i] = &OrderItemInfo{
 			ID:           item.Id,
-			Name:         item.Name,
+			Name:         item.ProductName,
 			Quantity:     item.Quantity,
-			Price:        item.Price,
-			Instructions: item.Instructions,
-			Metadata:     item.Metadata,
+			Price:        item.TotalPrice,
+			Instructions: "",                      // AI order doesn't have instructions field directly
+			Metadata:     make(map[string]string), // Convert customizations to metadata
+		}
+		// Convert customizations to metadata
+		if len(item.Customizations) > 0 {
+			items[i].Metadata["customizations"] = fmt.Sprintf("%v", item.Customizations)
 		}
 	}
 
 	return &OrderInfo{
 		ID:          order.Id,
-		CustomerID:  order.CustomerId,
+		CustomerID:  order.Customer.Id,
 		Items:       items,
 		Status:      c.convertOrderStatusFromProto(order.Status),
 		Priority:    c.convertOrderPriorityFromProto(order.Priority),
 		CreatedAt:   order.CreatedAt.AsTime(),
 		UpdatedAt:   order.UpdatedAt.AsTime(),
 		TotalAmount: order.TotalAmount,
-		Currency:    order.Currency,
+		Currency:    "USD", // Default currency since AI order doesn't specify
 	}
 }
 
@@ -193,9 +204,9 @@ func (c *OrderServiceClient) convertOrderStatusFromProto(status orderPb.OrderSta
 	switch status {
 	case orderPb.OrderStatus_ORDER_STATUS_PENDING:
 		return domain.OrderStatusPending
-	case orderPb.OrderStatus_ORDER_STATUS_PROCESSING:
+	case orderPb.OrderStatus_ORDER_STATUS_CONFIRMED, orderPb.OrderStatus_ORDER_STATUS_PREPARING:
 		return domain.OrderStatusProcessing
-	case orderPb.OrderStatus_ORDER_STATUS_COMPLETED:
+	case orderPb.OrderStatus_ORDER_STATUS_READY, orderPb.OrderStatus_ORDER_STATUS_COMPLETED:
 		return domain.OrderStatusCompleted
 	case orderPb.OrderStatus_ORDER_STATUS_CANCELLED:
 		return domain.OrderStatusCancelled
@@ -209,13 +220,13 @@ func (c *OrderServiceClient) convertOrderStatusToProto(status domain.OrderStatus
 	case domain.OrderStatusPending:
 		return orderPb.OrderStatus_ORDER_STATUS_PENDING
 	case domain.OrderStatusProcessing:
-		return orderPb.OrderStatus_ORDER_STATUS_PROCESSING
+		return orderPb.OrderStatus_ORDER_STATUS_PREPARING
 	case domain.OrderStatusCompleted:
 		return orderPb.OrderStatus_ORDER_STATUS_COMPLETED
 	case domain.OrderStatusCancelled:
 		return orderPb.OrderStatus_ORDER_STATUS_CANCELLED
 	default:
-		return orderPb.OrderStatus_ORDER_STATUS_UNKNOWN
+		return orderPb.OrderStatus_ORDER_STATUS_UNSPECIFIED
 	}
 }
 
@@ -302,7 +313,7 @@ func (i *OrderServiceIntegration) convertToKitchenOrder(orderInfo *OrderInfo) (*
 	for j, item := range orderInfo.Items {
 		// Map order items to kitchen requirements (simplified mapping)
 		requirements := i.mapItemToStationRequirements(item.Name)
-		
+
 		items[j] = &application.OrderItemRequest{
 			ID:           item.ID,
 			Name:         item.Name,
@@ -352,12 +363,12 @@ func (i *OrderServiceIntegration) mapItemToStationRequirements(itemName string) 
 
 // Helper function to check if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (s == substr || 
-		    (len(s) > len(substr) && 
-		     (s[:len(substr)] == substr || 
-		      s[len(s)-len(substr):] == substr ||
-		      findSubstring(s, substr))))
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			(len(s) > len(substr) &&
+				(s[:len(substr)] == substr ||
+					s[len(s)-len(substr):] == substr ||
+					findSubstring(s, substr))))
 }
 
 func findSubstring(s, substr string) bool {

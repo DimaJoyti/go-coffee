@@ -6,17 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/defi"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/wallet"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/blockchain"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/crypto"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/wallet"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/crypto"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
 )
 
 // SolanaIntegrationTestSuite contains integration tests for Solana functionality

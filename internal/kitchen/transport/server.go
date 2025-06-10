@@ -77,9 +77,6 @@ func (s *Server) Start() error {
 	// Start gRPC server
 	s.grpcServer = grpc.NewServer(
 		s.kitchenService,
-		s.queueService,
-		s.optimizerService,
-		s.notificationService,
 		s.logger,
 		s.config.GRPCPort,
 	)

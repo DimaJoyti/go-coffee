@@ -16,6 +16,22 @@ const (
 	OrderStatusCancelled  OrderStatus = 4
 )
 
+// String returns the string representation of OrderStatus
+func (s OrderStatus) String() string {
+	switch s {
+	case OrderStatusPending:
+		return "PENDING"
+	case OrderStatusProcessing:
+		return "PROCESSING"
+	case OrderStatusCompleted:
+		return "COMPLETED"
+	case OrderStatusCancelled:
+		return "CANCELLED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // OrderPriority represents the priority level of an order
 type OrderPriority int32
 
@@ -25,6 +41,22 @@ const (
 	OrderPriorityHigh   OrderPriority = 3
 	OrderPriorityUrgent OrderPriority = 4
 )
+
+// String returns the string representation of OrderPriority
+func (p OrderPriority) String() string {
+	switch p {
+	case OrderPriorityLow:
+		return "LOW"
+	case OrderPriorityNormal:
+		return "NORMAL"
+	case OrderPriorityHigh:
+		return "HIGH"
+	case OrderPriorityUrgent:
+		return "URGENT"
+	default:
+		return "UNKNOWN"
+	}
+}
 
 // KitchenOrder represents an order in the kitchen system (Domain Entity)
 type KitchenOrder struct {
