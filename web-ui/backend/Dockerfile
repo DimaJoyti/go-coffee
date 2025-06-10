@@ -36,7 +36,12 @@ EXPOSE 8090
 
 # Set environment variables
 ENV PORT=8090
-ENV GIN_MODE=release
+ENV LOG_LEVEL=info
+ENV ENVIRONMENT=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8090/health || exit 1
 
 # Run the application
 CMD ["./main"]

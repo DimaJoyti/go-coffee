@@ -1,0 +1,164 @@
+# ☕ Go Coffee - Enhanced Prometheus Configuration
+# Comprehensive monitoring setup for the entire ecosystem
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'go-coffee-dev'
+    environment: 'development'
+
+rule_files:
+  - "rules/go-coffee-alerts.yml"
+  - "rules/infrastructure-alerts.yml"
+  - "rules/business-metrics.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # User Gateway Service
+  - job_name: 'user-gateway'
+    static_configs:
+      - targets: ['user-gateway:8081']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Security Gateway Service
+  - job_name: 'security-gateway'
+    static_configs:
+      - targets: ['security-gateway:8082']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Web UI Backend Service
+  - job_name: 'web-ui-backend'
+    static_configs:
+      - targets: ['web-ui-backend:8090']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # API Gateway (Nginx)
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:80']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Infrastructure Services
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    metrics_path: '/metrics'
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: '/metrics'
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9092']
+    metrics_path: '/metrics'
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # ☕ GO COFFEE CORE SERVICES
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - job_name: 'coffee-producer'
+    static_configs:
+      - targets: ['producer:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 10s
+
+  - job_name: 'coffee-consumer'
+    static_configs:
+      - targets: ['consumer:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 10s
+
+  - job_name: 'coffee-streams'
+    static_configs:
+      - targets: ['streams:3002']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 10s
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # 🌐 WEB3 & DEFI SERVICES
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - job_name: 'web3-api-gateway'
+    static_configs:
+      - targets: ['web3-api-gateway:8081']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 10s
+
+  - job_name: 'wallet-service'
+    static_configs:
+      - targets: ['wallet-service:8082']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 10s
+
+  - job_name: 'defi-service'
+    static_configs:
+      - targets: ['defi-service:8083']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 10s
+
+  - job_name: 'fintech-api'
+    static_configs:
+      - targets: ['fintech-api:8084']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 10s
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # 🤖 AI AGENT SERVICES
+  # ═══════════════════════════════════════════════════════════════════════════════
+
+  - job_name: 'beverage-inventor-agent'
+    static_configs:
+      - targets: ['beverage-inventor-agent:9001']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  - job_name: 'inventory-manager-agent'
+    static_configs:
+      - targets: ['inventory-manager-agent:9002']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Remote write configuration (for long-term storage)
+# remote_write:
+#   - url: "http://remote-storage:9201/write"
+
+# Remote read configuration
+# remote_read:
+#   - url: "http://remote-storage:9201/read"

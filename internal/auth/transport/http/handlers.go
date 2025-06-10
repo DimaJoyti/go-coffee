@@ -582,3 +582,90 @@ func (h *Handler) getUserIDFromContext(ctx context.Context) string {
 	}
 	return ""
 }
+
+// Middleware methods
+
+// authMiddleware authenticates requests
+func (h *Handler) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		if token == "" {
+			h.respondWithError(w, http.StatusUnauthorized, "Authorization header required")
+			return
+		}
+
+		if !strings.HasPrefix(token, "Bearer ") {
+			h.respondWithError(w, http.StatusUnauthorized, "Invalid token format")
+			return
+		}
+
+		token = strings.TrimPrefix(token, "Bearer ")
+
+		req := &application.ValidateTokenRequest{Token: token}
+		resp, err := h.authService.ValidateToken(r.Context(), req)
+		if err != nil {
+			h.logger.WithError(err).Error("Token validation failed")
+			h.respondWithError(w, http.StatusUnauthorized, "Invalid token")
+			return
+		}
+
+		// Add user info to context
+		ctx := context.WithValue(r.Context(), "user_id", resp.UserID)
+		ctx = context.WithValue(ctx, "user_role", resp.Role)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// loggingMiddleware logs request details
+func (h *Handler) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Create a response writer wrapper to capture status code
+		wrapper := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+		next.ServeHTTP(wrapper, r)
+
+		duration := time.Since(start)
+
+		h.logger.WithFields(map[string]interface{}{
+			"method":      r.Method,
+			"path":        r.URL.Path,
+			"status_code": wrapper.statusCode,
+			"duration":    duration.String(),
+			"remote_addr": r.RemoteAddr,
+			"user_agent":  r.UserAgent(),
+		}).Info("HTTP request completed")
+	})
+}
+
+// recoveryMiddleware handles panics
+func (h *Handler) recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				h.logger.WithFields(map[string]interface{}{
+					"method": r.Method,
+					"path":   r.URL.Path,
+					"panic":  err,
+				}).Error("HTTP request panicked")
+
+				h.respondWithError(w, http.StatusInternalServerError, "Internal Server Error")
+			}
+		}()
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}

@@ -1,0 +1,303 @@
+# Go Coffee - Enhanced Monitoring Configuration
+# This configuration file defines comprehensive monitoring settings for the Go Coffee platform
+
+# Health Check Configuration
+health:
+  enabled: true
+  check_interval: 30s
+  timeout: 10s
+  failure_threshold: 3
+  success_threshold: 1
+  
+  # Individual health check configurations
+  checks:
+    database:
+      enabled: true
+      timeout: 5s
+      required: true
+    redis:
+      enabled: true
+      timeout: 5s
+      required: true
+    cache:
+      enabled: true
+      timeout: 3s
+      required: false
+    session_manager:
+      enabled: true
+      timeout: 3s
+      required: false
+    jwt_service:
+      enabled: true
+      timeout: 3s
+      required: false
+    event_store:
+      enabled: true
+      timeout: 5s
+      required: false
+    event_publisher:
+      enabled: true
+      timeout: 5s
+      required: false
+    event_subscriber:
+      enabled: true
+      timeout: 5s
+      required: false
+    system_resources:
+      enabled: true
+      timeout: 2s
+      required: false
+
+# Prometheus Metrics Configuration
+prometheus:
+  enabled: true
+  namespace: "go_coffee"
+  subsystem: "infrastructure"
+  metrics_path: "/metrics"
+  port: 9090
+  interval: 15s
+  
+  # Metric collection settings
+  metrics:
+    http:
+      enabled: true
+      buckets: [0.1, 0.3, 0.6, 1.0, 3.0, 6.0, 9.0, 20.0, 30.0, 60.0, 90.0]
+    infrastructure:
+      enabled: true
+      collect_interval: 30s
+    system:
+      enabled: true
+      collect_interval: 10s
+    business:
+      enabled: true
+      collect_interval: 60s
+    health:
+      enabled: true
+      collect_interval: 30s
+
+# Performance Monitoring Configuration
+performance:
+  enabled: true
+  enable_metrics: true
+  enable_logging: true
+  slow_request_threshold: 1s
+  detailed_logging: false
+  
+  # Performance thresholds
+  thresholds:
+    warning: 500ms
+    critical: 2s
+    timeout: 30s
+
+# Request Tracing Configuration
+tracing:
+  enabled: true
+  enable_logging: false  # Set to true for debug mode
+  sample_rate: 1.0       # Sample all requests (1.0 = 100%)
+  
+  # Tracing providers
+  providers:
+    jaeger:
+      enabled: false
+      endpoint: "http://localhost:14268/api/traces"
+    zipkin:
+      enabled: false
+      endpoint: "http://localhost:9411/api/v2/spans"
+
+# Request Profiling Configuration
+profiling:
+  enabled: false          # Disabled by default for performance
+  sample_rate: 0.01      # 1% sampling
+  min_duration: 100ms
+  max_samples: 1000
+  
+  # Profiling types
+  types:
+    cpu: true
+    memory: true
+    goroutine: true
+    block: false
+    mutex: false
+
+# Logging Configuration for Monitoring
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  
+  # Log levels for different components
+  components:
+    health: "info"
+    metrics: "info"
+    performance: "info"
+    tracing: "debug"
+    profiling: "debug"
+
+# Alerting Configuration
+alerting:
+  enabled: true
+  
+  # Alert rules
+  rules:
+    - name: "high_error_rate"
+      condition: "error_rate > 0.05"  # 5% error rate
+      duration: "5m"
+      severity: "warning"
+      
+    - name: "slow_response_time"
+      condition: "response_time_p95 > 2s"
+      duration: "3m"
+      severity: "warning"
+      
+    - name: "database_connection_failure"
+      condition: "database_health == 0"
+      duration: "1m"
+      severity: "critical"
+      
+    - name: "redis_connection_failure"
+      condition: "redis_health == 0"
+      duration: "1m"
+      severity: "critical"
+      
+    - name: "high_memory_usage"
+      condition: "memory_usage > 0.8"  # 80% memory usage
+      duration: "5m"
+      severity: "warning"
+      
+    - name: "high_goroutine_count"
+      condition: "goroutine_count > 1000"
+      duration: "5m"
+      severity: "warning"
+
+# Dashboard Configuration
+dashboards:
+  enabled: true
+  
+  # Grafana integration
+  grafana:
+    enabled: true
+    url: "http://localhost:3000"
+    datasource: "prometheus"
+    
+    # Dashboard definitions
+    dashboards:
+      - name: "Go Coffee Infrastructure"
+        file: "dashboards/infrastructure.json"
+      - name: "Go Coffee Performance"
+        file: "dashboards/performance.json"
+      - name: "Go Coffee Business Metrics"
+        file: "dashboards/business.json"
+
+# Export Configuration
+export:
+  enabled: true
+  
+  # Export formats
+  formats:
+    prometheus: true
+    json: true
+    csv: false
+  
+  # Export destinations
+  destinations:
+    file:
+      enabled: true
+      path: "/var/log/go-coffee/metrics"
+    s3:
+      enabled: false
+      bucket: "go-coffee-metrics"
+      region: "us-west-2"
+    elasticsearch:
+      enabled: false
+      url: "http://localhost:9200"
+      index: "go-coffee-metrics"
+
+# Retention Configuration
+retention:
+  metrics: "30d"      # Keep metrics for 30 days
+  logs: "7d"          # Keep logs for 7 days
+  traces: "3d"        # Keep traces for 3 days
+  profiles: "1d"      # Keep profiles for 1 day
+
+# Security Configuration for Monitoring
+security:
+  enabled: true
+  
+  # Authentication for monitoring endpoints
+  auth:
+    enabled: false      # Disabled for development
+    type: "basic"       # basic, bearer, api_key
+    username: "admin"
+    password: "secret"
+  
+  # TLS configuration
+  tls:
+    enabled: false      # Disabled for development
+    cert_file: "/etc/ssl/certs/monitoring.crt"
+    key_file: "/etc/ssl/private/monitoring.key"
+
+# Development Configuration
+development:
+  enabled: true
+  
+  # Development-specific settings
+  settings:
+    verbose_logging: true
+    debug_endpoints: true
+    mock_external_services: true
+    reduced_intervals: true
+    
+  # Override production settings for development
+  overrides:
+    prometheus:
+      port: 9091        # Different port for development
+    health:
+      check_interval: 10s  # More frequent checks
+    performance:
+      detailed_logging: true
+    tracing:
+      enable_logging: true
+      sample_rate: 1.0  # Sample all requests in development
+
+# Environment-specific Configuration
+environments:
+  production:
+    health:
+      check_interval: 60s
+    prometheus:
+      port: 9090
+    performance:
+      detailed_logging: false
+    tracing:
+      enable_logging: false
+      sample_rate: 0.1  # 10% sampling in production
+    profiling:
+      enabled: false
+      
+  staging:
+    health:
+      check_interval: 30s
+    prometheus:
+      port: 9090
+    performance:
+      detailed_logging: true
+    tracing:
+      enable_logging: true
+      sample_rate: 0.5  # 50% sampling in staging
+    profiling:
+      enabled: true
+      sample_rate: 0.05  # 5% profiling
+      
+  development:
+    health:
+      check_interval: 10s
+    prometheus:
+      port: 9091
+    performance:
+      detailed_logging: true
+    tracing:
+      enable_logging: true
+      sample_rate: 1.0  # 100% sampling in development
+    profiling:
+      enabled: true
+      sample_rate: 0.1  # 10% profiling

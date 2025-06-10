@@ -1,115 +1,234 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 )
 
-// Level represents logging level
+// Level represents logging level with enhanced type safety
 type Level int
 
 const (
-	// DebugLevel level for detailed logging
+	// DebugLevel for detailed debugging information
 	DebugLevel Level = iota
-	// InfoLevel level for informational messages
+	// InfoLevel for general informational messages
 	InfoLevel
-	// WarnLevel level for warnings
+	// WarnLevel for warning conditions
 	WarnLevel
-	// ErrorLevel level for errors
+	// ErrorLevel for error conditions
 	ErrorLevel
-	// FatalLevel level for critical errors
+	// FatalLevel for critical errors that cause program termination
 	FatalLevel
 )
 
-// Logger struct for logging - compatible with zap interface
+// String returns the string representation of the log level
+func (l Level) String() string {
+	switch l {
+	case DebugLevel:
+		return "DEBUG"
+	case InfoLevel:
+		return "INFO"
+	case WarnLevel:
+		return "WARN"
+	case ErrorLevel:
+		return "ERROR"
+	case FatalLevel:
+		return "FATAL"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// Color returns ANSI color code for the log level
+func (l Level) Color() string {
+	switch l {
+	case DebugLevel:
+		return "\033[36m" // Cyan
+	case InfoLevel:
+		return "\033[32m" // Green
+	case WarnLevel:
+		return "\033[33m" // Yellow
+	case ErrorLevel:
+		return "\033[31m" // Red
+	case FatalLevel:
+		return "\033[35m" // Magenta
+	default:
+		return "\033[0m" // Reset
+	}
+}
+
+// Logger provides structured, colorized logging with enhanced features
 type Logger struct {
 	logger     *log.Logger
 	level      Level
 	timeFormat string
 	fields     map[string]interface{}
+	colorized  bool
+	jsonFormat bool
+	service    string
 }
 
-// Config configuration for logger
+// Config provides comprehensive logger configuration
 type Config struct {
-	Level      Level
-	TimeFormat string
-	Output     *os.File
+	Level      Level                  `json:"level" yaml:"level"`
+	TimeFormat string                 `json:"time_format" yaml:"time_format"`
+	Output     *os.File               `json:"-" yaml:"-"`
+	Colorized  bool                   `json:"colorized" yaml:"colorized"`
+	JSONFormat bool                   `json:"json_format" yaml:"json_format"`
+	Service    string                 `json:"service" yaml:"service"`
+	Fields     map[string]interface{} `json:"fields" yaml:"fields"`
 }
 
-// DefaultConfig returns default configuration
+// DefaultConfig returns optimized default configuration
 func DefaultConfig() *Config {
 	return &Config{
 		Level:      InfoLevel,
 		TimeFormat: time.RFC3339,
 		Output:     os.Stdout,
+		Colorized:  true,
+		JSONFormat: false,
+		Service:    "go-coffee",
+		Fields:     make(map[string]interface{}),
 	}
 }
 
-// NewLogger creates a new logger
+// ProductionConfig returns production-optimized configuration
+func ProductionConfig() *Config {
+	return &Config{
+		Level:      InfoLevel,
+		TimeFormat: time.RFC3339,
+		Output:     os.Stdout,
+		Colorized:  false,
+		JSONFormat: true,
+		Service:    "go-coffee",
+		Fields:     make(map[string]interface{}),
+	}
+}
+
+// DevelopmentConfig returns development-optimized configuration
+func DevelopmentConfig() *Config {
+	return &Config{
+		Level:      DebugLevel,
+		TimeFormat: "15:04:05",
+		Output:     os.Stdout,
+		Colorized:  true,
+		JSONFormat: false,
+		Service:    "go-coffee-dev",
+		Fields:     make(map[string]interface{}),
+	}
+}
+
+// NewLogger creates an enhanced logger with comprehensive configuration
 func NewLogger(config *Config) *Logger {
 	if config == nil {
 		config = DefaultConfig()
 	}
 
 	logger := log.New(config.Output, "", 0)
+
+	// Copy fields from config
+	fields := make(map[string]interface{})
+	for k, v := range config.Fields {
+		fields[k] = v
+	}
+
+	// Add service field if provided
+	if config.Service != "" {
+		fields["service"] = config.Service
+	}
+
 	return &Logger{
 		logger:     logger,
 		level:      config.Level,
 		timeFormat: config.TimeFormat,
-		fields:     make(map[string]interface{}),
+		fields:     fields,
+		colorized:  config.Colorized,
+		jsonFormat: config.JSONFormat,
+		service:    config.Service,
 	}
 }
 
-// formatFields formats fields for output
+// LogEntry represents a structured log entry
+type LogEntry struct {
+	Timestamp string                 `json:"timestamp"`
+	Level     string                 `json:"level"`
+	Message   string                 `json:"message"`
+	Service   string                 `json:"service,omitempty"`
+	Fields    map[string]interface{} `json:"fields,omitempty"`
+	Caller    string                 `json:"caller,omitempty"`
+}
+
+// formatFields formats fields for console output
 func (l *Logger) formatFields() string {
 	if len(l.fields) == 0 {
 		return ""
 	}
 
-	result := "{"
-	first := true
+	var parts []string
 	for k, v := range l.fields {
-		if !first {
-			result += ", "
-		}
-		result += fmt.Sprintf("%s: %v", k, v)
-		first = false
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 	}
-	result += "}"
-	return result
+	return strings.Join(parts, " ")
 }
 
-// log performs logging
+// formatJSON formats log entry as JSON
+func (l *Logger) formatJSON(level Level, message string) string {
+	entry := LogEntry{
+		Timestamp: time.Now().Format(l.timeFormat),
+		Level:     level.String(),
+		Message:   message,
+		Service:   l.service,
+		Fields:    l.fields,
+	}
+
+	// Add caller information in debug mode
+	if level == DebugLevel {
+		if _, file, line, ok := runtime.Caller(3); ok {
+			entry.Caller = fmt.Sprintf("%s:%d", file, line)
+		}
+	}
+
+	data, _ := json.Marshal(entry)
+	return string(data)
+}
+
+// formatConsole formats log entry for console output
+func (l *Logger) formatConsole(level Level, message string) string {
+	timestamp := time.Now().Format(l.timeFormat)
+	levelStr := level.String()
+
+	if l.colorized {
+		levelStr = fmt.Sprintf("%s%s\033[0m", level.Color(), levelStr)
+	}
+
+	fields := l.formatFields()
+	if fields != "" {
+		return fmt.Sprintf("%s [%s] %s | %s", timestamp, levelStr, message, fields)
+	}
+	return fmt.Sprintf("%s [%s] %s", timestamp, levelStr, message)
+}
+
+// log performs enhanced logging with JSON/console formatting
 func (l *Logger) log(level Level, format string, args ...interface{}) {
 	if level < l.level {
 		return
 	}
 
-	levelStr := ""
-	switch level {
-	case DebugLevel:
-		levelStr = "DEBUG"
-	case InfoLevel:
-		levelStr = "INFO"
-	case WarnLevel:
-		levelStr = "WARN"
-	case ErrorLevel:
-		levelStr = "ERROR"
-	case FatalLevel:
-		levelStr = "FATAL"
-	}
-
-	timestamp := time.Now().Format(l.timeFormat)
-	fields := l.formatFields()
 	message := fmt.Sprintf(format, args...)
 
-	if fields != "" {
-		l.logger.Printf("%s [%s] %s %s\n", timestamp, levelStr, message, fields)
+	var output string
+	if l.jsonFormat {
+		output = l.formatJSON(level, message)
 	} else {
-		l.logger.Printf("%s [%s] %s\n", timestamp, levelStr, message)
+		output = l.formatConsole(level, message)
 	}
+
+	l.logger.Println(output)
 
 	if level == FatalLevel {
 		os.Exit(1)

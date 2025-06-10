@@ -1,27 +1,70 @@
 package http
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/mux"
 
 	"github.com/DimaJoyti/go-coffee/internal/security-gateway/application"
 	"github.com/DimaJoyti/go-coffee/pkg/security/monitoring"
 	"github.com/DimaJoyti/go-coffee/pkg/security/validation"
 )
 
-// ValidateHandler handles input validation requests
-func ValidateHandler(validationService *validation.ValidationService) gin.HandlerFunc {
-	return func(c *gin.Context) {
+// Helper functions for clean HTTP handlers
+
+// respondWithJSON writes a JSON response
+func respondWithJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(data)
+}
+
+// respondWithError writes an error response
+func respondWithError(w http.ResponseWriter, statusCode int, message string, err error) {
+	response := map[string]interface{}{
+		"error":   http.StatusText(statusCode),
+		"message": message,
+	}
+	if err != nil {
+		response["details"] = err.Error()
+	}
+	respondWithJSON(w, statusCode, response)
+}
+
+// decodeJSON decodes JSON from request body
+func decodeJSON(r *http.Request, v interface{}) error {
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
+// getPathParam gets path parameter from mux
+func getPathParam(r *http.Request, key string) string {
+	vars := mux.Vars(r)
+	return vars[key]
+}
+
+// getQueryParam gets query parameter
+func getQueryParam(r *http.Request, key string) string {
+	return r.URL.Query().Get(key)
+}
+
+// getQueryParamWithDefault gets query parameter with default value
+func getQueryParamWithDefault(r *http.Request, key, defaultValue string) string {
+	value := r.URL.Query().Get(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+// ValidateHandler handles input validation requests (Clean HTTP Handler)
+func ValidateHandler(validationService *validation.ValidationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var req ValidationRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "Bad Request",
-				"message": "Invalid request format",
-				"details": err.Error(),
-			})
+		if err := decodeJSON(r, &req); err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid request format", err)
 			return
 		}
 
@@ -39,58 +82,59 @@ func ValidateHandler(validationService *validation.ValidationService) gin.Handle
 		case "input":
 			result = validationService.ValidateInput(req.Value)
 		default:
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "Bad Request",
-				"message": "Invalid validation type",
-			})
+			respondWithError(w, http.StatusBadRequest, "Invalid validation type", nil)
 			return
 		}
 
-		c.JSON(http.StatusOK, ValidationResponse{
+		response := ValidationResponse{
 			Valid:          result.IsValid,
 			Errors:         result.Errors,
 			Warnings:       result.Warnings,
 			SanitizedValue: result.SanitizedValue,
 			ThreatLevel:    result.ThreatLevel,
-		})
+		}
+
+		respondWithJSON(w, http.StatusOK, response)
 	}
 }
 
-// SecurityMetricsHandler returns security metrics
-func SecurityMetricsHandler(monitoringService *monitoring.SecurityMonitoringService) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx := c.Request.Context()
-		
+// SecurityMetricsHandler returns security metrics (Clean HTTP Handler)
+func SecurityMetricsHandler(monitoringService *monitoring.SecurityMonitoringService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
 		metrics := monitoringService.GetSecurityMetrics(ctx)
-		
-		c.JSON(http.StatusOK, SecurityMetricsResponse{
+
+		response := SecurityMetricsResponse{
 			TotalEvents:         metrics.TotalEvents,
 			BlockedRequests:     metrics.BlockedRequests,
 			AllowedRequests:     metrics.TotalEvents - metrics.BlockedRequests, // Calculate allowed requests
 			ThreatDetections:    metrics.ThreatDetections,
-			RateLimitViolations: 0, // Not available in current metrics
-			WAFBlocks:           0, // Not available in current metrics
+			RateLimitViolations: 0,                      // Not available in current metrics
+			WAFBlocks:           0,                      // Not available in current metrics
 			RequestsByCountry:   make(map[string]int64), // Not available in current metrics
-			AverageResponseTime: "0ms", // Not available in current metrics
+			AverageResponseTime: "0ms",                  // Not available in current metrics
 			LastUpdated:         metrics.LastUpdated,
-		})
+		}
+
+		respondWithJSON(w, http.StatusOK, response)
 	}
 }
 
-// AlertsHandler returns security alerts
-func AlertsHandler(monitoringService *monitoring.SecurityMonitoringService) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx := c.Request.Context()
-		
+// AlertsHandler returns security alerts (Clean HTTP Handler)
+func AlertsHandler(monitoringService *monitoring.SecurityMonitoringService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
 		// Parse query parameters
-		limitStr := c.DefaultQuery("limit", "50")
+		limitStr := getQueryParamWithDefault(r, "limit", "50")
 		limit, err := strconv.Atoi(limitStr)
 		if err != nil || limit <= 0 || limit > 1000 {
 			limit = 50
 		}
 
-		statusFilter := c.Query("status")
-		severityFilter := c.Query("severity")
+		statusFilter := getQueryParam(r, "status")
+		severityFilter := getQueryParam(r, "severity")
 
 		// Build filter
 		filter := monitoring.EventFilter{
@@ -98,13 +142,13 @@ func AlertsHandler(monitoringService *monitoring.SecurityMonitoringService) gin.
 		}
 
 		// Add time range if specified
-		if startTime := c.Query("start_time"); startTime != "" {
+		if startTime := getQueryParam(r, "start_time"); startTime != "" {
 			if t, err := time.Parse(time.RFC3339, startTime); err == nil {
 				filter.StartTime = &t
 			}
 		}
 
-		if endTime := c.Query("end_time"); endTime != "" {
+		if endTime := getQueryParam(r, "end_time"); endTime != "" {
 			if t, err := time.Parse(time.RFC3339, endTime); err == nil {
 				filter.EndTime = &t
 			}
@@ -113,10 +157,7 @@ func AlertsHandler(monitoringService *monitoring.SecurityMonitoringService) gin.
 		// Query events (alerts are stored as events)
 		events, err := monitoringService.QueryEvents(ctx, filter)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "Internal Server Error",
-				"message": "Failed to query alerts",
-			})
+			respondWithError(w, http.StatusInternalServerError, "Failed to query alerts", err)
 			return
 		}
 
@@ -146,60 +187,68 @@ func AlertsHandler(monitoringService *monitoring.SecurityMonitoringService) gin.
 			})
 		}
 
-		c.JSON(http.StatusOK, AlertsResponse{
+		response := AlertsResponse{
 			Alerts: alerts,
 			Total:  len(alerts),
-		})
+		}
+
+		respondWithJSON(w, http.StatusOK, response)
 	}
 }
 
-// MetricsHandler returns Prometheus-style metrics
-func MetricsHandler(monitoringService *monitoring.SecurityMonitoringService) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx := c.Request.Context()
-		
+// MetricsHandler returns Prometheus-style metrics (Clean HTTP Handler)
+func MetricsHandler(monitoringService *monitoring.SecurityMonitoringService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
 		metrics := monitoringService.GetSecurityMetrics(ctx)
-		
+
 		// Generate Prometheus-style metrics
 		prometheusMetrics := generatePrometheusMetrics(metrics)
-		
-		c.Header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		c.String(http.StatusOK, prometheusMetrics)
+
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(prometheusMetrics))
 	}
 }
 
-// ProxyHandler proxies requests to backend services
-func ProxyHandler(serviceName string, gatewayService *application.SecurityGatewayService) gin.HandlerFunc {
-	return func(c *gin.Context) {
+// ProxyHandler proxies requests to backend services (Clean HTTP Handler)
+func ProxyHandler(serviceName string, gatewayService *application.SecurityGatewayService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		// Remove the gateway prefix from the path
-		originalPath := c.Request.URL.Path
-		c.Request.URL.Path = c.Param("path")
-		
+		originalPath := r.URL.Path
+		pathParam := getPathParam(r, "path")
+		if pathParam != "" {
+			r.URL.Path = pathParam
+		}
+
 		// Proxy the request
-		err := gatewayService.ProxyRequest(serviceName, c.Writer, c.Request)
+		err := gatewayService.ProxyRequest(serviceName, w, r)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{
+			response := map[string]interface{}{
 				"error":   "Bad Gateway",
 				"message": "Failed to proxy request to backend service",
 				"service": serviceName,
-			})
+			}
+			respondWithJSON(w, http.StatusBadGateway, response)
 			return
 		}
-		
+
 		// Restore original path
-		c.Request.URL.Path = originalPath
+		r.URL.Path = originalPath
 	}
 }
 
-// HealthHandler returns health status
-func HealthHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
+// HealthHandler returns health status (Clean HTTP Handler)
+func HealthHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]interface{}{
 			"status":    "healthy",
 			"timestamp": time.Now().UTC(),
 			"service":   "security-gateway",
 			"version":   "1.0.0",
-		})
+		}
+		respondWithJSON(w, http.StatusOK, response)
 	}
 }
 
@@ -219,15 +268,15 @@ type ValidationResponse struct {
 }
 
 type SecurityMetricsResponse struct {
-	TotalEvents         int64             `json:"total_events"`
-	BlockedRequests     int64             `json:"blocked_requests"`
-	AllowedRequests     int64             `json:"allowed_requests"`
-	ThreatDetections    int64             `json:"threat_detections"`
-	RateLimitViolations int64             `json:"rate_limit_violations"`
-	WAFBlocks           int64             `json:"waf_blocks"`
-	RequestsByCountry   map[string]int64  `json:"requests_by_country"`
-	AverageResponseTime string            `json:"average_response_time"`
-	LastUpdated         time.Time         `json:"last_updated"`
+	TotalEvents         int64            `json:"total_events"`
+	BlockedRequests     int64            `json:"blocked_requests"`
+	AllowedRequests     int64            `json:"allowed_requests"`
+	ThreatDetections    int64            `json:"threat_detections"`
+	RateLimitViolations int64            `json:"rate_limit_violations"`
+	WAFBlocks           int64            `json:"waf_blocks"`
+	RequestsByCountry   map[string]int64 `json:"requests_by_country"`
+	AverageResponseTime string           `json:"average_response_time"`
+	LastUpdated         time.Time        `json:"last_updated"`
 }
 
 type AlertResponse struct {
@@ -262,7 +311,7 @@ security_gateway_blocked_requests ` + strconv.FormatInt(metrics.BlockedRequests,
 
 # HELP security_gateway_allowed_requests Total number of allowed requests
 # TYPE security_gateway_allowed_requests counter
-security_gateway_allowed_requests ` + strconv.FormatInt(metrics.TotalEvents - metrics.BlockedRequests, 10) + `
+security_gateway_allowed_requests ` + strconv.FormatInt(metrics.TotalEvents-metrics.BlockedRequests, 10) + `
 
 # HELP security_gateway_threat_detections Total number of threat detections
 # TYPE security_gateway_threat_detections counter

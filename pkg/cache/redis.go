@@ -61,7 +61,7 @@ func NewRedisCache(config *Config) (*RedisCache, error) {
 // Set stores a value in cache
 func (r *RedisCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
 	fullKey := r.getFullKey(key)
-	
+
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal value: %w", err)
@@ -78,7 +78,7 @@ func (r *RedisCache) Set(ctx context.Context, key string, value interface{}, exp
 // Get retrieves a value from cache
 func (r *RedisCache) Get(ctx context.Context, key string, dest interface{}) error {
 	fullKey := r.getFullKey(key)
-	
+
 	data, err := r.client.Get(ctx, fullKey).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -98,7 +98,7 @@ func (r *RedisCache) Get(ctx context.Context, key string, dest interface{}) erro
 // Delete removes a value from cache
 func (r *RedisCache) Delete(ctx context.Context, key string) error {
 	fullKey := r.getFullKey(key)
-	
+
 	err := r.client.Del(ctx, fullKey).Err()
 	if err != nil {
 		return fmt.Errorf("failed to delete cache: %w", err)
@@ -110,7 +110,7 @@ func (r *RedisCache) Delete(ctx context.Context, key string) error {
 // Exists checks if a key exists in cache
 func (r *RedisCache) Exists(ctx context.Context, key string) (bool, error) {
 	fullKey := r.getFullKey(key)
-	
+
 	count, err := r.client.Exists(ctx, fullKey).Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to check existence: %w", err)
@@ -122,7 +122,7 @@ func (r *RedisCache) Exists(ctx context.Context, key string) (bool, error) {
 // Expire sets expiration for a key
 func (r *RedisCache) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	fullKey := r.getFullKey(key)
-	
+
 	err := r.client.Expire(ctx, fullKey, expiration).Err()
 	if err != nil {
 		return fmt.Errorf("failed to set expiration: %w", err)
@@ -134,7 +134,7 @@ func (r *RedisCache) Expire(ctx context.Context, key string, expiration time.Dur
 // Keys returns keys matching a pattern
 func (r *RedisCache) Keys(ctx context.Context, pattern string) ([]string, error) {
 	fullPattern := r.getFullKey(pattern)
-	
+
 	keys, err := r.client.Keys(ctx, fullPattern).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get keys: %w", err)
@@ -269,15 +269,15 @@ type CacheStats struct {
 
 // GetStats returns cache statistics (Redis-specific)
 func (r *RedisCache) GetStats(ctx context.Context) (*CacheStats, error) {
-	info, err := r.client.Info(ctx, "stats").Result()
+	_, err := r.client.Info(ctx, "stats").Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Redis stats: %w", err)
 	}
 
 	// Parse Redis INFO output (simplified)
 	stats := &CacheStats{
-		Hits:     0, // Would parse from info
-		Misses:   0, // Would parse from info
+		Hits:     0, // Would parse from info in a real implementation
+		Misses:   0, // Would parse from info in a real implementation
 		HitRate:  0.0,
 		KeyCount: 0,
 	}

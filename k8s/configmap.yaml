@@ -1,117 +1,108 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: fintech-config
-  namespace: fintech-platform
+  name: go-coffee-config
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: config
 data:
-  config.yaml: |
-    server:
-      port: 8080
-      host: "0.0.0.0"
-      environment: "production"
-      read_timeout: 30
-      write_timeout: 30
-      idle_timeout: 120
+  # Environment Configuration
+  ENVIRONMENT: "production"
+  SERVICE_NAME: "go-coffee"
+  SERVICE_VERSION: "1.0.0"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
 
-    database:
-      host: "postgres-service"
-      port: 5432
-      name: "fintech_platform"
-      user: "postgres"
-      ssl_mode: "require"
-      max_open_conns: 25
-      max_idle_conns: 5
-      conn_max_lifetime: 300
+  # Database Configuration
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "go_coffee"
+  DB_USER: "go_coffee_user"
+  DB_SSL_MODE: "require"
+  DB_MAX_OPEN_CONNS: "50"
+  DB_MAX_IDLE_CONNS: "10"
+  DB_CONN_MAX_LIFETIME: "5m"
+  DB_CONN_MAX_IDLE_TIME: "1m"
 
-    redis:
-      host: "redis-service"
-      port: 6379
-      db: 0
-      pool_size: 10
-      min_idle_conns: 5
+  # Redis Configuration
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_POOL_SIZE: "50"
+  REDIS_MIN_IDLE_CONNS: "10"
+  REDIS_MAX_RETRIES: "5"
+  REDIS_DIAL_TIMEOUT: "5s"
+  REDIS_READ_TIMEOUT: "3s"
+  REDIS_WRITE_TIMEOUT: "3s"
+  REDIS_IDLE_TIMEOUT: "5m"
 
-    security:
-      jwt_expiry: "24h"
-      refresh_token_expiry: "720h"
-      bcrypt_cost: 12
-      rate_limit:
-        enabled: true
-        requests_per_minute: 100
-        burst_size: 20
+  # HTTP Server Configuration
+  HTTP_HOST: "0.0.0.0"
+  HTTP_PORT: "8080"
+  HTTP_READ_TIMEOUT: "15s"
+  HTTP_WRITE_TIMEOUT: "15s"
+  HTTP_IDLE_TIMEOUT: "60s"
+  HTTP_MAX_HEADER_BYTES: "1048576"
 
-    logging:
-      level: "info"
-      format: "json"
-      output: "stdout"
+  # JWT Configuration
+  JWT_ACCESS_TOKEN_TTL: "5m"
+  JWT_REFRESH_TOKEN_TTL: "7d"
+  JWT_ISSUER: "go-coffee"
+  JWT_AUDIENCE: "go-coffee-users"
+  JWT_ALGORITHM: "HS256"
+  JWT_REFRESH_THRESHOLD: "5m"
 
-    monitoring:
-      enabled: true
-      metrics_port: 9090
-      health_check_interval: "30s"
-      prometheus:
-        enabled: true
-        path: "/metrics"
+  # Session Configuration
+  SESSION_COOKIE_NAME: "go_coffee_session"
+  SESSION_COOKIE_DOMAIN: ".go-coffee.com"
+  SESSION_COOKIE_PATH: "/"
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_COOKIE_HTTP_ONLY: "true"
+  SESSION_COOKIE_SAME_SITE: "Strict"
+  SESSION_MAX_AGE: "24h"
+  SESSION_IDLE_TIMEOUT: "30m"
 
-    fintech:
-      accounts:
-        enabled: true
-        kyc_required: true
-        two_factor_auth: true
-        session_timeout: "24h"
-        max_login_attempts: 5
-        account_limits:
-          daily_transaction_limit: "10000.00"
-          monthly_transaction_limit: "100000.00"
-          max_wallets_per_user: 10
-          max_cards_per_user: 5
+  # Rate Limiting
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "1000"
+  RATE_LIMIT_BURST_SIZE: "50"
+  RATE_LIMIT_WINDOW_SIZE: "1m"
+  RATE_LIMIT_CLEANUP_INTERVAL: "5m"
 
-      payments:
-        enabled: true
-        supported_currencies: ["USD", "EUR", "GBP", "BTC", "ETH", "USDC", "USDT"]
-        supported_networks: ["ethereum", "bitcoin", "polygon", "bsc"]
-        default_network: "ethereum"
-        transaction_fees:
-          fee_structure: "tiered"
-          base_fee: "0.50"
-          percentage_fee: 0.025
-          min_fee: "0.10"
-          max_fee: "100.00"
+  # Monitoring Configuration
+  METRICS_ENABLED: "true"
+  METRICS_PATH: "/metrics"
+  METRICS_NAMESPACE: "go_coffee"
+  METRICS_SUBSYSTEM: "production"
+  METRICS_INTERVAL: "10s"
 
-      yield:
-        enabled: true
-        supported_protocols: ["uniswap", "compound", "aave", "curve"]
-        default_strategy: "conservative"
-        auto_compounding: true
-        risk_management:
-          max_allocation: 0.8
-          diversification_rules: true
-          risk_score_threshold: 0.6
+  HEALTH_ENABLED: "true"
+  HEALTH_PATH: "/health"
+  HEALTH_TIMEOUT: "5s"
+  HEALTH_INTERVAL: "15s"
+  HEALTH_FAILURE_THRESHOLD: "3"
+  HEALTH_SUCCESS_THRESHOLD: "1"
 
-      trading:
-        enabled: true
-        supported_exchanges: ["binance", "coinbase", "kraken", "uniswap"]
-        default_exchange: "uniswap"
-        trading_pairs: ["BTC/USD", "ETH/USD", "BTC/ETH", "USDC/USDT"]
-        order_types: ["market", "limit", "stop_loss", "stop_limit"]
-
-      cards:
-        enabled: true
-        supported_card_types: ["virtual", "physical"]
-        default_card_type: "virtual"
-        virtual_cards:
-          enabled: true
-          instant_issuance: true
-          max_cards_per_user: 10
+  # Feature Flags
+  FEATURE_EVENT_SOURCING: "true"
+  FEATURE_REAL_TIME_SESSIONS: "true"
+  FEATURE_ADVANCED_METRICS: "true"
+  FEATURE_HEALTH_CHECKS: "true"
+  FEATURE_GRACEFUL_SHUTDOWN: "true"
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-config
-  namespace: fintech-platform
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
 data:
-  POSTGRES_DB: "fintech_platform"
-  POSTGRES_USER: "postgres"
+  POSTGRES_DB: "go_coffee"
+  POSTGRES_USER: "go_coffee_user"
   PGDATA: "/var/lib/postgresql/data/pgdata"
 
 ---
@@ -119,41 +110,49 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: redis-config
-  namespace: fintech-platform
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
 data:
   redis.conf: |
+    # Redis Configuration for Go Coffee Platform
     bind 0.0.0.0
     port 6379
     tcp-backlog 511
     timeout 0
     tcp-keepalive 300
-    
+
     daemonize no
     supervised no
     loglevel notice
     databases 16
-    
-    maxmemory 2gb
+
+    # Memory Management
+    maxmemory 1gb
     maxmemory-policy allkeys-lru
     maxmemory-samples 5
-    
+
+    # Persistence
     save 900 1
     save 300 10
     save 60 10000
     stop-writes-on-bgsave-error yes
     rdbcompression yes
     rdbchecksum yes
-    
+
+    # Append Only File
     appendonly yes
     appendfilename "appendonly.aof"
     appendfsync everysec
     no-appendfsync-on-rewrite no
     auto-aof-rewrite-percentage 100
     auto-aof-rewrite-min-size 64mb
-    
+
+    # Monitoring
     slowlog-log-slower-than 10000
     slowlog-max-len 128
-    
     latency-monitor-threshold 100
-    
+
+    # Event Notifications for Infrastructure
     notify-keyspace-events "Ex"

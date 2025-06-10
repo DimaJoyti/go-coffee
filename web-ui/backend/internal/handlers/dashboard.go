@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/DimaJoyti/go-coffee/web-ui/backend/internal/services"
 )
 
@@ -17,32 +17,44 @@ func NewDashboardHandler(service *services.DashboardService) *DashboardHandler {
 	}
 }
 
-func (h *DashboardHandler) GetMetrics(c *gin.Context) {
+func (h *DashboardHandler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics, err := h.service.GetMetrics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		response := map[string]interface{}{
 			"error": "Failed to get dashboard metrics",
-		})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := map[string]interface{}{
 		"success": true,
 		"data":    metrics,
-	})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
-func (h *DashboardHandler) GetActivity(c *gin.Context) {
+func (h *DashboardHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 	activity, err := h.service.GetActivity()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		response := map[string]interface{}{
 			"error": "Failed to get activity feed",
-		})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := map[string]interface{}{
 		"success": true,
 		"data":    activity,
-	})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }

@@ -52,14 +52,13 @@ RUN mkdir -p /var/log /var/data && \
 USER appuser
 
 # Expose ports
-EXPOSE 8080 9090
+EXPOSE 8082
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:8082/health || exit 1
 
 # Set environment variables
-ENV GIN_MODE=release
 ENV LOG_LEVEL=info
 ENV ENVIRONMENT=production
 

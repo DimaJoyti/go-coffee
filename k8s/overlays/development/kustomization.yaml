@@ -1,0 +1,149 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: go-coffee-development
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+# Base configuration
+bases:
+- ../../base
+
+# Namespace override
+namespace: go-coffee-dev
+
+# Development-specific labels
+commonLabels:
+  environment: development
+  tier: development
+
+# Development images with latest tags
+images:
+- name: ghcr.io/dimajoyti/go-coffee/user-gateway
+  newTag: dev-latest
+- name: ghcr.io/dimajoyti/go-coffee/security-gateway
+  newTag: dev-latest
+- name: ghcr.io/dimajoyti/go-coffee/web-ui-backend
+  newTag: dev-latest
+
+# Development-specific ConfigMaps
+configMapGenerator:
+- name: go-coffee-dev-config
+  literals:
+  - ENVIRONMENT=development
+  - LOG_LEVEL=debug
+  - METRICS_ENABLED=true
+  - HEALTH_CHECK_INTERVAL=10s
+  - RATE_LIMIT_ENABLED=false
+  - WAF_ENABLED=false
+  behavior: merge
+
+# Development-specific patches
+patches:
+# Reduce replicas for development
+- target:
+    kind: Deployment
+    name: user-gateway
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+
+- target:
+    kind: Deployment
+    name: security-gateway
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+
+- target:
+    kind: Deployment
+    name: web-ui-backend
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+
+- target:
+    kind: Deployment
+    name: api-gateway
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 1
+
+# Reduce resource limits for development
+- target:
+    kind: Deployment
+    labelSelector: "app.kubernetes.io/component=gateway,app.kubernetes.io/component=security,app.kubernetes.io/component=backend"
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/memory
+      value: "128Mi"
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/cpu
+      value: "100m"
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/requests/memory
+      value: "64Mi"
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/requests/cpu
+      value: "50m"
+
+# Development HPA settings (disabled)
+- target:
+    kind: HorizontalPodAutoscaler
+  patch: |-
+    - op: replace
+      path: /spec/minReplicas
+      value: 1
+    - op: replace
+      path: /spec/maxReplicas
+      value: 3
+
+# Development storage settings (smaller)
+- target:
+    kind: PersistentVolumeClaim
+    name: postgres-pvc
+  patch: |-
+    - op: replace
+      path: /spec/resources/requests/storage
+      value: "5Gi"
+
+- target:
+    kind: PersistentVolumeClaim
+    name: redis-pvc
+  patch: |-
+    - op: replace
+      path: /spec/resources/requests/storage
+      value: "1Gi"
+
+# Development ingress settings
+- target:
+    kind: Ingress
+    name: go-coffee-ingress
+  patch: |-
+    - op: replace
+      path: /spec/rules/0/host
+      value: "dev.go-coffee.local"
+
+# Development service type (NodePort for local access)
+- target:
+    kind: Service
+    name: api-gateway-service
+  patch: |-
+    - op: replace
+      path: /spec/type
+      value: "NodePort"
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 30080
+
+# Name suffix for development
+nameSuffix: "-dev"
+
+# Development-specific resources
+resources:
+- dev-tools.yaml

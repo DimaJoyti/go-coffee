@@ -2,418 +2,403 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"log"
-	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/DimaJoyti/go-coffee/internal/auth/application"
-	"github.com/DimaJoyti/go-coffee/internal/auth/config"
-	"github.com/DimaJoyti/go-coffee/internal/auth/domain"
-	"github.com/DimaJoyti/go-coffee/internal/auth/infrastructure/repository"
-	"github.com/DimaJoyti/go-coffee/internal/auth/infrastructure/security"
-	grpcTransport "github.com/DimaJoyti/go-coffee/internal/auth/transport/grpc"
+	"github.com/DimaJoyti/go-coffee/internal/auth/infrastructure/container"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	serviceName = "auth-service"
+	serviceName     = "auth-service"
+	serviceVersion  = "1.0.0"
+	defaultHTTPPort = 8080
+	minPort         = 1
+	maxPort         = 65535
+
+	// Timeouts
+	shutdownTimeout   = 30 * time.Second // Time to wait for graceful shutdown
+	grpcShutdownDelay = 5 * time.Second  // Delay before shutting down gRPC server
+	dbShutdownTimeout = 10 * time.Second // Time to wait for DB connections to close
+	httpShutdownDelay = 1 * time.Second  // Delay after starting shutdown
 )
 
-func main() {
-	// Load configuration
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+var (
+	configPath  = flag.String("config", "configs/auth-service.yaml", "Path to configuration file")
+	logLevel    = flag.String("log-level", "", "Log level (debug, info, warn, error)")
+	port        = flag.Int("port", 0, "HTTP server port (overrides config)")
+	showVersion = flag.Bool("version", false, "Show version information")
+	showHelp    = flag.Bool("help", false, "Show usage information")
+	startTime   = time.Now() // Track service start time for uptime reporting
+
+	// Metrics
+	requestCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "auth_requests_total",
+			Help: "Total number of requests processed by the auth service",
+		},
+		[]string{"endpoint", "method", "status"},
+	)
+
+	requestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "auth_request_duration_seconds",
+			Help:    "Time taken to process auth requests",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"endpoint", "method"},
+	)
+
+	dependencyHealth = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "auth_dependency_health",
+			Help: "Health status of auth service dependencies (1 for healthy, 0 for unhealthy)",
+		},
+		[]string{"dependency"},
+	)
+)
+
+// HealthStatus represents the health check response
+type HealthStatus struct {
+	Status    string          `json:"status"`
+	Service   string          `json:"service"`
+	Version   string          `json:"version"`
+	Timestamp string          `json:"timestamp"`
+	Uptime    string          `json:"uptime"`
+	Details   map[string]bool `json:"details"`
+}
+
+// checkHealth performs health checks on all dependencies
+func checkHealth(container *container.Container) *HealthStatus {
+	details := map[string]bool{
+		"database": true,
+		"redis":    true,
+		"http":     true,
 	}
 
-	// Validate configuration
-	if err := config.ValidateConfig(cfg); err != nil {
-		log.Fatalf("Configuration validation failed: %v", err)
+	// Check database connection
+	if err := container.DB.Ping(); err != nil {
+		details["database"] = false
+	}
+
+	// Check Redis connection via cache service
+	if healthChecker, ok := container.CacheService.(interface{ Health() error }); ok {
+		if err := healthChecker.Health(); err != nil {
+			details["redis"] = false
+		}
+	}
+
+	status := "healthy"
+	for _, healthy := range details {
+		if !healthy {
+			status = "degraded"
+			break
+		}
+	}
+
+	return &HealthStatus{
+		Status:    status,
+		Service:   serviceName,
+		Version:   serviceVersion,
+		Timestamp: time.Now().Format(time.RFC3339),
+		Uptime:    time.Since(startTime).String(),
+		Details:   details,
+	}
+}
+
+// initLogging initializes the logger with the appropriate configuration
+func initLogging() *logger.Logger {
+	logConfig := logger.DefaultConfig()
+	if *logLevel != "" {
+		switch *logLevel {
+		case "debug":
+			logConfig.Level = logger.DebugLevel
+		case "info":
+			logConfig.Level = logger.InfoLevel
+		case "warn":
+			logConfig.Level = logger.WarnLevel
+		case "error":
+			logConfig.Level = logger.ErrorLevel
+		default:
+			fmt.Printf("Warning: Invalid log level %q, using default\n", *logLevel)
+		}
+	}
+
+	log := logger.NewLogger(logConfig)
+	return log.WithFields(map[string]interface{}{
+		"service": serviceName,
+		"version": serviceVersion,
+		"config":  *configPath,
+	})
+}
+
+func main() {
+	flag.Parse()
+
+	if *showVersion {
+		printVersion()
+		os.Exit(0)
+	}
+
+	if *showHelp {
+		printUsage()
+		os.Exit(0)
 	}
 
 	// Initialize logger
-	logger := logger.New(serviceName)
-	logger.Info("🚀 Starting Auth Service...")
+	log := initLogging()
 
-	// Initialize Redis client
-	redisClient, err := initializeRedis(cfg, logger)
+	log.Info("Starting auth service")
+
+	// Load auth service configuration
+	appConfig, err := loadConfig(*configPath)
 	if err != nil {
-		logger.WithError(err).Fatal("Failed to initialize Redis")
+		log.WithField("error", err.Error()).Fatal("Failed to load configuration")
 	}
-	defer redisClient.Close()
 
-	// Initialize repositories
-	userRepo := repository.NewRedisUserRepository(redisClient, logger)
-	sessionRepo := repository.NewRedisSessionRepository(redisClient, logger)
-
-	// Initialize security services
-	jwtConfig := &security.JWTConfig{
-		Secret:          cfg.Security.JWT.Secret,
-		AccessTokenTTL:  cfg.Security.JWT.AccessTokenTTL,
-		RefreshTokenTTL: cfg.Security.JWT.RefreshTokenTTL,
-		Issuer:          cfg.Security.JWT.Issuer,
-		Audience:        cfg.Security.JWT.Audience,
+	// Override with command line flags
+	if *port != 0 {
+		appConfig.HTTP.Port = *port
 	}
-	jwtService := security.NewJWTService(jwtConfig, logger)
 
-	passwordConfig := &security.PasswordConfig{
-		BcryptCost: cfg.Security.Password.BcryptCost,
-		PasswordPolicy: &application.PasswordPolicy{
-			MinLength:        cfg.Security.Password.Policy.MinLength,
-			RequireUppercase: cfg.Security.Password.Policy.RequireUppercase,
-			RequireLowercase: cfg.Security.Password.Policy.RequireLowercase,
-			RequireNumbers:   cfg.Security.Password.Policy.RequireNumbers,
-			RequireSymbols:   cfg.Security.Password.Policy.RequireSymbols,
-		},
+	// Create and initialize auth service container
+	authContainer, err := container.NewContainer(appConfig)
+	if err != nil {
+		log.WithField("error", err.Error()).Fatal("Failed to create auth container")
 	}
-	passwordService := security.NewPasswordService(passwordConfig, logger)
+	defer authContainer.Close()
 
-	// Initialize security service (placeholder implementation)
-	securityService := &MockSecurityService{logger: logger}
-
-	// Initialize auth service
-	authConfig := &application.AuthConfig{
-		AccessTokenTTL:   cfg.Security.JWT.AccessTokenTTL,
-		RefreshTokenTTL:  cfg.Security.JWT.RefreshTokenTTL,
-		MaxLoginAttempts: cfg.Security.Account.MaxLoginAttempts,
-		LockoutDuration:  cfg.Security.Account.LockoutDuration,
-	}
-	authService := application.NewAuthService(
-		userRepo,
-		sessionRepo,
-		jwtService,
-		passwordService,
-		securityService,
-		authConfig,
-		logger,
-	)
+	// Get HTTP server from container
+	httpServer := authContainer.HTTPServer
 
 	// Start HTTP server
-	httpServer := startHTTPServer(cfg, authService, logger)
-
-	// Start gRPC server
-	grpcServer := grpcTransport.NewServer(cfg, authService, logger)
-	if err := grpcServer.Start(); err != nil {
-		logger.WithError(err).Fatal("Failed to start gRPC server")
-	}
-
-	// Wait for interrupt signal
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	logger.Info("🎯 Auth Service is running. Press Ctrl+C to stop.")
-	<-c
-
-	logger.Info("🛑 Shutting down Auth Service...")
-
-	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
-	defer cancel()
-
-	// Shutdown HTTP server
-	if err := httpServer.Shutdown(ctx); err != nil {
-		logger.WithError(err).Error("HTTP server shutdown error")
-	}
-
-	// Shutdown gRPC server
-	if err := grpcServer.Stop(); err != nil {
-		logger.WithError(err).Error("gRPC server shutdown error")
-	}
-
-	logger.Info("✅ Auth Service stopped gracefully")
-}
-
-// initializeRedis initializes Redis client
-func initializeRedis(cfg *config.Config, logger *logger.Logger) (*redis.Client, error) {
-	opt, err := redis.ParseURL(cfg.Redis.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
-	}
-
-	opt.DB = cfg.Redis.DB
-	opt.MaxRetries = cfg.Redis.MaxRetries
-	opt.PoolSize = cfg.Redis.PoolSize
-	opt.MinIdleConns = cfg.Redis.MinIdleConns
-	opt.DialTimeout = cfg.Redis.DialTimeout
-	opt.ReadTimeout = cfg.Redis.ReadTimeout
-	opt.WriteTimeout = cfg.Redis.WriteTimeout
-	opt.PoolTimeout = cfg.Redis.PoolTimeout
-	opt.IdleTimeout = cfg.Redis.IdleTimeout
-
-	client := redis.NewClient(opt)
-
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err = client.Ping(ctx).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
-	}
-
-	logger.Info("✅ Connected to Redis successfully")
-	return client, nil
-}
-
-// MockSecurityService is a placeholder implementation
-type MockSecurityService struct {
-	logger *logger.Logger
-}
-
-func (m *MockSecurityService) LogSecurityEvent(ctx context.Context, userID string, eventType domain.SecurityEventType, severity domain.SecuritySeverity, description string, metadata map[string]string) error {
-	m.logger.WithFields(map[string]interface{}{
-		"user_id":     userID,
-		"event_type":  string(eventType),
-		"severity":    string(severity),
-		"description": description,
-	}).Info("Security event logged")
-	return nil
-}
-
-func (m *MockSecurityService) CheckRateLimit(ctx context.Context, key string) error {
-	// Placeholder implementation
-	return nil
-}
-
-func (m *MockSecurityService) TrackFailedLogin(ctx context.Context, email string) error {
-	// Placeholder implementation
-	return nil
-}
-
-func (m *MockSecurityService) ResetFailedLoginCount(ctx context.Context, email string) error {
-	// Placeholder implementation
-	return nil
-}
-
-func (m *MockSecurityService) IsAccountLocked(ctx context.Context, email string) (bool, error) {
-	// Placeholder implementation
-	return false, nil
-}
-
-func (m *MockSecurityService) CheckAccountSecurity(ctx context.Context, userID string) error {
-	// Placeholder implementation
-	return nil
-}
-
-func (m *MockSecurityService) LockAccount(ctx context.Context, userID string, reason string) error {
-	// Placeholder implementation
-	m.logger.WithFields(map[string]interface{}{
-		"user_id": userID,
-		"reason":  reason,
-	}).Info("Account locked")
-	return nil
-}
-
-func (m *MockSecurityService) UnlockAccount(ctx context.Context, userID string) error {
-	// Placeholder implementation
-	m.logger.WithField("user_id", userID).Info("Account unlocked")
-	return nil
-}
-
-func (m *MockSecurityService) IncrementRateLimit(ctx context.Context, key string) error {
-	// Placeholder implementation
-	return nil
-}
-
-func (m *MockSecurityService) GetSecurityEvents(ctx context.Context, userID string, limit int) ([]*application.SecurityEventDTO, error) {
-	// Placeholder implementation
-	return []*application.SecurityEventDTO{}, nil
-}
-
-// startHTTPServer starts the HTTP server
-func startHTTPServer(cfg *config.Config, authService *application.AuthServiceImpl, logger *logger.Logger) *http.Server {
-	if cfg.Environment == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	router := gin.New()
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
-
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": serviceName,
-			"time":    time.Now().UTC(),
-		})
-	})
-
-	// API routes
-	v1 := router.Group("/api/v1")
-	{
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/register", handleRegister(authService, logger))
-			auth.POST("/login", handleLogin(authService, logger))
-			auth.POST("/logout", handleLogout(authService, logger))
-			auth.POST("/refresh", handleRefreshToken(authService, logger))
-			auth.POST("/validate", handleValidateToken(authService, logger))
-			auth.POST("/change-password", handleChangePassword(authService, logger))
-			auth.GET("/me", handleGetUserInfo(authService, logger))
-		}
-	}
-
-	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.HTTPPort),
-		Handler:      router,
-		ReadTimeout:  cfg.Server.ReadTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
-		IdleTimeout:  cfg.Server.IdleTimeout,
-	}
-
+	serverErr := make(chan error, 1)
 	go func() {
-		logger.WithField("port", cfg.Server.HTTPPort).Info("🌐 HTTP Server listening")
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.WithError(err).Fatal("Failed to start HTTP server")
+		log.WithField("port", appConfig.HTTP.Port).Info("Starting HTTP server")
+		if err := httpServer.Start(); err != nil {
+			serverErr <- fmt.Errorf("HTTP server failed: %w", err)
 		}
 	}()
 
-	return server
+	// Wait for interrupt signal or server error
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-serverErr:
+		log.WithField("error", err.Error()).Error("Server error")
+	case sig := <-sigChan:
+		log.WithField("signal", sig.String()).Info("Received shutdown signal")
+	}
+
+	// Graceful shutdown
+	log.Info("Starting graceful shutdown...")
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer shutdownCancel()
+
+	// First stop accepting new requests
+	log.Info("Stopping HTTP server...")
+	time.Sleep(httpShutdownDelay) // Allow in-flight requests to complete
+	if err := httpServer.Stop(shutdownCtx); err != nil {
+		log.WithField("error", err.Error()).Error("Failed to shutdown HTTP server gracefully")
+	}
+
+	// Update health status before closing dependencies
+	healthStatus := checkHealth(authContainer)
+	for dep, healthy := range healthStatus.Details {
+		if healthy {
+			dependencyHealth.WithLabelValues(dep).Set(1)
+		} else {
+			dependencyHealth.WithLabelValues(dep).Set(0)
+		}
+	}
+
+	// Close container resources
+	log.Info("Closing container resources...")
+	if err := authContainer.Close(); err != nil {
+		log.WithField("error", err.Error()).Error("Failed to close container resources")
+	}
+
+	log.InfoWithFields("Auth service stopped successfully",
+		logger.Duration("total_shutdown_time", time.Since(startTime)),
+	)
 }
 
-// HTTP Handlers (placeholder implementations)
+// getPortFromFlags returns the port from command line flags or default
+func getPortFromFlags() int {
+	if *port != 0 {
+		return *port
+	}
+	return defaultHTTPPort // default port
+}
 
-func handleRegister(authService *application.AuthServiceImpl, logger *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req application.RegisterRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-			return
-		}
+// loadConfig loads configuration from file with environment variable overrides
+func loadConfig(configPath string) (*container.Config, error) {
+	// Start with default configuration
+	cfg := container.DefaultConfig()
 
-		resp, err := authService.Register(c.Request.Context(), &req)
+	if err := loadConfigFromFile(cfg, configPath); err != nil {
+		return nil, err
+	}
+
+	applyEnvironmentOverrides(cfg)
+
+	if err := validateConfig(cfg); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// loadConfigFromFile loads configuration from YAML file if it exists
+func loadConfigFromFile(cfg *container.Config, configPath string) error {
+	if _, err := os.Stat(configPath); err == nil {
+		data, err := os.ReadFile(configPath)
 		if err != nil {
-			logger.WithError(err).Error("Registration failed")
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
+			return fmt.Errorf("reading config file: %w", err)
 		}
 
-		c.JSON(http.StatusCreated, resp)
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return fmt.Errorf("parsing config file: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("checking config file: %w", err)
+	}
+	return nil
+}
+
+// applyEnvironmentOverrides applies environment variable overrides to the configuration
+func applyEnvironmentOverrides(cfg *container.Config) {
+	applyDatabaseEnvOverrides(cfg)
+	applyRedisEnvOverrides(cfg)
+	applyHTTPEnvOverrides(cfg)
+	applyJWTEnvOverrides(cfg)
+}
+
+// applyDatabaseEnvOverrides applies database-related environment variables
+func applyDatabaseEnvOverrides(cfg *container.Config) {
+	if v := os.Getenv("AUTH_DB_HOST"); v != "" {
+		cfg.Database.Host = v
+	}
+	if v := os.Getenv("AUTH_DB_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Database.Port = port
+		}
+	}
+	if v := os.Getenv("AUTH_DB_NAME"); v != "" {
+		cfg.Database.Database = v
+	}
+	if v := os.Getenv("AUTH_DB_USER"); v != "" {
+		cfg.Database.Username = v
+	}
+	if v := os.Getenv("AUTH_DB_PASSWORD"); v != "" {
+		cfg.Database.Password = v
 	}
 }
 
-func handleLogin(authService *application.AuthServiceImpl, logger *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req application.LoginRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-			return
+// applyRedisEnvOverrides applies Redis-related environment variables
+func applyRedisEnvOverrides(cfg *container.Config) {
+	if v := os.Getenv("AUTH_REDIS_HOST"); v != "" {
+		cfg.Redis.Host = v
+	}
+	if v := os.Getenv("AUTH_REDIS_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Redis.Port = port
 		}
-
-		resp, err := authService.Login(c.Request.Context(), &req)
-		if err != nil {
-			logger.WithError(err).Error("Login failed")
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, resp)
+	}
+	if v := os.Getenv("AUTH_REDIS_PASSWORD"); v != "" {
+		cfg.Redis.Password = v
 	}
 }
 
-func handleLogout(authService *application.AuthServiceImpl, logger *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req application.LogoutRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-			return
+// applyHTTPEnvOverrides applies HTTP-related environment variables
+func applyHTTPEnvOverrides(cfg *container.Config) {
+	if v := os.Getenv("AUTH_HTTP_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.HTTP.Port = port
 		}
-
-		// Extract user ID from token (placeholder)
-		userID := "user-123" // This should be extracted from JWT token
-
-		resp, err := authService.Logout(c.Request.Context(), userID, &req)
-		if err != nil {
-			logger.WithError(err).Error("Logout failed")
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, resp)
 	}
 }
 
-func handleRefreshToken(authService *application.AuthServiceImpl, logger *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req application.RefreshTokenRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-			return
-		}
-
-		resp, err := authService.RefreshToken(c.Request.Context(), &req)
-		if err != nil {
-			logger.WithError(err).Error("Token refresh failed")
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, resp)
+// applyJWTEnvOverrides applies JWT-related environment variables
+func applyJWTEnvOverrides(cfg *container.Config) {
+	if v := os.Getenv("AUTH_JWT_SECRET"); v != "" {
+		cfg.JWT.SecretKey = v
 	}
 }
 
-func handleValidateToken(authService *application.AuthServiceImpl, logger *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req application.ValidateTokenRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-			return
-		}
-
-		resp, err := authService.ValidateToken(c.Request.Context(), &req)
-		if err != nil {
-			logger.WithError(err).Error("Token validation failed")
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, resp)
+// validateConfig validates the configuration
+func validateConfig(cfg *container.Config) error {
+	// Database validation
+	if cfg.Database.Host == "" {
+		return fmt.Errorf("database host is required")
 	}
+	if cfg.Database.Port == 0 {
+		return fmt.Errorf("database port is required")
+	}
+	if cfg.Database.Port < minPort || cfg.Database.Port > maxPort {
+		return fmt.Errorf("database port must be between %d and %d", minPort, maxPort)
+	}
+	if cfg.Database.Database == "" {
+		return fmt.Errorf("database name is required")
+	}
+	if cfg.Database.Username == "" {
+		return fmt.Errorf("database username is required")
+	}
+
+	// JWT validation
+	if cfg.JWT.SecretKey == "" {
+		return fmt.Errorf("JWT secret key is required")
+	}
+	if len(cfg.JWT.SecretKey) < 32 {
+		return fmt.Errorf("JWT secret key must be at least 32 characters")
+	}
+
+	// HTTP validation
+	if cfg.HTTP.Port < minPort || cfg.HTTP.Port > maxPort {
+		return fmt.Errorf("HTTP port must be between %d and %d", minPort, maxPort)
+	}
+
+	// Redis validation
+	if cfg.Redis.Host == "" {
+		return fmt.Errorf("Redis host is required")
+	}
+	if cfg.Redis.Port < minPort || cfg.Redis.Port > maxPort {
+		return fmt.Errorf("Redis port must be between %d and %d", minPort, maxPort)
+	}
+
+	return nil
 }
 
-func handleChangePassword(authService *application.AuthServiceImpl, logger *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req application.ChangePasswordRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-			return
-		}
-
-		// Extract user ID from token (placeholder)
-		userID := "user-123" // This should be extracted from JWT token
-
-		resp, err := authService.ChangePassword(c.Request.Context(), userID, &req)
-		if err != nil {
-			logger.WithError(err).Error("Password change failed")
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, resp)
-	}
+// Version information
+func printVersion() {
+	fmt.Printf("%s version %s\n", serviceName, serviceVersion)
 }
 
-func handleGetUserInfo(authService *application.AuthServiceImpl, logger *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Extract user ID from token (placeholder)
-		userID := "user-123" // This should be extracted from JWT token
-
-		req := &application.GetUserInfoRequest{UserID: userID}
-		resp, err := authService.GetUserInfo(c.Request.Context(), req)
-		if err != nil {
-			logger.WithError(err).Error("Get user info failed")
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, resp)
-	}
+// Usage information
+func printUsage() {
+	fmt.Printf("Usage: %s [options]\n\n", os.Args[0])
+	fmt.Println("Options:")
+	flag.PrintDefaults()
+	fmt.Println("\nEnvironment Variables:")
+	fmt.Println("  AUTH_DB_HOST          Database host")
+	fmt.Println("  AUTH_DB_PORT          Database port")
+	fmt.Println("  AUTH_DB_NAME          Database name")
+	fmt.Println("  AUTH_DB_USER          Database username")
+	fmt.Println("  AUTH_DB_PASSWORD      Database password")
+	fmt.Println("  AUTH_JWT_SECRET       JWT secret key")
+	fmt.Println("  AUTH_REDIS_HOST       Redis host")
+	fmt.Println("  AUTH_REDIS_PORT       Redis port")
+	fmt.Println("  AUTH_REDIS_PASSWORD   Redis password")
+	fmt.Println("  AUTH_HTTP_PORT        HTTP server port")
+	fmt.Println("  AUTH_LOG_LEVEL        Log level (debug, info, warn, error)")
 }

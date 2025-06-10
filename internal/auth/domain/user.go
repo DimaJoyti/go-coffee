@@ -2,7 +2,6 @@ package domain
 
 import (
 	"errors"
-	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,8 +21,9 @@ const (
 type UserRole string
 
 const (
-	UserRoleUser  UserRole = "user"
-	UserRoleAdmin UserRole = "admin"
+	UserRoleUser      UserRole = "user"
+	UserRoleAdmin     UserRole = "admin"
+	UserRoleModerator UserRole = "moderator"
 )
 
 // MFAMethod represents the multi-factor authentication method
@@ -64,6 +64,8 @@ type User struct {
 
 	ID                string            `json:"id"`
 	Email             string            `json:"email"`
+	FirstName         string            `json:"first_name,omitempty"`
+	LastName          string            `json:"last_name,omitempty"`
 	PasswordHash      string            `json:"-"` // Never serialize password hash
 	Role              UserRole          `json:"role"`
 	Status            UserStatus        `json:"status"`
@@ -93,17 +95,17 @@ type User struct {
 
 // UserValidationErrors
 var (
-	ErrInvalidEmail    = errors.New("invalid email format")
-	ErrEmailRequired   = errors.New("email is required")
-	ErrPasswordTooWeak = errors.New("password does not meet security requirements")
-	ErrUserNotFound    = errors.New("user not found")
-	ErrUserExists      = errors.New("user already exists")
-	ErrUserLocked      = errors.New("user account is locked")
-	ErrUserInactive    = errors.New("user account is inactive")
+	ErrInvalidEmail       = errors.New("invalid email format")
+	ErrEmailRequired      = errors.New("email is required")
+	ErrPasswordTooWeak    = errors.New("password does not meet security requirements")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrUserExists         = errors.New("user already exists")
+	ErrUserLocked         = errors.New("user account is locked")
+	ErrUserInactive       = errors.New("user account is inactive")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUnauthorized       = errors.New("unauthorized access")
+	ErrEmailAlreadyExists = errors.New("email already exists")
 )
-
-// Email validation regex
-var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
 // NewUser creates a new user with validation
 func NewUser(email, passwordHash string, role UserRole) (*User, error) {
@@ -134,17 +136,6 @@ func NewUser(email, passwordHash string, role UserRole) (*User, error) {
 	user.AddEvent(*event)
 
 	return user, nil
-}
-
-// ValidateEmail validates email format
-func ValidateEmail(email string) error {
-	if email == "" {
-		return ErrEmailRequired
-	}
-	if !emailRegex.MatchString(email) {
-		return ErrInvalidEmail
-	}
-	return nil
 }
 
 // IsLocked checks if the user account is locked
@@ -249,6 +240,18 @@ func (u *User) SetMFABackupCodes(codes []string) {
 	u.UpdatedAt = time.Now()
 }
 
+// GenerateMFABackupCodes generates new MFA backup codes
+func (u *User) GenerateMFABackupCodes() []string {
+	// Generate 10 backup codes, each 8 characters long
+	codes := make([]string, 10)
+	for i := 0; i < 10; i++ {
+		codes[i] = generateRandomCode(8)
+	}
+	u.MFABackupCodes = codes
+	u.UpdatedAt = time.Now()
+	return codes
+}
+
 // UseMFABackupCode uses one of the MFA backup codes
 func (u *User) UseMFABackupCode(code string) bool {
 	for i, backupCode := range u.MFABackupCodes {
@@ -333,4 +336,17 @@ func (u *User) VerifyPhone() {
 func (u *User) VerifyEmail() {
 	u.IsEmailVerified = true
 	u.UpdatedAt = time.Now()
+}
+
+// Helper functions
+
+// generateRandomCode generates a random alphanumeric code of specified length
+func generateRandomCode(length int) string {
+	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	result := make([]byte, length)
+	for i := range result {
+		// Use a simple approach for now
+		result[i] = charset[i%len(charset)]
+	}
+	return string(result)
 }

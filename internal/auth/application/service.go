@@ -13,9 +13,10 @@ import (
 type AuthServiceImpl struct {
 	userRepo        domain.UserRepository
 	sessionRepo     domain.SessionRepository
-	jwtService      JWTService
 	passwordService PasswordService
+	jwtService      JWTService
 	securityService SecurityService
+	cacheService    CacheService
 	logger          *logger.Logger
 	config          *AuthConfig
 }
@@ -32,20 +33,28 @@ type AuthConfig struct {
 func NewAuthService(
 	userRepo domain.UserRepository,
 	sessionRepo domain.SessionRepository,
-	jwtService JWTService,
 	passwordService PasswordService,
+	jwtService JWTService,
 	securityService SecurityService,
-	config *AuthConfig,
+	cacheService CacheService,
 	logger *logger.Logger,
-) *AuthServiceImpl {
+) AuthService {
+	config := &AuthConfig{
+		AccessTokenTTL:   15 * time.Minute,
+		RefreshTokenTTL:  7 * 24 * time.Hour,
+		MaxLoginAttempts: 5,
+		LockoutDuration:  15 * time.Minute,
+	}
+
 	return &AuthServiceImpl{
 		userRepo:        userRepo,
 		sessionRepo:     sessionRepo,
-		jwtService:      jwtService,
 		passwordService: passwordService,
+		jwtService:      jwtService,
 		securityService: securityService,
-		config:          config,
+		cacheService:    cacheService,
 		logger:          logger,
+		config:          config,
 	}
 }
 
@@ -134,7 +143,12 @@ func (s *AuthServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 	}
 
 	// Check rate limiting
-	if err := s.securityService.CheckRateLimit(ctx, "login:"+req.Email); err != nil {
+	exceeded, err := s.securityService.CheckRateLimit(ctx, "login:"+req.Email, 5, 15*time.Minute)
+	if err != nil {
+		s.logger.ErrorWithFields("Failed to check rate limit", logger.Error(err), logger.String("email", req.Email))
+		return nil, fmt.Errorf("failed to check rate limit: %w", err)
+	}
+	if exceeded {
 		s.logger.WarnWithFields("Login rate limit exceeded", logger.String("email", req.Email))
 		return nil, fmt.Errorf("too many login attempts, please try again later")
 	}

@@ -26,6 +26,8 @@ const (
 
 // Token represents a JWT token in the domain
 type Token struct {
+	AggregateRoot // Embed aggregate root for event functionality
+
 	ID        string            `json:"id"`
 	UserID    string            `json:"user_id"`
 	SessionID string            `json:"session_id"`
@@ -53,20 +55,20 @@ type TokenClaims struct {
 
 // Token validation errors
 var (
-	ErrTokenNotFound     = errors.New("token not found")
-	ErrTokenExpired      = errors.New("token expired")
-	ErrTokenRevoked      = errors.New("token revoked")
-	ErrTokenInvalid      = errors.New("token invalid")
-	ErrTokenMalformed    = errors.New("token malformed")
-	ErrTokenSignature    = errors.New("token signature invalid")
-	ErrTokenClaims       = errors.New("token claims invalid")
-	ErrTokenTypeInvalid  = errors.New("token type invalid")
+	ErrTokenNotFound    = errors.New("token not found")
+	ErrTokenExpired     = errors.New("token expired")
+	ErrTokenRevoked     = errors.New("token revoked")
+	ErrTokenInvalid     = errors.New("token invalid")
+	ErrTokenMalformed   = errors.New("token malformed")
+	ErrTokenSignature   = errors.New("token signature invalid")
+	ErrTokenClaims      = errors.New("token claims invalid")
+	ErrTokenTypeInvalid = errors.New("token type invalid")
 )
 
 // NewToken creates a new token
 func NewToken(userID, sessionID string, tokenType TokenType, value string, expiresAt time.Time) *Token {
 	now := time.Now()
-	return &Token{
+	token := &Token{
 		ID:        uuid.New().String(),
 		UserID:    userID,
 		SessionID: sessionID,
@@ -79,6 +81,19 @@ func NewToken(userID, sessionID string, tokenType TokenType, value string, expir
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+
+	// Generate token generated event
+	event := NewDomainEvent(EventTypeTokenGenerated, token.ID, map[string]interface{}{
+		"token_id":   token.ID,
+		"user_id":    token.UserID,
+		"session_id": token.SessionID,
+		"type":       token.Type,
+		"expires_at": token.ExpiresAt,
+		"timestamp":  now,
+	})
+	token.AddEvent(*event)
+
+	return token
 }
 
 // NewTokenClaims creates new token claims
@@ -116,12 +131,32 @@ func (t *Token) IsRevoked() bool {
 func (t *Token) Revoke() {
 	t.Status = TokenStatusRevoked
 	t.UpdatedAt = time.Now()
+
+	// Generate token revoked event
+	event := NewDomainEvent(EventTypeTokenRevoked, t.ID, map[string]interface{}{
+		"token_id":   t.ID,
+		"user_id":    t.UserID,
+		"session_id": t.SessionID,
+		"type":       t.Type,
+		"timestamp":  t.UpdatedAt,
+	})
+	t.AddEvent(*event)
 }
 
 // Expire expires the token
 func (t *Token) Expire() {
 	t.Status = TokenStatusExpired
 	t.UpdatedAt = time.Now()
+
+	// Generate token expired event
+	event := NewDomainEvent(EventTypeTokenExpired, t.ID, map[string]interface{}{
+		"token_id":   t.ID,
+		"user_id":    t.UserID,
+		"session_id": t.SessionID,
+		"type":       t.Type,
+		"timestamp":  t.UpdatedAt,
+	})
+	t.AddEvent(*event)
 }
 
 // Validate validates the token and returns appropriate error

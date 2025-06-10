@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -12,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/DimaJoyti/go-coffee/web-ui/backend/internal/handlers"
 	"github.com/DimaJoyti/go-coffee/web-ui/backend/internal/services"
 	"github.com/DimaJoyti/go-coffee/web-ui/backend/internal/websocket"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 )
 
 // loadEnv loads environment variables from .env file
@@ -45,6 +46,39 @@ func loadEnv(filename string) error {
 	return scanner.Err()
 }
 
+// CORS middleware
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "43200")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Health check handler
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	response := map[string]interface{}{
+		"status":    "ok",
+		"timestamp": time.Now().UTC(),
+		"service":   "go-coffee-web-ui",
+		"version":   "1.0.0",
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
 func main() {
 	// Load environment variables from .env file
 	envPath := filepath.Join("..", "..", ".env")
@@ -56,10 +90,6 @@ func main() {
 		}
 	} else {
 		log.Printf("✅ Loaded environment variables from %s", envPath)
-	}
-	// Set Gin mode
-	if os.Getenv("GIN_MODE") == "" {
-		gin.SetMode(gin.DebugMode)
 	}
 
 	// Initialize services
@@ -84,91 +114,64 @@ func main() {
 	wsHandler := handlers.NewWebSocketHandler(wsHub)
 
 	// Setup router
-	router := gin.Default()
+	router := mux.NewRouter()
 
-	// CORS middleware
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
+	// Apply CORS middleware
+	router.Use(corsMiddleware)
 
 	// Health check
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "ok",
-			"timestamp": time.Now().UTC(),
-			"service":   "go-coffee-web-ui",
-			"version":   "1.0.0",
-		})
-	})
+	router.HandleFunc("/health", healthHandler).Methods("GET")
 
 	// API routes
-	api := router.Group("/api/v1")
-	{
-		// Dashboard routes
-		dashboard := api.Group("/dashboard")
-		{
-			dashboard.GET("/metrics", dashboardHandler.GetMetrics)
-			dashboard.GET("/activity", dashboardHandler.GetActivity)
-		}
+	api := router.PathPrefix("/api/v1").Subrouter()
 
-		// Coffee routes
-		coffee := api.Group("/coffee")
-		{
-			coffee.GET("/orders", coffeeHandler.GetOrders)
-			coffee.POST("/orders", coffeeHandler.CreateOrder)
-			coffee.PUT("/orders/:id", coffeeHandler.UpdateOrder)
-			coffee.GET("/inventory", coffeeHandler.GetInventory)
-		}
+	// Dashboard routes
+	dashboard := api.PathPrefix("/dashboard").Subrouter()
+	dashboard.HandleFunc("/metrics", dashboardHandler.GetMetrics).Methods("GET")
+	dashboard.HandleFunc("/activity", dashboardHandler.GetActivity).Methods("GET")
 
-		// DeFi routes
-		defi := api.Group("/defi")
-		{
-			defi.GET("/portfolio", defiHandler.GetPortfolio)
-			defi.GET("/assets", defiHandler.GetAssets)
-			defi.GET("/strategies", defiHandler.GetStrategies)
-			defi.POST("/strategies/:id/toggle", defiHandler.ToggleStrategy)
-		}
+	// Coffee routes
+	coffee := api.PathPrefix("/coffee").Subrouter()
+	coffee.HandleFunc("/orders", coffeeHandler.GetOrders).Methods("GET")
+	coffee.HandleFunc("/orders", coffeeHandler.CreateOrder).Methods("POST")
+	coffee.HandleFunc("/orders/{id}", coffeeHandler.UpdateOrder).Methods("PUT")
+	coffee.HandleFunc("/inventory", coffeeHandler.GetInventory).Methods("GET")
 
-		// AI Agents routes
-		agents := api.Group("/agents")
-		{
-			agents.GET("/status", agentsHandler.GetAgentsStatus)
-			agents.POST("/agents/:id/toggle", agentsHandler.ToggleAgent)
-			agents.GET("/agents/:id/logs", agentsHandler.GetAgentLogs)
-		}
+	// DeFi routes
+	defi := api.PathPrefix("/defi").Subrouter()
+	defi.HandleFunc("/portfolio", defiHandler.GetPortfolio).Methods("GET")
+	defi.HandleFunc("/assets", defiHandler.GetAssets).Methods("GET")
+	defi.HandleFunc("/strategies", defiHandler.GetStrategies).Methods("GET")
+	defi.HandleFunc("/strategies/{id}/toggle", defiHandler.ToggleStrategy).Methods("POST")
 
-		// Scraping routes (Bright Data)
-		scraping := api.Group("/scraping")
-		{
-			scraping.GET("/data", scrapingHandler.GetMarketData)
-			scraping.POST("/refresh", scrapingHandler.RefreshData)
-			scraping.GET("/sources", scrapingHandler.GetDataSources)
-			scraping.GET("/competitors", scrapingHandler.GetCompetitorData)
-			scraping.GET("/news", scrapingHandler.GetMarketNews)
-			scraping.GET("/futures", scrapingHandler.GetCoffeeFutures)
-			scraping.GET("/social", scrapingHandler.GetSocialTrends)
-			scraping.GET("/stats", scrapingHandler.GetSessionStats)
-			scraping.POST("/url", scrapingHandler.ScrapeURL)
-			scraping.POST("/search", scrapingHandler.SearchEngine)
-		}
+	// AI Agents routes
+	agents := api.PathPrefix("/agents").Subrouter()
+	agents.HandleFunc("/status", agentsHandler.GetAgentsStatus).Methods("GET")
+	agents.HandleFunc("/agents/{id}/toggle", agentsHandler.ToggleAgent).Methods("POST")
+	agents.HandleFunc("/agents/{id}/logs", agentsHandler.GetAgentLogs).Methods("GET")
 
-		// Analytics routes
-		analytics := api.Group("/analytics")
-		{
-			analytics.GET("/sales", analyticsHandler.GetSalesData)
-			analytics.GET("/revenue", analyticsHandler.GetRevenueData)
-			analytics.GET("/products", analyticsHandler.GetTopProducts)
-			analytics.GET("/locations", analyticsHandler.GetLocationPerformance)
-		}
-	}
+	// Scraping routes (Bright Data)
+	scraping := api.PathPrefix("/scraping").Subrouter()
+	scraping.HandleFunc("/data", scrapingHandler.GetMarketData).Methods("GET")
+	scraping.HandleFunc("/refresh", scrapingHandler.RefreshData).Methods("POST")
+	scraping.HandleFunc("/sources", scrapingHandler.GetDataSources).Methods("GET")
+	scraping.HandleFunc("/competitors", scrapingHandler.GetCompetitorData).Methods("GET")
+	scraping.HandleFunc("/news", scrapingHandler.GetMarketNews).Methods("GET")
+	scraping.HandleFunc("/futures", scrapingHandler.GetCoffeeFutures).Methods("GET")
+	scraping.HandleFunc("/social", scrapingHandler.GetSocialTrends).Methods("GET")
+	scraping.HandleFunc("/stats", scrapingHandler.GetSessionStats).Methods("GET")
+	scraping.HandleFunc("/url", scrapingHandler.ScrapeURL).Methods("POST")
+	scraping.HandleFunc("/search", scrapingHandler.SearchEngine).Methods("POST")
+
+	// Analytics routes
+	analytics := api.PathPrefix("/analytics").Subrouter()
+	analytics.HandleFunc("/sales", analyticsHandler.GetSalesData).Methods("GET")
+	analytics.HandleFunc("/revenue", analyticsHandler.GetRevenueData).Methods("GET")
+	analytics.HandleFunc("/products", analyticsHandler.GetTopProducts).Methods("GET")
+	analytics.HandleFunc("/locations", analyticsHandler.GetLocationPerformance).Methods("GET")
 
 	// WebSocket endpoint
-	router.GET("/ws/realtime", wsHandler.HandleWebSocket)
+	router.HandleFunc("/ws/realtime", wsHandler.HandleWebSocket).Methods("GET")
 
 	// Start server
 	port := os.Getenv("PORT")

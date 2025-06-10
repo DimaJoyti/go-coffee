@@ -74,6 +74,16 @@ func (ar *AggregateRoot) ClearEvents() {
 	ar.events = nil
 }
 
+// HasEvents returns true if there are uncommitted events
+func (ar *AggregateRoot) HasEvents() bool {
+	return len(ar.events) > 0
+}
+
+// GetEventCount returns the number of uncommitted events
+func (ar *AggregateRoot) GetEventCount() int {
+	return len(ar.events)
+}
+
 // Auth Domain Event Types
 const (
 	// User Events
@@ -86,39 +96,43 @@ const (
 	EventTypeUserStatusChanged   = "auth.user.status_changed"
 	EventTypeUserRoleChanged     = "auth.user.role_changed"
 	EventTypeUserDeleted         = "auth.user.deleted"
+	EventTypeUserEmailVerified   = "auth.user.email_verified"
+	EventTypeUserPhoneVerified   = "auth.user.phone_verified"
+	EventTypeUserProfileUpdated  = "auth.user.profile_updated"
+	EventTypeUserDeactivated     = "auth.user.deactivated"
+	EventTypeUserReactivated     = "auth.user.reactivated"
 
 	// MFA Events
-	EventTypeMFAEnabled         = "auth.mfa.enabled"
-	EventTypeMFADisabled        = "auth.mfa.disabled"
-	EventTypeMFABackupCodeUsed  = "auth.mfa.backup_code_used"
-	EventTypeMFAMethodChanged   = "auth.mfa.method_changed"
+	EventTypeMFAEnabled        = "auth.mfa.enabled"
+	EventTypeMFADisabled       = "auth.mfa.disabled"
+	EventTypeMFABackupCodeUsed = "auth.mfa.backup_code_used"
+	EventTypeMFAMethodChanged  = "auth.mfa.method_changed"
+	EventTypeMFACodeGenerated  = "auth.mfa.code_generated"
+	EventTypeMFACodeVerified   = "auth.mfa.code_verified"
 
 	// Security Events
-	EventTypeFailedLogin        = "auth.security.failed_login"
-	EventTypeSuccessfulLogin    = "auth.security.successful_login"
-	EventTypeSuspiciousActivity = "auth.security.suspicious_activity"
-	EventTypeDeviceAdded        = "auth.security.device_added"
-	EventTypeDeviceTrusted      = "auth.security.device_trusted"
-	EventTypeRiskScoreUpdated   = "auth.security.risk_score_updated"
+	EventTypeFailedLogin            = "auth.security.failed_login"
+	EventTypeSuccessfulLogin        = "auth.security.successful_login"
+	EventTypeSuspiciousActivity     = "auth.security.suspicious_activity"
+	EventTypeDeviceAdded            = "auth.security.device_added"
+	EventTypeDeviceTrusted          = "auth.security.device_trusted"
+	EventTypeRiskScoreUpdated       = "auth.security.risk_score_updated"
+	EventTypePasswordResetRequested = "auth.security.password_reset_requested"
+	EventTypePasswordResetCompleted = "auth.security.password_reset_completed"
+	EventTypeSecurityAlertTriggered = "auth.security.alert_triggered"
 
 	// Session Events
-	EventTypeSessionCreated   = "auth.session.created"
-	EventTypeSessionExpired   = "auth.session.expired"
-	EventTypeSessionRevoked   = "auth.session.revoked"
-	EventTypeSessionRefreshed = "auth.session.refreshed"
+	EventTypeSessionCreated     = "auth.session.created"
+	EventTypeSessionExpired     = "auth.session.expired"
+	EventTypeSessionRevoked     = "auth.session.revoked"
+	EventTypeSessionRefreshed   = "auth.session.refreshed"
+	EventTypeSessionInvalidated = "auth.session.invalidated"
 
 	// Token Events
 	EventTypeTokenGenerated = "auth.token.generated"
 	EventTypeTokenValidated = "auth.token.validated"
 	EventTypeTokenRevoked   = "auth.token.revoked"
 	EventTypeTokenExpired   = "auth.token.expired"
-
-	// Account Events
-	EventTypeAccountVerified   = "auth.account.verified"
-	EventTypeAccountSuspended  = "auth.account.suspended"
-	EventTypeAccountReactivated = "auth.account.reactivated"
-	EventTypeEmailVerified     = "auth.account.email_verified"
-	EventTypePhoneVerified     = "auth.account.phone_verified"
 )
 
 // Event Data Structures
@@ -133,14 +147,14 @@ type UserRegisteredEventData struct {
 
 // UserLoggedInEventData represents data for user login event
 type UserLoggedInEventData struct {
-	UserID      string `json:"user_id"`
-	Email       string `json:"email"`
-	IPAddress   string `json:"ip_address"`
-	UserAgent   string `json:"user_agent"`
-	DeviceID    string `json:"device_id,omitempty"`
-	SessionID   string `json:"session_id"`
-	MFAUsed     bool   `json:"mfa_used"`
-	Timestamp   time.Time `json:"timestamp"`
+	UserID    string    `json:"user_id"`
+	Email     string    `json:"email"`
+	IPAddress string    `json:"ip_address"`
+	UserAgent string    `json:"user_agent"`
+	DeviceID  string    `json:"device_id,omitempty"`
+	SessionID string    `json:"session_id"`
+	MFAUsed   bool      `json:"mfa_used"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // UserLoggedOutEventData represents data for user logout event
@@ -219,13 +233,13 @@ type DeviceEventData struct {
 
 // RiskScoreEventData represents data for risk score events
 type RiskScoreEventData struct {
-	UserID       string        `json:"user_id"`
-	OldScore     float64       `json:"old_score"`
-	NewScore     float64       `json:"new_score"`
-	OldLevel     SecurityLevel `json:"old_level"`
-	NewLevel     SecurityLevel `json:"new_level"`
-	Factors      []string      `json:"factors,omitempty"`
-	Timestamp    time.Time     `json:"timestamp"`
+	UserID    string        `json:"user_id"`
+	OldScore  float64       `json:"old_score"`
+	NewScore  float64       `json:"new_score"`
+	OldLevel  SecurityLevel `json:"old_level"`
+	NewLevel  SecurityLevel `json:"new_level"`
+	Factors   []string      `json:"factors,omitempty"`
+	Timestamp time.Time     `json:"timestamp"`
 }
 
 // Helper functions to create specific events

@@ -10,6 +10,39 @@ import (
 
 // Lightning Network implementation for Go Coffee
 
+// Point represents an elliptic curve point (simplified)
+type Point struct {
+	X, Y []byte
+}
+
+// Sec returns the serialized point
+func (p *Point) Sec() []byte {
+	return append(p.X, p.Y...)
+}
+
+// PrivateKey represents a private key
+type PrivateKey struct {
+	key []byte
+}
+
+// Point returns the public key point
+func (pk *PrivateKey) Point() *Point {
+	// Simplified implementation - in real use, this would use proper elliptic curve math
+	return &Point{
+		X: pk.key[:16],
+		Y: pk.key[16:32],
+	}
+}
+
+// GeneratePrivateKey generates a new private key
+func GeneratePrivateKey() (*PrivateKey, error) {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
+	return &PrivateKey{key: key}, nil
+}
+
 // LightningNode represents a Lightning Network node
 type LightningNode struct {
 	NodeID    string
@@ -52,13 +85,13 @@ type LightningInvoice struct {
 
 // LightningPayment represents a Lightning Network payment
 type LightningPayment struct {
-	PaymentHash   string
-	Amount        int64
-	Fee           int64
-	Route         []string
-	Status        PaymentStatus
-	CreatedAt     time.Time
-	SettledAt     *time.Time
+	PaymentHash string
+	Amount      int64
+	Fee         int64
+	Route       []string
+	Status      PaymentStatus
+	CreatedAt   time.Time
+	SettledAt   *time.Time
 }
 
 // PaymentStatus represents the status of a Lightning payment
@@ -281,16 +314,16 @@ func NewLightningUtils() *LightningUtils {
 func (lu *LightningUtils) DecodeBolt11Invoice(invoice string) (map[string]interface{}, error) {
 	// This is a simplified implementation
 	// In a real implementation, you would parse the BOLT11 format
-	
+
 	if len(invoice) < 10 {
 		return nil, fmt.Errorf("invalid invoice format")
 	}
 
 	// Simulate decoded invoice data
 	return map[string]interface{}{
-		"amount":      1000,
-		"description": "Coffee payment",
-		"expiry":      3600,
+		"amount":       1000,
+		"description":  "Coffee payment",
+		"expiry":       3600,
 		"payment_hash": "abcd1234...",
 	}, nil
 }
@@ -299,7 +332,7 @@ func (lu *LightningUtils) DecodeBolt11Invoice(invoice string) (map[string]interf
 func (lu *LightningUtils) EncodeBolt11Invoice(invoice *LightningInvoice) (string, error) {
 	// This is a simplified implementation
 	// In a real implementation, you would encode to BOLT11 format
-	
+
 	encoded := fmt.Sprintf("lnbc%d1p%s", invoice.Amount, invoice.PaymentHash[:8])
 	return encoded, nil
 }
@@ -314,31 +347,31 @@ func (lu *LightningUtils) ValidateInvoice(invoice string) bool {
 // GetLightningFeatures returns supported Lightning Network features
 func GetLightningFeatures() []string {
 	return []string{
-		"basic_mpp",           // Multi-part payments
-		"payment_secret",      // Payment secrets
-		"var_onion_optin",     // Variable-length onion
-		"static_remote_key",   // Static remote key
-		"payment_metadata",    // Payment metadata
-		"amp",                 // Atomic Multi-Path payments
-		"keysend",            // Spontaneous payments
-		"channel_type",       // Channel type negotiation
-		"scid_alias",         // Short channel ID alias
-		"zero_conf",          // Zero confirmation channels
+		"basic_mpp",         // Multi-part payments
+		"payment_secret",    // Payment secrets
+		"var_onion_optin",   // Variable-length onion
+		"static_remote_key", // Static remote key
+		"payment_metadata",  // Payment metadata
+		"amp",               // Atomic Multi-Path payments
+		"keysend",           // Spontaneous payments
+		"channel_type",      // Channel type negotiation
+		"scid_alias",        // Short channel ID alias
+		"zero_conf",         // Zero confirmation channels
 	}
 }
 
 // LightningConfig represents Lightning Network configuration
 type LightningConfig struct {
-	Network           string        `json:"network"`           // mainnet, testnet
-	AutoPilot         bool          `json:"autopilot"`         // Enable autopilot
-	MaxChannels       int           `json:"max_channels"`      // Maximum number of channels
-	ChannelCapacity   int64         `json:"channel_capacity"`  // Default channel capacity
-	FeeRate           int64         `json:"fee_rate"`          // Fee rate in sat/vbyte
-	TimeLockDelta     int           `json:"timelock_delta"`    // CLTV delta
-	MinHTLCSize       int64         `json:"min_htlc_size"`     // Minimum HTLC size
-	MaxHTLCSize       int64         `json:"max_htlc_size"`     // Maximum HTLC size
-	PaymentTimeout    time.Duration `json:"payment_timeout"`   // Payment timeout
-	InvoiceExpiry     time.Duration `json:"invoice_expiry"`    // Default invoice expiry
+	Network         string        `json:"network"`          // mainnet, testnet
+	AutoPilot       bool          `json:"autopilot"`        // Enable autopilot
+	MaxChannels     int           `json:"max_channels"`     // Maximum number of channels
+	ChannelCapacity int64         `json:"channel_capacity"` // Default channel capacity
+	FeeRate         int64         `json:"fee_rate"`         // Fee rate in sat/vbyte
+	TimeLockDelta   int           `json:"timelock_delta"`   // CLTV delta
+	MinHTLCSize     int64         `json:"min_htlc_size"`    // Minimum HTLC size
+	MaxHTLCSize     int64         `json:"max_htlc_size"`    // Maximum HTLC size
+	PaymentTimeout  time.Duration `json:"payment_timeout"`  // Payment timeout
+	InvoiceExpiry   time.Duration `json:"invoice_expiry"`   // Default invoice expiry
 }
 
 // DefaultLightningConfig returns default Lightning Network configuration
@@ -348,9 +381,9 @@ func DefaultLightningConfig() *LightningConfig {
 		AutoPilot:       false,
 		MaxChannels:     10,
 		ChannelCapacity: 1000000, // 0.01 BTC
-		FeeRate:         1,        // 1 sat/vbyte
+		FeeRate:         1,       // 1 sat/vbyte
 		TimeLockDelta:   40,
-		MinHTLCSize:     1000,     // 1000 sats
+		MinHTLCSize:     1000,      // 1000 sats
 		MaxHTLCSize:     100000000, // 1 BTC
 		PaymentTimeout:  time.Minute * 5,
 		InvoiceExpiry:   time.Hour * 24,

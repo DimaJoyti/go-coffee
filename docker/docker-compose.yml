@@ -3,13 +3,16 @@ version: '3.8'
 services:
   # Infrastructure Services
   redis:
-    image: redis:8-alpine
+    image: redis:7-alpine
     container_name: go-coffee-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -17,34 +20,57 @@ services:
       retries: 5
     networks:
       - go-coffee-network
+    restart: unless-stopped
 
   postgres:
     image: postgres:15-alpine
     container_name: go-coffee-postgres
     environment:
-      POSTGRES_DB: go_coffee
-      POSTGRES_USER: go_coffee_user
-      POSTGRES_PASSWORD: go_coffee_password
+      POSTGRES_DB: ${DB_NAME:-go_coffee}
+      POSTGRES_USER: ${DB_USER:-go_coffee_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-go_coffee_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
+      - ./scripts/migrations:/docker-entrypoint-initdb.d/migrations
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U go_coffee_user -d go_coffee"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-go_coffee_user} -d ${DB_NAME:-go_coffee}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - go-coffee-network
+    restart: unless-stopped
+
+  # Redis Sentinel for HA (optional)
+  redis-sentinel:
+    image: redis:7-alpine
+    container_name: go-coffee-redis-sentinel
+    ports:
+      - "26379:26379"
+    command: redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./config/sentinel.conf:/etc/redis/sentinel.conf
+    depends_on:
+      - redis
+    networks:
+      - go-coffee-network
+    profiles:
+      - ha
+    restart: unless-stopped
 
   # Monitoring Stack
   prometheus:
     image: prom/prometheus:latest
     container_name: go-coffee-prometheus
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/rules:/etc/prometheus/rules
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -52,20 +78,33 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--storage.tsdb.retention.time=30d'
+    environment:
+      - PROMETHEUS_RETENTION_TIME=30d
     networks:
       - go-coffee-network
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
     container_name: go-coffee-grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_FEATURE_TOGGLES_ENABLE=ngalert
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
     networks:
       - go-coffee-network
+    restart: unless-stopped
 
   jaeger:
     image: jaegertracing/all-in-one:latest
@@ -73,10 +112,82 @@ services:
     ports:
       - "16686:16686"
       - "14268:14268"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=memory
+      - MEMORY_MAX_TRACES=50000
     networks:
       - go-coffee-network
+    restart: unless-stopped
+
+  # Node Exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: go-coffee-node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - go-coffee-network
+    restart: unless-stopped
+
+  # Redis Exporter for Redis metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: go-coffee-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    depends_on:
+      - redis
+    networks:
+      - go-coffee-network
+    restart: unless-stopped
+
+  # Postgres Exporter for database metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: go-coffee-postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${DB_USER:-go_coffee_user}:${DB_PASSWORD:-go_coffee_password}@postgres:5432/${DB_NAME:-go_coffee}?sslmode=disable
+    depends_on:
+      - postgres
+    networks:
+      - go-coffee-network
+    restart: unless-stopped
+
+  # AlertManager for alerting
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: go-coffee-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - go-coffee-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
   # Go Coffee Microservices
   ai-search:
@@ -104,25 +215,69 @@ services:
 
   auth-service:
     build:
-      context: .
+      context: ..
       dockerfile: deployments/auth-service/Dockerfile
+      target: ${DOCKER_BUILD_TARGET:-development}
     container_name: go-coffee-auth-service
     ports:
-      - "8080:8080"
+      - "${AUTH_SERVICE_PORT:-8080}:8080"
     environment:
-      - DATABASE_URL=postgres://go_coffee_user:go_coffee_password@postgres:5432/go_coffee?sslmode=disable
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key}
-      - LOG_LEVEL=info
+      # Database Configuration
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-go_coffee}
+      - DB_USER=${DB_USER:-go_coffee_user}
+      - DB_PASSWORD=${DB_PASSWORD:-go_coffee_password}
+      - DB_SSL_MODE=disable
+      - DB_MAX_OPEN_CONNS=25
+      - DB_MAX_IDLE_CONNS=5
+
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      - REDIS_POOL_SIZE=20
+
+      # Security Configuration
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      - JWT_ACCESS_TOKEN_TTL=${JWT_ACCESS_TOKEN_TTL:-15m}
+      - JWT_REFRESH_TOKEN_TTL=${JWT_REFRESH_TOKEN_TTL:-24h}
+      - AES_ENCRYPTION_KEY=${AES_ENCRYPTION_KEY:-your-32-byte-aes-key-change-this}
+
+      # Session Configuration
+      - SESSION_COOKIE_NAME=go_coffee_session
+      - SESSION_COOKIE_SECURE=false
+      - SESSION_MAX_AGE=24h
+      - SESSION_IDLE_TIMEOUT=30m
+
+      # Rate Limiting
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=100
+
+      # Monitoring
+      - METRICS_ENABLED=true
+      - HEALTH_ENABLED=true
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=json
+
+      # Environment
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVICE_NAME=auth-service
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
     networks:
       - go-coffee-network
+    restart: unless-stopped
 
   kitchen-service:
     build:
@@ -236,10 +391,19 @@ services:
 
 volumes:
   redis_data:
+    driver: local
+  redis_cluster_data:
+    driver: local
   postgres_data:
+    driver: local
   prometheus_data:
+    driver: local
   grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
   ollama_data:
+    driver: local
 
 networks:
   go-coffee-network:

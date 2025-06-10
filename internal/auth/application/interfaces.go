@@ -2,9 +2,15 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/internal/auth/domain"
+)
+
+// Cache errors
+var (
+	ErrCacheKeyNotFound = errors.New("cache key not found")
 )
 
 // AuthService defines the interface for authentication service
@@ -112,18 +118,30 @@ type SecurityService interface {
 	GetSecurityEvents(ctx context.Context, userID string, limit int) ([]*SecurityEventDTO, error)
 
 	// Rate limiting
-	CheckRateLimit(ctx context.Context, key string) error
+	CheckRateLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, error)
 	IncrementRateLimit(ctx context.Context, key string) error
+
+	// IP blocking
+	IsIPBlocked(ctx context.Context, ipAddress string) (bool, error)
+	BlockIP(ctx context.Context, ipAddress, reason string) error
+	UnblockIP(ctx context.Context, ipAddress string) error
 
 	// Account security
 	CheckAccountSecurity(ctx context.Context, userID string) error
 	LockAccount(ctx context.Context, userID string, reason string) error
 	UnlockAccount(ctx context.Context, userID string) error
+	IsAccountLocked(ctx context.Context, userID string) (bool, error)
 
 	// Failed login tracking
 	TrackFailedLogin(ctx context.Context, email string) error
 	ResetFailedLoginCount(ctx context.Context, email string) error
-	IsAccountLocked(ctx context.Context, email string) (bool, error)
+	RecordFailedLogin(ctx context.Context, userID, ipAddress string) error
+
+	// MFA security
+	RecordMFAFailure(ctx context.Context, userID string) error
+
+	// Security analysis
+	AnalyzeSuspiciousActivity(ctx context.Context, userID, ipAddress, userAgent string) (*SecurityAnalysis, error)
 }
 
 // CacheService defines the interface for caching operations
@@ -139,6 +157,11 @@ type CacheService interface {
 	GetString(ctx context.Context, key string) (string, error)
 	SetInt(ctx context.Context, key string, value int, expiration time.Duration) error
 	GetInt(ctx context.Context, key string) (int, error)
+
+	// Increment operations
+	Increment(ctx context.Context, key string) (int64, error)
+	IncrementWithExpiry(ctx context.Context, key string, expiration time.Duration) (int64, error)
+	Decrement(ctx context.Context, key string) (int64, error)
 
 	// Cache operations for auth
 	SetUserSession(ctx context.Context, sessionID string, session *domain.Session, expiration time.Duration) error

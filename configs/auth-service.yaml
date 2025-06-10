@@ -1,0 +1,151 @@
+# Auth Service Configuration
+
+# Database configuration
+database:
+  host: localhost
+  port: 5432
+  database: go_coffee_auth
+  username: postgres
+  password: postgres
+  ssl_mode: disable
+  max_conns: 25
+  min_conns: 5
+
+# Redis configuration
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  prefix: "auth"
+  pool_size: 10
+  timeout: 5s
+
+# JWT configuration
+jwt:
+  secret_key: "your-super-secret-jwt-key-change-in-production-must-be-at-least-32-chars"
+  access_token_expiry: 15m
+  refresh_token_expiry: 168h # 7 days
+  issuer: "go-coffee-auth"
+  audience: "go-coffee-api"
+  refresh_token_length: 32
+
+# Password configuration
+password:
+  cost: 12
+  min_length: 8
+  max_length: 128
+  require_uppercase: true
+  require_lowercase: true
+  require_numbers: true
+  require_special_chars: true
+  special_chars: "!@#$%^&*()_+-=[]{}|;:,.<>?"
+  max_repeating_chars: 3
+  forbidden_passwords:
+    - "password"
+    - "123456"
+    - "123456789"
+    - "qwerty"
+    - "abc123"
+    - "password123"
+    - "admin"
+    - "letmein"
+    - "welcome"
+    - "monkey"
+
+# Security configuration
+security:
+  # Rate limiting
+  max_login_attempts: 5
+  login_attempt_window: 15m
+  account_lock_duration: 30m
+  
+  # IP-based rate limiting
+  max_requests_per_ip: 100
+  ip_rate_limit_window: 1h
+  ip_block_duration: 24h
+  
+  # Suspicious activity detection
+  max_failed_mfa: 3
+  mfa_failure_window: 15m
+  suspicious_ip_threshold: 5
+  
+  # Trusted networks (CIDR notation)
+  trusted_networks:
+    - "127.0.0.1"
+    - "::1"
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  
+  # Security events retention
+  event_retention_period: 720h # 30 days
+
+# HTTP server configuration
+http:
+  port: 8080
+  read_timeout: 5s
+  write_timeout: 10s
+  idle_timeout: 15s
+  cors:
+    allowed_origins:
+      - "*"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+    allow_credentials: true
+    max_age: 300
+
+# Logger configuration
+logger:
+  level: info
+  format: json
+
+# Environment-specific overrides
+# These can be overridden by environment variables
+
+# Development environment
+development:
+  logger:
+    level: debug
+    format: text
+  database:
+    database: go_coffee_auth_dev
+  redis:
+    db: 1
+    prefix: "auth_dev"
+
+# Test environment
+test:
+  logger:
+    level: error
+    format: json
+  database:
+    database: go_coffee_auth_test
+  redis:
+    db: 2
+    prefix: "auth_test"
+  jwt:
+    secret_key: "test-secret-key-for-testing-only-not-secure"
+    access_token_expiry: 5m
+    refresh_token_expiry: 1h
+
+# Production environment
+production:
+  logger:
+    level: warn
+    format: json
+  security:
+    max_login_attempts: 3
+    account_lock_duration: 60m
+    ip_block_duration: 48h
+  http:
+    read_timeout: 10s
+    write_timeout: 10s
+    idle_timeout: 30s

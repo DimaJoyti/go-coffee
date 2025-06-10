@@ -82,12 +82,6 @@ func (am *AuthMiddleware) respondWithError(w http.ResponseWriter, code int, mess
 	w.Write([]byte(`{"error":"` + message + `"}`))
 }
 
-// Add the middleware method to the Handler
-func (h *Handler) authMiddleware(next http.Handler) http.Handler {
-	middleware := NewAuthMiddleware(h.authService, h.logger)
-	return middleware.Middleware(next)
-}
-
 // CORS middleware
 func (h *Handler) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,48 +97,6 @@ func (h *Handler) corsMiddleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// Logging middleware
-func (h *Handler) loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Create a response writer wrapper to capture status code
-		wrapper := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
-		next.ServeHTTP(wrapper, r)
-
-		duration := time.Since(start)
-
-		h.logger.WithFields(map[string]interface{}{
-			"method":      r.Method,
-			"path":        r.URL.Path,
-			"status_code": wrapper.statusCode,
-			"duration":    duration.String(),
-			"remote_addr": r.RemoteAddr,
-			"user_agent":  r.UserAgent(),
-		}).Info("HTTP request completed")
-	})
-}
-
-// Recovery middleware
-func (h *Handler) recoveryMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				h.logger.WithFields(map[string]interface{}{
-					"method": r.Method,
-					"path":   r.URL.Path,
-					"panic":  err,
-				}).Error("HTTP request panicked")
-
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			}
-		}()
 
 		next.ServeHTTP(w, r)
 	})
@@ -199,17 +151,6 @@ func (h *Handler) requireRole(role string) func(http.Handler) http.Handler {
 // Admin only middleware
 func (h *Handler) requireAdmin(next http.Handler) http.Handler {
 	return h.requireRole("admin")(next)
-}
-
-// responseWriter wraps http.ResponseWriter to capture status code
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
 }
 
 // Request ID middleware

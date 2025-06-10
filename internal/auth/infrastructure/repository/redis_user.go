@@ -30,9 +30,9 @@ func NewRedisUserRepository(client *redis.Client, logger *logger.Logger) *RedisU
 
 // Redis key patterns
 const (
-	userKeyPattern       = "auth:users:%s"           // auth:users:{userID}
-	userEmailKeyPattern  = "auth:users:email:%s"     // auth:users:email:{email}
-	failedLoginKeyPattern = "auth:failed_login:%s"   // auth:failed_login:{email}
+	userKeyPattern        = "auth:users:%s"        // auth:users:{userID}
+	userEmailKeyPattern   = "auth:users:email:%s"  // auth:users:email:{email}
+	failedLoginKeyPattern = "auth:failed_login:%s" // auth:failed_login:{email}
 )
 
 // CreateUser creates a new user in Redis
@@ -190,7 +190,7 @@ func (r *RedisUserRepository) LockUser(ctx context.Context, userID string, until
 		return err
 	}
 
-	user.Lock(until)
+	user.Lock(until, "Account locked due to security policy")
 	return r.UpdateUser(ctx, user)
 }
 

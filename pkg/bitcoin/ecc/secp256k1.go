@@ -221,18 +221,23 @@ func (curve *Secp256k1) ModSqrt(a *big.Int) *big.Int {
 	// sqrt(a) = a^((p+1)/4) mod p
 	exp := new(big.Int).Add(curve.P, big.NewInt(1))
 	exp.Div(exp, big.NewInt(4))
-	
+
 	result := new(big.Int).Exp(a, exp, curve.P)
-	
+
 	// Verify the result
 	if curve.ModSquare(result).Cmp(a) == 0 {
 		return result
 	}
-	
+
 	return nil
 }
 
 // String returns a string representation of the curve parameters
 func (curve *Secp256k1) String() string {
 	return fmt.Sprintf("secp256k1: y^2 = x^3 + %s (mod %s)", curve.B.String(), curve.P.String())
+}
+
+// S256 returns the secp256k1 curve (for compatibility with go-ethereum)
+func S256() *Secp256k1 {
+	return GetSecp256k1()
 }

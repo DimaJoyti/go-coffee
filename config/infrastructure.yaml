@@ -1,0 +1,303 @@
+# Infrastructure Configuration for Go Coffee Platform
+# This file contains all infrastructure layer configurations
+
+# Redis Configuration
+redis:
+  # Connection settings
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  
+  # Pool settings
+  pool_size: 20
+  min_idle_conns: 5
+  max_retries: 3
+  retry_delay: "100ms"
+  
+  # Timeout settings
+  dial_timeout: "5s"
+  read_timeout: "3s"
+  write_timeout: "3s"
+  idle_timeout: "5m"
+  
+  # Cluster settings (for production)
+  cluster_mode: false
+  cluster_hosts: []
+  
+  # Sentinel settings (for high availability)
+  sentinel_mode: false
+  sentinel_hosts: []
+  sentinel_master: ""
+  sentinel_password: ""
+  
+  # Key prefix for namespacing
+  key_prefix: "go-coffee:"
+  
+  # SSL/TLS settings
+  tls_enabled: false
+  tls_cert_file: ""
+  tls_key_file: ""
+  tls_ca_file: ""
+  tls_skip_verify: false
+
+# Database Configuration
+database:
+  # Connection settings
+  host: "localhost"
+  port: 5432
+  database: "go_coffee"
+  username: "postgres"
+  password: "postgres"
+  ssl_mode: "disable"
+  
+  # Pool settings
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: "5m"
+  conn_max_idle_time: "1m"
+  
+  # Timeout settings
+  connect_timeout: "10s"
+  query_timeout: "30s"
+  
+  # Migration settings
+  migrations_path: "./migrations"
+  migrations_table: "schema_migrations"
+  auto_migrate: false
+  
+  # Monitoring
+  log_queries: true
+  slow_query_threshold: "1s"
+
+# Security Configuration
+security:
+  # JWT settings
+  jwt:
+    secret_key: "your-super-secret-jwt-key-change-in-production"
+    access_token_ttl: "15m"
+    refresh_token_ttl: "24h"
+    issuer: "go-coffee"
+    audience: "go-coffee-users"
+    algorithm: "HS256"
+    refresh_threshold: "5m"
+  
+  # Encryption settings
+  encryption:
+    aes_key: "your-32-byte-aes-key-change-this"
+    algorithm: "AES-256-GCM"
+    key_size: 32
+  
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 100
+    burst_size: 10
+    window_size: "1m"
+    cleanup_interval: "5m"
+  
+  # CORS settings
+  cors:
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+    exposed_headers: ["X-Total-Count"]
+    allow_credentials: true
+    max_age: 86400
+  
+  # Security headers
+  security_headers:
+    content_type_nosniff: true
+    frame_deny: true
+    content_security_policy: "default-src 'self'"
+    referrer_policy: "strict-origin-when-cross-origin"
+    xss_protection: true
+    hsts_max_age: 31536000
+  
+  # Session settings
+  session:
+    cookie_name: "session_id"
+    cookie_domain: ""
+    cookie_path: "/"
+    cookie_secure: false
+    cookie_http_only: true
+    cookie_same_site: "Lax"
+    max_age: "24h"
+    idle_timeout: "30m"
+
+# Events Configuration
+events:
+  # Event store settings
+  store:
+    type: "redis"
+    retention_days: 30
+    batch_size: 100
+    flush_interval: "1s"
+    compression: false
+  
+  # Publisher settings
+  publisher:
+    buffer_size: 1000
+    workers: 5
+    flush_interval: "100ms"
+    max_retries: 3
+    retry_delay: "1s"
+  
+  # Subscriber settings
+  subscriber:
+    workers: 5
+    buffer_size: 1000
+    ack_timeout: "30s"
+    max_retries: 3
+    retry_delay: "1s"
+    dead_letter_queue: true
+  
+  # Retry settings
+  retry:
+    max_attempts: 5
+    initial_delay: "1s"
+    max_delay: "30s"
+    multiplier: 2.0
+    jitter: true
+
+# Cache Configuration
+cache:
+  default_ttl: "1h"
+  cleanup_interval: "10m"
+  max_size: 104857600  # 100MB
+  compression: false
+  serialization: "json"
+
+# Metrics Configuration
+metrics:
+  enabled: true
+  path: "/metrics"
+  namespace: "go_coffee"
+  subsystem: "infrastructure"
+  interval: "15s"
+  buckets: [0.1, 0.3, 1.2, 5.0]
+
+# Environment-specific overrides
+environments:
+  development:
+    redis:
+      host: "localhost"
+      port: 6379
+    database:
+      host: "localhost"
+      port: 5432
+      log_queries: true
+    security:
+      jwt:
+        secret_key: "dev-secret-key"
+      session:
+        cookie_secure: false
+    
+  staging:
+    redis:
+      host: "redis-staging"
+      port: 6379
+      pool_size: 15
+    database:
+      host: "postgres-staging"
+      port: 5432
+      max_open_conns: 20
+      log_queries: false
+    security:
+      jwt:
+        secret_key: "${JWT_SECRET_KEY}"
+      session:
+        cookie_secure: true
+    
+  production:
+    redis:
+      host: "redis-cluster"
+      port: 6379
+      cluster_mode: true
+      cluster_hosts:
+        - "redis-1:6379"
+        - "redis-2:6379"
+        - "redis-3:6379"
+      pool_size: 50
+      tls_enabled: true
+    database:
+      host: "postgres-primary"
+      port: 5432
+      max_open_conns: 50
+      max_idle_conns: 10
+      log_queries: false
+      ssl_mode: "require"
+    security:
+      jwt:
+        secret_key: "${JWT_SECRET_KEY}"
+        access_token_ttl: "5m"
+        refresh_token_ttl: "7d"
+      encryption:
+        aes_key: "${AES_ENCRYPTION_KEY}"
+      rate_limit:
+        requests_per_minute: 1000
+        burst_size: 50
+      cors:
+        allowed_origins: ["https://app.go-coffee.com"]
+      session:
+        cookie_secure: true
+        cookie_domain: ".go-coffee.com"
+    events:
+      store:
+        retention_days: 90
+        batch_size: 500
+      publisher:
+        buffer_size: 5000
+        workers: 10
+      subscriber:
+        workers: 10
+        buffer_size: 5000
+    cache:
+      max_size: 1073741824  # 1GB
+      compression: true
+    metrics:
+      enabled: true
+      interval: "10s"
+
+# Feature flags for infrastructure components
+features:
+  redis_cluster: false
+  database_read_replicas: false
+  event_sourcing: true
+  distributed_cache: true
+  security_audit_logging: true
+  performance_monitoring: true
+  health_checks: true
+  graceful_shutdown: true
+
+# Logging configuration for infrastructure
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  fields:
+    service: "infrastructure"
+    version: "1.0.0"
+  
+# Health check configuration
+health:
+  enabled: true
+  path: "/health"
+  timeout: "5s"
+  interval: "30s"
+  
+# Monitoring and observability
+monitoring:
+  tracing:
+    enabled: true
+    endpoint: "http://jaeger:14268/api/traces"
+    service_name: "go-coffee-infrastructure"
+  
+  metrics:
+    enabled: true
+    endpoint: "http://prometheus:9090"
+    push_interval: "15s"
+  
+  alerts:
+    enabled: true
+    webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"

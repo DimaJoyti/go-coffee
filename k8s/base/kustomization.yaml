@@ -1,0 +1,79 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: go-coffee-base
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+# Namespace for all resources
+namespace: go-coffee
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: go-coffee
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/managed-by: kustomize
+
+# Resources to include
+resources:
+- namespace.yaml
+- configmap.yaml
+- secret.yaml
+- pvc.yaml
+- postgres-deployment.yaml
+- redis-deployment.yaml
+- user-gateway-deployment.yaml
+- security-gateway-deployment.yaml
+- web-ui-backend-deployment.yaml
+- api-gateway-deployment.yaml
+
+# Images to be used (can be overridden in overlays)
+images:
+- name: ghcr.io/dimajoyti/go-coffee/user-gateway
+  newTag: latest
+- name: ghcr.io/dimajoyti/go-coffee/security-gateway
+  newTag: latest
+- name: ghcr.io/dimajoyti/go-coffee/web-ui-backend
+  newTag: latest
+
+# ConfigMap generator for environment-specific configs
+configMapGenerator:
+- name: go-coffee-env-config
+  literals:
+  - DEPLOYMENT_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+  - KUSTOMIZE_VERSION=base
+
+# Secret generator for additional secrets
+secretGenerator:
+- name: go-coffee-runtime-secrets
+  literals:
+  - DEPLOYMENT_ID=$(uuidgen)
+  type: Opaque
+
+# Patches for common modifications
+patches:
+- target:
+    kind: Deployment
+    labelSelector: "app.kubernetes.io/component=gateway,app.kubernetes.io/component=security,app.kubernetes.io/component=backend"
+  patch: |-
+    - op: add
+      path: /spec/template/metadata/annotations/config.kubernetes.io~1reload
+      value: "true"
+
+# Resource transformations
+replicas:
+- name: user-gateway
+  count: 2
+- name: security-gateway
+  count: 2
+- name: web-ui-backend
+  count: 2
+- name: api-gateway
+  count: 2
+
+# Name prefix for all resources
+namePrefix: ""
+
+# Name suffix for all resources
+nameSuffix: ""

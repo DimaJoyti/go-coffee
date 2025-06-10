@@ -1,230 +1,169 @@
-# Fintech Platform Makefile
+# Go Coffee - Simplified Build System
+# ===================================
 
-.PHONY: help build run test clean docker-build docker-run fintech-build fintech-run
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[0;33m
+BLUE := \033[0;34m
+CYAN := \033[0;36m
+NC := \033[0m # No Color
 
-# Variables
-BINARY_NAME=fintech-platform
-DOCKER_IMAGE=fintech-platform
-VERSION?=latest
-GOOS?=linux
-GOARCH?=amd64
+# Project configuration
+PROJECT_NAME := go-coffee
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-# Default target
-help:
-	@echo "🏦 Fintech Platform - Available Commands"
+# Build configuration
+BUILD_DIR := bin
+LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
+
+# Service definitions
+CORE_SERVICES := api-gateway producer consumer streams
+WEB3_SERVICES := auth-service order-service kitchen-service payment-service
+AI_SERVICES := ai-arbitrage-service ai-order-service
+INFRASTRUCTURE_SERVICES := security-gateway user-gateway
+
+ALL_SERVICES := $(CORE_SERVICES) $(WEB3_SERVICES) $(AI_SERVICES) $(INFRASTRUCTURE_SERVICES)
+
+.PHONY: help
+help: ## Show this help message
+	@echo "$(CYAN)Go Coffee - Build System$(NC)"
+	@echo "========================="
 	@echo ""
-	@echo "🔨 Build Commands:"
-	@echo "  build              - Build all services"
-	@echo "  fintech-build      - Build fintech API service"
-	@echo "  build-linux        - Build for Linux (production)"
-	@echo ""
-	@echo "🚀 Run Commands:"
-	@echo "  run                - Run all services with Docker Compose"
-	@echo "  fintech-run        - Run fintech API service locally"
-	@echo "  run-dev            - Run in development mode"
-	@echo ""
-	@echo "🧪 Test Commands:"
-	@echo "  test               - Run unit tests"
-	@echo "  test-integration   - Run integration tests"
-	@echo "  test-performance   - Run performance tests"
-	@echo "  test-security      - Run security tests"
-	@echo "  test-all           - Run all tests"
-	@echo ""
-	@echo "🐳 Docker Commands:"
-	@echo "  docker-build       - Build Docker images"
-	@echo "  docker-run         - Run with Docker Compose"
-	@echo "  docker-stop        - Stop Docker services"
-	@echo "  docker-clean       - Clean Docker resources"
-	@echo ""
-	@echo "☸️  Kubernetes Commands:"
-	@echo "  k8s-deploy         - Deploy to Kubernetes"
-	@echo "  k8s-delete         - Delete from Kubernetes"
-	@echo "  helm-install       - Install with Helm"
-	@echo "  helm-upgrade       - Upgrade with Helm"
-	@echo ""
-	@echo "🔧 Database Commands:"
-	@echo "  migrate-up         - Run database migrations"
-	@echo "  migrate-down       - Rollback database migrations"
-	@echo "  migrate-create     - Create new migration"
-	@echo ""
-	@echo "🧹 Cleanup Commands:"
-	@echo "  clean              - Clean build artifacts"
-	@echo "  clean-all          - Clean everything"
+	@echo "$(YELLOW)Available targets:$(NC)"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-# Build Commands
-build: fintech-build
+.DEFAULT_GOAL := help
 
-fintech-build:
-	@echo "🔨 Building Fintech API..."
-	cd web3-wallet-backend && go build -o ../bin/$(BINARY_NAME) ./cmd/fintech/main.go
+# =============================================================================
+# Build Targets
+# =============================================================================
 
-build-linux:
-	@echo "🔨 Building for Linux..."
-	cd web3-wallet-backend && GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o ../bin/$(BINARY_NAME)-linux ./cmd/fintech/main.go
+.PHONY: build
+build: clean deps build-core build-web3 ## Build all services
 
-# Run Commands
-run: docker-run
+.PHONY: clean
+clean: ## Clean build artifacts
+	@echo "$(CYAN)🧹 Cleaning build artifacts...$(NC)"
+	@rm -rf $(BUILD_DIR)
+	@go clean -cache
+	@echo "$(GREEN)✅ Clean complete$(NC)"
 
-fintech-run:
-	@echo "🚀 Starting Fintech API..."
-	cd web3-wallet-backend && go run ./cmd/fintech/main.go
+.PHONY: deps
+deps: ## Download and tidy dependencies
+	@echo "$(CYAN)📦 Managing dependencies...$(NC)"
+	@go mod download
+	@go mod tidy
+	@echo "$(GREEN)✅ Dependencies updated$(NC)"
 
-run-dev:
-	@echo "🚀 Starting development environment..."
-	docker-compose -f docker-compose.fintech.yml up -d postgres redis
-	@echo "⏳ Waiting for services to be ready..."
-	sleep 10
-	$(MAKE) fintech-run
+.PHONY: build-core
+build-core: ## Build core coffee services
+	@echo "$(CYAN)☕ Building Core Coffee Services...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@for service in $(CORE_SERVICES); do \
+		echo "$(BLUE)Building $$service...$(NC)"; \
+		if [ -d "$$service" ]; then \
+			cd $$service && go build $(LDFLAGS) -o ../$(BUILD_DIR)/$$service ./main.go && echo "$(GREEN)  ✅ $$service built$(NC)" && cd ..; \
+		elif [ -d "cmd/$$service" ]; then \
+			go build $(LDFLAGS) -o $(BUILD_DIR)/$$service ./cmd/$$service && echo "$(GREEN)  ✅ $$service built$(NC)"; \
+		else \
+			echo "$(YELLOW)  ⚠️  $$service directory not found$(NC)"; \
+		fi; \
+	done
 
-# Test Commands
-test:
-	@echo "🧪 Running unit tests..."
-	cd web3-wallet-backend && go test -v -race -coverprofile=coverage.out ./...
+.PHONY: build-web3
+build-web3: ## Build Web3 services
+	@echo "$(CYAN)🌐 Building Web3 Services...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@for service in $(WEB3_SERVICES); do \
+		echo "$(BLUE)Building $$service...$(NC)"; \
+		if [ -d "cmd/$$service" ]; then \
+			go build $(LDFLAGS) -o $(BUILD_DIR)/$$service ./cmd/$$service && echo "$(GREEN)  ✅ $$service built$(NC)"; \
+		else \
+			echo "$(YELLOW)  ⚠️  $$service directory not found$(NC)"; \
+		fi; \
+	done
 
-test-integration:
-	@echo "🧪 Running integration tests..."
-	cd web3-wallet-backend && INTEGRATION_TESTS=1 go test -v -tags=integration ./...
+.PHONY: test
+test: ## Run tests
+	@echo "$(CYAN)🧪 Running tests...$(NC)"
+	@go test -v -race -coverprofile=coverage.out ./...
+	@echo "$(GREEN)✅ Tests complete$(NC)"
 
-test-performance:
-	@echo "🧪 Running performance tests..."
-	k6 run tests/performance/load-test.js
+.PHONY: lint
+lint: ## Run linter
+	@echo "$(CYAN)🔍 Running linter...$(NC)"
+	@golangci-lint run
+	@echo "$(GREEN)✅ Linting complete$(NC)"
 
-test-security:
-	@echo "🧪 Running security tests..."
-	cd web3-wallet-backend && gosec ./...
-	cd web3-wallet-backend && go list -json -deps ./... | nancy sleuth
+.PHONY: format
+format: ## Format code
+	@echo "$(CYAN)🎨 Formatting code...$(NC)"
+	@go fmt ./...
+	@goimports -w .
+	@echo "$(GREEN)✅ Formatting complete$(NC)"
 
-test-all: test test-integration test-performance test-security
+# =============================================================================
+# Docker Targets
+# =============================================================================
 
-# Docker Commands
-docker-build:
-	@echo "🐳 Building Docker images..."
-	docker build -f web3-wallet-backend/Dockerfile.fintech -t $(DOCKER_IMAGE):$(VERSION) .
+.PHONY: docker-build
+docker-build: ## Build Docker images
+	@echo "$(CYAN)🐳 Building Docker images...$(NC)"
+	@docker-compose build
+	@echo "$(GREEN)✅ Docker build complete$(NC)"
 
-docker-run:
-	@echo "🐳 Starting services with Docker Compose..."
-	docker-compose -f docker-compose.fintech.yml up -d
+.PHONY: docker-up
+docker-up: ## Start services with Docker Compose
+	@echo "$(CYAN)🚀 Starting services...$(NC)"
+	@docker-compose up -d
+	@echo "$(GREEN)✅ Services started$(NC)"
 
-docker-stop:
-	@echo "🐳 Stopping Docker services..."
-	docker-compose -f docker-compose.fintech.yml down
+.PHONY: docker-down
+docker-down: ## Stop services
+	@echo "$(CYAN)⏹️ Stopping services...$(NC)"
+	@docker-compose down
+	@echo "$(GREEN)✅ Services stopped$(NC)"
 
-docker-clean:
-	@echo "🐳 Cleaning Docker resources..."
-	docker-compose -f docker-compose.fintech.yml down -v --remove-orphans
-	docker system prune -f
+.PHONY: docker-logs
+docker-logs: ## Show Docker logs
+	@docker-compose logs -f
 
-# Kubernetes Commands
-k8s-deploy:
-	@echo "☸️  Deploying to Kubernetes..."
-	kubectl apply -f k8s/namespace.yaml
-	kubectl apply -f k8s/secrets.yaml
-	kubectl apply -f k8s/configmap.yaml
-	kubectl apply -f k8s/postgres.yaml
-	kubectl apply -f k8s/redis.yaml
-	kubectl apply -f k8s/fintech-api.yaml
-	kubectl apply -f k8s/monitoring.yaml
+# =============================================================================
+# Development Targets
+# =============================================================================
 
-k8s-delete:
-	@echo "☸️  Deleting from Kubernetes..."
-	kubectl delete -f k8s/ --ignore-not-found=true
+.PHONY: dev-setup
+dev-setup: ## Setup development environment
+	@echo "$(CYAN)🔧 Setting up development environment...$(NC)"
+	@go mod download
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install golang.org/x/tools/cmd/goimports@latest
+	@echo "$(GREEN)✅ Development environment ready$(NC)"
 
-helm-install:
-	@echo "☸️  Installing with Helm..."
-	helm install fintech-platform ./helm-chart \
-		--namespace fintech-platform \
-		--create-namespace \
-		--values helm-chart/values.yaml
+.PHONY: run-auth
+run-auth: ## Run auth service
+	@echo "$(CYAN)🔐 Starting auth service...$(NC)"
+	@go run cmd/auth-service/main.go
 
-helm-upgrade:
-	@echo "☸️  Upgrading with Helm..."
-	helm upgrade fintech-platform ./helm-chart \
-		--namespace fintech-platform \
-		--values helm-chart/values.yaml
+.PHONY: run-simple-auth
+run-simple-auth: ## Run simple auth service
+	@echo "$(CYAN)🔐 Starting simple auth service...$(NC)"
+	@go run cmd/auth-service/simple_main.go
 
-# Database Commands
-migrate-up:
-	@echo "🗄️  Running database migrations..."
-	cd web3-wallet-backend && go run ./cmd/migrate/main.go up
+# =============================================================================
+# Utility Targets
+# =============================================================================
 
-migrate-down:
-	@echo "🗄️  Rolling back database migrations..."
-	cd web3-wallet-backend && go run ./cmd/migrate/main.go down
+.PHONY: check
+check: lint test ## Run all checks
 
-migrate-create:
-	@echo "🗄️  Creating new migration..."
-	@read -p "Enter migration name: " name; \
-	cd web3-wallet-backend && go run ./cmd/migrate/main.go create $$name
-
-# Development Commands
-deps:
-	@echo "📦 Installing dependencies..."
-	cd web3-wallet-backend && go mod download
-	cd web3-wallet-backend && go mod tidy
-
-lint:
-	@echo "🔍 Running linter..."
-	cd web3-wallet-backend && golangci-lint run
-
-format:
-	@echo "🎨 Formatting code..."
-	cd web3-wallet-backend && go fmt ./...
-	cd web3-wallet-backend && goimports -w .
-
-security-scan:
-	@echo "🔒 Running security scan..."
-	cd web3-wallet-backend && gosec ./...
-	cd web3-wallet-backend && go list -json -deps ./... | nancy sleuth
-
-# Monitoring Commands
-logs:
-	@echo "📋 Showing application logs..."
-	docker-compose -f docker-compose.fintech.yml logs -f fintech-api
-
-logs-db:
-	@echo "📋 Showing database logs..."
-	docker-compose -f docker-compose.fintech.yml logs -f postgres
-
-logs-redis:
-	@echo "📋 Showing Redis logs..."
-	docker-compose -f docker-compose.fintech.yml logs -f redis
-
-# Cleanup Commands
-clean:
-	@echo "🧹 Cleaning build artifacts..."
-	rm -rf bin/
-	rm -rf web3-wallet-backend/coverage.out
-
-clean-all: clean docker-clean
-	@echo "🧹 Cleaning everything..."
-	cd web3-wallet-backend && go clean -cache -modcache -testcache
-
-# Utility Commands
-check-deps:
-	@echo "🔍 Checking dependencies..."
-	cd web3-wallet-backend && go mod verify
-	cd web3-wallet-backend && go list -u -m all
-
-update-deps:
-	@echo "📦 Updating dependencies..."
-	cd web3-wallet-backend && go get -u ./...
-	cd web3-wallet-backend && go mod tidy
-
-# Environment setup
-setup-dev:
-	@echo "🔧 Setting up development environment..."
-	cp .env.fintech.example .env
-	$(MAKE) deps
-	$(MAKE) docker-run
-	@echo "⏳ Waiting for services..."
-	sleep 30
-	$(MAKE) migrate-up
-	@echo "✅ Development environment ready!"
-
-# Production deployment
-deploy-prod:
-	@echo "🚀 Deploying to production..."
-	$(MAKE) test-all
-	$(MAKE) docker-build
-	$(MAKE) k8s-deploy
-	@echo "✅ Production deployment complete!"
+.PHONY: install-tools
+install-tools: ## Install development tools
+	@echo "$(CYAN)🔧 Installing development tools...$(NC)"
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install golang.org/x/tools/cmd/goimports@latest
+	@go install github.com/swaggo/swag/cmd/swag@latest
+	@echo "$(GREEN)✅ Tools installed$(NC)"

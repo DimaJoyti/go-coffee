@@ -1,0 +1,21 @@
+# Go Coffee Platform - Trivy Security Scanner Ignore File
+# This file contains vulnerabilities that are acknowledged and accepted
+
+# Example: Ignore specific CVE that doesn't affect our use case
+# CVE-2021-12345
+
+# Ignore low severity vulnerabilities in development dependencies
+# (Remove this in production)
+# CVE-2023-*
+
+# Ignore vulnerabilities in base images that are not exploitable in our context
+# (Document why each is safe)
+
+# Alpine base image vulnerabilities that don't affect our application
+# CVE-2023-5678 # Not exploitable in containerized environment
+
+# Go standard library vulnerabilities that don't affect our usage
+# CVE-2023-9999 # We don't use the affected package
+
+# Note: This file should be kept minimal and each ignored vulnerability
+# should be documented with a reason why it's safe to ignore

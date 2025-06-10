@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-coffee
+  labels:
+    name: go-coffee
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: platform
+    app.kubernetes.io/part-of: go-coffee-platform
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    description: "Go Coffee Platform - Web3 DeFi Coffee Platform"
+    contact: "team@go-coffee.com"
+    version: "1.0.0"

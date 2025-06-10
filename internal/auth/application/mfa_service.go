@@ -11,30 +11,13 @@ import (
 
 	"github.com/DimaJoyti/go-coffee/internal/auth/domain"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/pkg/security/monitoring"
 )
-
-// UserRepository provides access to user storage
-type UserRepository interface {
-	CreateUser(ctx context.Context, user *domain.User) error
-	GetUser(ctx context.Context, userID string) (*domain.User, error)
-	UpdateUser(ctx context.Context, user *domain.User) error
-	DeleteUser(ctx context.Context, userID string) error
-}
-
-// SessionRepository provides access to session storage
-type SessionRepository interface {
-	CreateSession(ctx context.Context, session *domain.Session) error
-	GetSession(ctx context.Context, sessionID string) (*domain.Session, error)
-	UpdateSession(ctx context.Context, session *domain.Session) error
-	DeleteSession(ctx context.Context, sessionID string) error
-}
 
 // MFAServiceImpl provides multi-factor authentication functionality
 type MFAServiceImpl struct {
-	userRepo          UserRepository
-	sessionRepo       SessionRepository
-	monitoringService *monitoring.SecurityMonitoringService
+	userRepo          domain.UserRepository
+	sessionRepo       domain.SessionRepository
+	monitoringService interface{} // placeholder for monitoring service
 	smsProvider       SMSProvider
 	emailProvider     EmailProvider
 	logger            *logger.Logger
@@ -125,14 +108,31 @@ type MFAChallenge struct {
 
 // NewMFAService creates a new MFA service
 func NewMFAService(
-	userRepo UserRepository,
-	sessionRepo SessionRepository,
-	monitoringService *monitoring.SecurityMonitoringService,
+	userRepo domain.UserRepository,
+	sessionRepo domain.SessionRepository,
+	monitoringService interface{}, // placeholder
 	smsProvider SMSProvider,
 	emailProvider EmailProvider,
 	config *MFAConfig,
 	logger *logger.Logger,
 ) MFAService {
+	if config == nil {
+		config = &MFAConfig{
+			TOTPIssuer:              "Go Coffee",
+			TOTPPeriod:              30,
+			TOTPDigits:              otp.DigitsSix,
+			TOTPAlgorithm:           otp.AlgorithmSHA1,
+			BackupCodesCount:        10,
+			BackupCodeLength:        8,
+			SMSCodeLength:           6,
+			SMSCodeExpiry:           5 * time.Minute,
+			EmailCodeLength:         6,
+			EmailCodeExpiry:         10 * time.Minute,
+			MaxVerificationAttempts: 3,
+			CooldownPeriod:          15 * time.Minute,
+		}
+	}
+
 	return &MFAServiceImpl{
 		userRepo:          userRepo,
 		sessionRepo:       sessionRepo,
@@ -146,7 +146,7 @@ func NewMFAService(
 
 // SetupMFA initiates MFA setup for a user
 func (m *MFAServiceImpl) SetupMFA(ctx context.Context, req *MFASetupRequest) (*MFASetupResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	user, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -167,7 +167,7 @@ func (m *MFAServiceImpl) SetupMFA(ctx context.Context, req *MFASetupRequest) (*M
 
 // VerifyMFASetup verifies MFA setup with provided code
 func (m *MFAServiceImpl) VerifyMFASetup(ctx context.Context, req *MFAVerifyRequest) (*MFAVerifyResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	user, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -181,7 +181,7 @@ func (m *MFAServiceImpl) VerifyMFASetup(ctx context.Context, req *MFAVerifyReque
 		verified = totp.Validate(req.Code, user.MFASecret)
 	case domain.MFAMethodSMS, domain.MFAMethodEmail:
 		// For SMS/Email, we need to check against stored challenge
-		verified, verifyErr = m.verifyChallengeCode(ctx, req.UserID, req.Code)
+		verified, verifyErr = m.verifyChallengeCodeInternal(ctx, req.UserID, req.Code)
 	case domain.MFAMethodBackup:
 		verified = user.UseMFABackupCode(req.Code)
 		if verified {
@@ -201,9 +201,9 @@ func (m *MFAServiceImpl) VerifyMFASetup(ctx context.Context, req *MFAVerifyReque
 		}
 
 		// Log security event
-		m.logSecurityEvent(ctx, user.ID, "mfa_enabled", monitoring.SeverityInfo, map[string]interface{}{
-			"method": user.MFAMethod,
-		})
+		m.logger.InfoWithFields("MFA enabled",
+			logger.String("user_id", user.ID),
+			logger.String("method", string(user.MFAMethod)))
 
 		return &MFAVerifyResponse{
 			Verified: true,
@@ -212,9 +212,9 @@ func (m *MFAServiceImpl) VerifyMFASetup(ctx context.Context, req *MFAVerifyReque
 	}
 
 	// Log failed verification
-	m.logSecurityEvent(ctx, user.ID, "mfa_setup_verification_failed", monitoring.SeverityMedium, map[string]interface{}{
-		"method": user.MFAMethod,
-	})
+	m.logger.WarnWithFields("MFA setup verification failed",
+		logger.String("user_id", user.ID),
+		logger.String("method", string(user.MFAMethod)))
 
 	return &MFAVerifyResponse{
 		Verified: false,
@@ -224,7 +224,7 @@ func (m *MFAServiceImpl) VerifyMFASetup(ctx context.Context, req *MFAVerifyReque
 
 // CreateMFAChallenge creates an MFA challenge for authentication
 func (m *MFAServiceImpl) CreateMFAChallenge(ctx context.Context, req *MFAChallengeRequest) (*MFAChallengeResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	user, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -260,7 +260,7 @@ func (m *MFAServiceImpl) CreateMFAChallenge(ctx context.Context, req *MFAChallen
 
 // VerifyMFAChallenge verifies an MFA challenge
 func (m *MFAServiceImpl) VerifyMFAChallenge(ctx context.Context, req *MFAVerifyRequest) (*MFAVerifyResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	user, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -279,7 +279,7 @@ func (m *MFAServiceImpl) VerifyMFAChallenge(ctx context.Context, req *MFAVerifyR
 	case domain.MFAMethodTOTP:
 		verified = totp.Validate(req.Code, user.MFASecret)
 	case domain.MFAMethodSMS, domain.MFAMethodEmail:
-		verified, verifyErr = m.verifyChallengeCode(ctx, req.UserID, req.Code)
+		verified, verifyErr = m.verifyChallengeCodeInternal(ctx, req.UserID, req.Code)
 	case domain.MFAMethodBackup:
 		verified = user.UseMFABackupCode(req.Code)
 		if verified {
@@ -293,9 +293,9 @@ func (m *MFAServiceImpl) VerifyMFAChallenge(ctx context.Context, req *MFAVerifyR
 
 	if verified {
 		// Log successful verification
-		m.logSecurityEvent(ctx, user.ID, "mfa_verification_success", monitoring.SeverityInfo, map[string]interface{}{
-			"method": user.MFAMethod,
-		})
+		m.logger.InfoWithFields("MFA verification successful",
+			logger.String("user_id", user.ID),
+			logger.String("method", string(user.MFAMethod)))
 
 		return &MFAVerifyResponse{
 			Verified: true,
@@ -304,9 +304,9 @@ func (m *MFAServiceImpl) VerifyMFAChallenge(ctx context.Context, req *MFAVerifyR
 	}
 
 	// Log failed verification
-	m.logSecurityEvent(ctx, user.ID, "mfa_verification_failed", monitoring.SeverityMedium, map[string]interface{}{
-		"method": user.MFAMethod,
-	})
+	m.logger.WarnWithFields("MFA verification failed",
+		logger.String("user_id", user.ID),
+		logger.String("method", string(user.MFAMethod)))
 
 	return &MFAVerifyResponse{
 		Verified: false,
@@ -318,7 +318,7 @@ func (m *MFAServiceImpl) VerifyMFAChallenge(ctx context.Context, req *MFAVerifyR
 
 // EnableMFA enables MFA for a user
 func (m *MFAServiceImpl) EnableMFA(ctx context.Context, req *EnableMFARequest) (*EnableMFAResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	_, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -346,7 +346,7 @@ func (m *MFAServiceImpl) EnableMFA(ctx context.Context, req *EnableMFARequest) (
 // DisableMFA disables MFA for a user (interface method)
 func (m *MFAServiceImpl) DisableMFA(ctx context.Context, req *DisableMFARequest) (*DisableMFAResponse, error) {
 	// Verify password first
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	_, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -378,14 +378,14 @@ func (m *MFAServiceImpl) VerifyMFA(ctx context.Context, req *VerifyMFARequest) (
 	}
 
 	return &VerifyMFAResponse{
-		Success: verifyResp.Success,
+		Success: verifyResp.Verified,
 		Message: verifyResp.Message,
 	}, nil
 }
 
 // GenerateBackupCodes generates new backup codes
 func (m *MFAServiceImpl) GenerateBackupCodes(ctx context.Context, req *GenerateBackupCodesRequest) (*GenerateBackupCodesResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	user, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -406,7 +406,7 @@ func (m *MFAServiceImpl) GenerateBackupCodes(ctx context.Context, req *GenerateB
 
 // GetBackupCodes gets remaining backup codes count
 func (m *MFAServiceImpl) GetBackupCodes(ctx context.Context, req *GetBackupCodesRequest) (*GetBackupCodesResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, req.UserID)
+	user, err := m.userRepo.GetUserByID(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -419,7 +419,7 @@ func (m *MFAServiceImpl) GetBackupCodes(ctx context.Context, req *GetBackupCodes
 
 // UseBackupCode uses a backup code
 func (m *MFAServiceImpl) UseBackupCode(ctx context.Context, userID, code string) error {
-	user, err := m.userRepo.GetUser(ctx, userID)
+	user, err := m.userRepo.GetUserByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -438,7 +438,7 @@ func (m *MFAServiceImpl) UseBackupCode(ctx context.Context, userID, code string)
 
 // GetMFAStatus gets MFA status for a user
 func (m *MFAServiceImpl) GetMFAStatus(ctx context.Context, userID string) (*MFAStatusResponse, error) {
-	user, err := m.userRepo.GetUser(ctx, userID)
+	user, err := m.userRepo.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -452,7 +452,7 @@ func (m *MFAServiceImpl) GetMFAStatus(ctx context.Context, userID string) (*MFAS
 
 // IsMFAEnabled checks if MFA is enabled for a user
 func (m *MFAServiceImpl) IsMFAEnabled(ctx context.Context, userID string) (bool, error) {
-	user, err := m.userRepo.GetUser(ctx, userID)
+	user, err := m.userRepo.GetUserByID(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -462,7 +462,7 @@ func (m *MFAServiceImpl) IsMFAEnabled(ctx context.Context, userID string) (bool,
 
 // disableMFAInternal is the internal method for disabling MFA
 func (m *MFAServiceImpl) disableMFAInternal(ctx context.Context, userID string) error {
-	user, err := m.userRepo.GetUser(ctx, userID)
+	user, err := m.userRepo.GetUserByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -483,7 +483,7 @@ func (m *MFAServiceImpl) disableMFAInternal(ctx context.Context, userID string) 
 
 // Helper methods
 
-func (m *MFAService) setupTOTP(ctx context.Context, user *domain.User, response *MFASetupResponse) (*MFASetupResponse, error) {
+func (m *MFAServiceImpl) setupTOTP(ctx context.Context, user *domain.User, response *MFASetupResponse) (*MFASetupResponse, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      m.config.TOTPIssuer,
 		AccountName: user.Email,
@@ -496,7 +496,7 @@ func (m *MFAService) setupTOTP(ctx context.Context, user *domain.User, response 
 	}
 
 	// Generate backup codes
-	backupCodes := m.generateBackupCodes()
+	backupCodes := m.generateBackupCodesInternal()
 
 	// Update user with MFA details
 	user.EnableMFA(domain.MFAMethodTOTP, key.Secret())
@@ -514,7 +514,7 @@ func (m *MFAService) setupTOTP(ctx context.Context, user *domain.User, response 
 	return response, nil
 }
 
-func (m *MFAService) setupSMS(ctx context.Context, user *domain.User, phoneNumber string, response *MFASetupResponse) (*MFASetupResponse, error) {
+func (m *MFAServiceImpl) setupSMS(ctx context.Context, user *domain.User, phoneNumber string, response *MFASetupResponse) (*MFASetupResponse, error) {
 	if phoneNumber == "" {
 		return nil, fmt.Errorf("phone number is required for SMS MFA")
 	}
@@ -524,7 +524,7 @@ func (m *MFAService) setupSMS(ctx context.Context, user *domain.User, phoneNumbe
 	user.EnableMFA(domain.MFAMethodSMS, "")
 
 	// Generate backup codes
-	backupCodes := m.generateBackupCodes()
+	backupCodes := m.generateBackupCodesInternal()
 	user.SetMFABackupCodes(backupCodes)
 
 	if err := m.userRepo.UpdateUser(ctx, user); err != nil {
@@ -532,7 +532,7 @@ func (m *MFAService) setupSMS(ctx context.Context, user *domain.User, phoneNumbe
 	}
 
 	// Send verification SMS
-	code := m.generateSMSCode()
+	code := m.generateSMSCodeInternal()
 	challenge := &MFAChallenge{
 		ID:          generateChallengeID(),
 		UserID:      user.ID,
@@ -543,7 +543,7 @@ func (m *MFAService) setupSMS(ctx context.Context, user *domain.User, phoneNumbe
 		CreatedAt:   time.Now(),
 	}
 
-	if err := m.storeMFAChallenge(ctx, challenge); err != nil {
+	if err := m.storeMFAChallengeInternal(ctx, challenge); err != nil {
 		return nil, fmt.Errorf("failed to store MFA challenge: %w", err)
 	}
 
@@ -558,12 +558,12 @@ func (m *MFAService) setupSMS(ctx context.Context, user *domain.User, phoneNumbe
 	return response, nil
 }
 
-func (m *MFAService) setupEmail(ctx context.Context, user *domain.User, response *MFASetupResponse) (*MFASetupResponse, error) {
+func (m *MFAServiceImpl) setupEmail(ctx context.Context, user *domain.User, response *MFASetupResponse) (*MFASetupResponse, error) {
 	// Update user with MFA method
 	user.EnableMFA(domain.MFAMethodEmail, "")
 
 	// Generate backup codes
-	backupCodes := m.generateBackupCodes()
+	backupCodes := m.generateBackupCodesInternal()
 	user.SetMFABackupCodes(backupCodes)
 
 	if err := m.userRepo.UpdateUser(ctx, user); err != nil {
@@ -571,7 +571,7 @@ func (m *MFAService) setupEmail(ctx context.Context, user *domain.User, response
 	}
 
 	// Send verification email
-	code := m.generateEmailCode()
+	code := m.generateEmailCodeInternal()
 	challenge := &MFAChallenge{
 		ID:          generateChallengeID(),
 		UserID:      user.ID,
@@ -582,7 +582,7 @@ func (m *MFAService) setupEmail(ctx context.Context, user *domain.User, response
 		CreatedAt:   time.Now(),
 	}
 
-	if err := m.storeMFAChallenge(ctx, challenge); err != nil {
+	if err := m.storeMFAChallengeInternal(ctx, challenge); err != nil {
 		return nil, fmt.Errorf("failed to store MFA challenge: %w", err)
 	}
 
@@ -598,8 +598,8 @@ func (m *MFAService) setupEmail(ctx context.Context, user *domain.User, response
 	return response, nil
 }
 
-func (m *MFAService) createSMSChallenge(ctx context.Context, user *domain.User) (*MFAChallengeResponse, error) {
-	code := m.generateSMSCode()
+func (m *MFAServiceImpl) createSMSChallenge(ctx context.Context, user *domain.User) (*MFAChallengeResponse, error) {
+	code := m.generateSMSCodeInternal()
 	challengeID := generateChallengeID()
 
 	challenge := &MFAChallenge{
@@ -612,7 +612,7 @@ func (m *MFAService) createSMSChallenge(ctx context.Context, user *domain.User) 
 		CreatedAt:   time.Now(),
 	}
 
-	if err := m.storeMFAChallenge(ctx, challenge); err != nil {
+	if err := m.storeMFAChallengeInternal(ctx, challenge); err != nil {
 		return nil, fmt.Errorf("failed to store MFA challenge: %w", err)
 	}
 
@@ -629,8 +629,8 @@ func (m *MFAService) createSMSChallenge(ctx context.Context, user *domain.User) 
 	}, nil
 }
 
-func (m *MFAService) createEmailChallenge(ctx context.Context, user *domain.User) (*MFAChallengeResponse, error) {
-	code := m.generateEmailCode()
+func (m *MFAServiceImpl) createEmailChallenge(ctx context.Context, user *domain.User) (*MFAChallengeResponse, error) {
+	code := m.generateEmailCodeInternal()
 	challengeID := generateChallengeID()
 
 	challenge := &MFAChallenge{
@@ -643,7 +643,7 @@ func (m *MFAService) createEmailChallenge(ctx context.Context, user *domain.User
 		CreatedAt:   time.Now(),
 	}
 
-	if err := m.storeMFAChallenge(ctx, challenge); err != nil {
+	if err := m.storeMFAChallengeInternal(ctx, challenge); err != nil {
 		return nil, fmt.Errorf("failed to store MFA challenge: %w", err)
 	}
 
@@ -661,7 +661,9 @@ func (m *MFAService) createEmailChallenge(ctx context.Context, user *domain.User
 	}, nil
 }
 
-func (m *MFAService) generateBackupCodes() []string {
+// Internal helper methods (renamed to avoid conflicts with interface methods)
+
+func (m *MFAServiceImpl) generateBackupCodesInternal() []string {
 	codes := make([]string, m.config.BackupCodesCount)
 	for i := 0; i < m.config.BackupCodesCount; i++ {
 		codes[i] = generateRandomCode(m.config.BackupCodeLength)
@@ -669,37 +671,31 @@ func (m *MFAService) generateBackupCodes() []string {
 	return codes
 }
 
-func (m *MFAService) generateSMSCode() string {
+func (m *MFAServiceImpl) generateSMSCodeInternal() string {
 	return generateNumericCode(m.config.SMSCodeLength)
 }
 
-func (m *MFAService) generateEmailCode() string {
+func (m *MFAServiceImpl) generateEmailCodeInternal() string {
 	return generateNumericCode(m.config.EmailCodeLength)
 }
 
-func (m *MFAService) verifyChallengeCode(ctx context.Context, userID, code string) (bool, error) {
+func (m *MFAServiceImpl) verifyChallengeCodeInternal(ctx context.Context, userID, code string) (bool, error) {
 	// TODO: Implement challenge storage and verification
 	// This would typically use Redis or database to store temporary challenges
 	return false, fmt.Errorf("challenge verification not implemented")
 }
 
-func (m *MFAService) storeMFAChallenge(ctx context.Context, challenge *MFAChallenge) error {
+func (m *MFAServiceImpl) storeMFAChallengeInternal(ctx context.Context, challenge *MFAChallenge) error {
 	// TODO: Implement challenge storage
 	// This would typically store in Redis with expiration
 	return nil
 }
 
-func (m *MFAService) logSecurityEvent(ctx context.Context, userID, eventType string, severity monitoring.SecuritySeverity, metadata map[string]interface{}) {
-	event := &monitoring.SecurityEvent{
-		EventType:   monitoring.SecurityEventType(eventType),
-		Severity:    severity,
-		Source:      "mfa-service",
-		UserID:      userID,
-		Description: eventType,
-		Metadata:    metadata,
-	}
-
-	m.monitoringService.LogSecurityEvent(ctx, event)
+// logSecurityEventInternal logs security events (placeholder for future monitoring integration)
+func (m *MFAServiceImpl) logSecurityEventInternal(ctx context.Context, userID, eventType string, metadata map[string]interface{}) {
+	m.logger.InfoWithFields("MFA security event",
+		logger.String("user_id", userID),
+		logger.String("event_type", eventType))
 }
 
 // Utility functions

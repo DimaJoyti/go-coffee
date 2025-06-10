@@ -1,0 +1,267 @@
+# Docker Compose Override for Development
+# This file is automatically loaded by docker-compose and provides development-specific overrides
+
+version: '3.8'
+
+services:
+  # Development overrides for auth service
+  auth-service:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=text
+      - ENABLE_DEBUG_ENDPOINTS=true
+      - ENABLE_PROFILING=true
+      - AUTO_MIGRATE=true
+      - SEED_DATA=true
+      - JWT_ACCESS_TOKEN_TTL=1h
+      - SESSION_MAX_AGE=8h
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=1000
+    volumes:
+      - ../cmd/auth-service:/app/cmd/auth-service:ro
+      - ../internal/auth:/app/internal/auth:ro
+      - ../pkg:/app/pkg:ro
+    command: ["air", "-c", ".air.toml"]
+
+  # Development overrides for AI search
+  ai-search:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - ENABLE_DEBUG_ENDPOINTS=true
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ../cmd/ai-search:/app/cmd/ai-search:ro
+      - ../internal/ai:/app/internal/ai:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development overrides for producer
+  producer:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - ENABLE_DEBUG_ENDPOINTS=true
+    volumes:
+      - ../cmd/producer:/app/cmd/producer:ro
+      - ../internal/producer:/app/internal/producer:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development overrides for consumer
+  consumer:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - ENABLE_DEBUG_ENDPOINTS=true
+    volumes:
+      - ../cmd/consumer:/app/cmd/consumer:ro
+      - ../internal/consumer:/app/internal/consumer:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development overrides for streams
+  streams:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - ENABLE_DEBUG_ENDPOINTS=true
+    volumes:
+      - ../cmd/streams:/app/cmd/streams:ro
+      - ../internal/streams:/app/internal/streams:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development overrides for kitchen service
+  kitchen-service:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+    volumes:
+      - ../cmd/kitchen-service:/app/cmd/kitchen-service:ro
+      - ../internal/kitchen:/app/internal/kitchen:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development overrides for communication hub
+  communication-hub:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+    volumes:
+      - ../cmd/communication-hub:/app/cmd/communication-hub:ro
+      - ../internal/communication:/app/internal/communication:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development overrides for user gateway
+  user-gateway:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - ENABLE_DEBUG_ENDPOINTS=true
+    volumes:
+      - ../cmd/user-gateway:/app/cmd/user-gateway:ro
+      - ../internal/gateway:/app/internal/gateway:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development overrides for Redis MCP server
+  redis-mcp-server:
+    build:
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+    volumes:
+      - ../cmd/redis-mcp-server:/app/cmd/redis-mcp-server:ro
+      - ../internal/mcp:/app/internal/mcp:ro
+      - ../pkg:/app/pkg:ro
+
+  # Development database with more verbose logging
+  postgres:
+    environment:
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=C
+    command: >
+      postgres
+      -c log_statement=all
+      -c log_destination=stderr
+      -c log_min_messages=info
+      -c log_line_prefix='%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+      -c log_checkpoints=on
+      -c log_connections=on
+      -c log_disconnections=on
+      -c log_lock_waits=on
+      -c log_temp_files=0
+      -c log_autovacuum_min_duration=0
+      -c log_error_verbosity=verbose
+
+  # Development Redis with more verbose logging
+  redis:
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --loglevel verbose
+      --save 60 1000
+
+  # Development Grafana with additional plugins
+  grafana:
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel,grafana-worldmap-panel
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=true
+      - GF_USERS_ALLOW_ORG_CREATE=true
+      - GF_LOG_LEVEL=debug
+
+  # Development Prometheus with shorter scrape intervals
+  prometheus:
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--storage.tsdb.retention.time=7d'
+      - '--log.level=debug'
+
+  # Development Jaeger with more traces
+  jaeger:
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=memory
+      - MEMORY_MAX_TRACES=100000
+      - LOG_LEVEL=debug
+
+  # Development Nginx with debug logging
+  nginx:
+    volumes:
+      - ./deployments/nginx/nginx.dev.conf:/etc/nginx/nginx.conf
+      - ./deployments/nginx/logs:/var/log/nginx
+
+  # Development tools
+  adminer:
+    image: adminer:latest
+    container_name: go-coffee-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    depends_on:
+      - postgres
+    networks:
+      - go-coffee-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: go-coffee-redis-commander
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - go-coffee-network
+
+  # Development file watcher for hot reload
+  file-watcher:
+    image: node:18-alpine
+    container_name: go-coffee-file-watcher
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: >
+      sh -c "
+        npm install -g nodemon &&
+        nodemon --watch . --ext go --exec 'echo File changed at $(date)'
+      "
+    networks:
+      - go-coffee-network
+    profiles:
+      - dev-tools
+
+  # Development documentation server
+  docs-server:
+    image: nginx:alpine
+    container_name: go-coffee-docs
+    ports:
+      - "8082:80"
+    volumes:
+      - ../docs:/usr/share/nginx/html:ro
+    networks:
+      - go-coffee-network
+    profiles:
+      - dev-tools
+
+  # Development test runner
+  test-runner:
+    build:
+      context: ..
+      dockerfile: deployments/test/Dockerfile
+    container_name: go-coffee-test-runner
+    environment:
+      - TEST_DB_HOST=postgres
+      - TEST_REDIS_HOST=redis
+      - GO_ENV=test
+    volumes:
+      - ..:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - go-coffee-network
+    profiles:
+      - testing
+    command: ["go", "test", "-v", "./..."]

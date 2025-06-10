@@ -1,0 +1,416 @@
+name: Performance Testing
+
+on:
+  schedule:
+    # Daily performance tests at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test'
+        required: true
+        default: 'load'
+        type: choice
+        options:
+          - load
+          - stress
+          - spike
+          - volume
+          - endurance
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      duration:
+        description: 'Test duration (minutes)'
+        required: false
+        default: '10'
+        type: string
+      users:
+        description: 'Number of virtual users'
+        required: false
+        default: '100'
+        type: string
+
+env:
+  GRAFANA_URL: https://grafana.go-coffee.com
+  PROMETHEUS_URL: https://prometheus.go-coffee.com
+
+jobs:
+  # Load Testing
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'load' || github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up K6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Set test parameters
+        run: |
+          echo "TEST_ENVIRONMENT=${{ github.event.inputs.environment || 'staging' }}" >> $GITHUB_ENV
+          echo "TEST_DURATION=${{ github.event.inputs.duration || '10' }}" >> $GITHUB_ENV
+          echo "VIRTUAL_USERS=${{ github.event.inputs.users || '100' }}" >> $GITHUB_ENV
+
+      - name: Run load test
+        run: |
+          k6 run \
+            --out json=load-test-results.json \
+            --out influxdb=http://influxdb:8086/k6 \
+            -e ENVIRONMENT=${{ env.TEST_ENVIRONMENT }} \
+            -e DURATION=${{ env.TEST_DURATION }}m \
+            -e VUS=${{ env.VIRTUAL_USERS }} \
+            tests/performance/load-test.js
+
+      - name: Process test results
+        run: |
+          # Extract key metrics
+          cat load-test-results.json | jq -r '
+            select(.type == "Point" and .metric == "http_req_duration") |
+            .data.value
+          ' | awk '{sum+=$1; count++} END {print "Average Response Time:", sum/count, "ms"}' > metrics.txt
+          
+          cat load-test-results.json | jq -r '
+            select(.type == "Point" and .metric == "http_req_failed") |
+            .data.value
+          ' | awk '{sum+=$1; count++} END {print "Error Rate:", (sum/count)*100, "%"}' >> metrics.txt
+          
+          cat load-test-results.json | jq -r '
+            select(.type == "Point" and .metric == "http_reqs") |
+            .data.value
+          ' | awk '{sum+=$1} END {print "Total Requests:", sum}' >> metrics.txt
+
+      - name: Generate performance report
+        run: |
+          cat > performance-report.md << EOF
+          # Load Test Report - $(date)
+          
+          ## Test Configuration
+          - Environment: ${{ env.TEST_ENVIRONMENT }}
+          - Duration: ${{ env.TEST_DURATION }} minutes
+          - Virtual Users: ${{ env.VIRTUAL_USERS }}
+          - Test Type: Load Test
+          
+          ## Results
+          \`\`\`
+          $(cat metrics.txt)
+          \`\`\`
+          
+          ## Performance Thresholds
+          - Response Time: < 500ms (95th percentile)
+          - Error Rate: < 1%
+          - Throughput: > 1000 req/s
+          
+          ## Detailed Metrics
+          See attached JSON results file for detailed metrics.
+          EOF
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results-${{ github.run_number }}
+          path: |
+            load-test-results.json
+            performance-report.md
+            metrics.txt
+
+      - name: Check performance thresholds
+        run: |
+          # Extract metrics for threshold checking
+          avg_response_time=$(cat load-test-results.json | jq -r 'select(.type == "Point" and .metric == "http_req_duration") | .data.value' | awk '{sum+=$1; count++} END {print sum/count}')
+          error_rate=$(cat load-test-results.json | jq -r 'select(.type == "Point" and .metric == "http_req_failed") | .data.value' | awk '{sum+=$1; count++} END {print (sum/count)*100}')
+          
+          # Check thresholds
+          if (( $(echo "$avg_response_time > 500" | bc -l) )); then
+            echo "❌ Response time threshold exceeded: ${avg_response_time}ms > 500ms"
+            exit 1
+          fi
+          
+          if (( $(echo "$error_rate > 1" | bc -l) )); then
+            echo "❌ Error rate threshold exceeded: ${error_rate}% > 1%"
+            exit 1
+          fi
+          
+          echo "✅ All performance thresholds passed"
+
+  # Stress Testing
+  stress-test:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_type == 'stress'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up K6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run stress test
+        run: |
+          k6 run \
+            --out json=stress-test-results.json \
+            -e ENVIRONMENT=${{ github.event.inputs.environment || 'staging' }} \
+            -e DURATION=${{ github.event.inputs.duration || '15' }}m \
+            -e MAX_VUS=${{ github.event.inputs.users || '500' }} \
+            tests/performance/stress-test.js
+
+      - name: Analyze breaking point
+        run: |
+          # Find the breaking point where error rate exceeds 5%
+          cat stress-test-results.json | jq -r '
+            select(.type == "Point" and .metric == "http_req_failed") |
+            [.data.time, .data.value]
+          ' > error_rates.txt
+          
+          # Generate stress test report
+          cat > stress-report.md << EOF
+          # Stress Test Report - $(date)
+          
+          ## Test Configuration
+          - Environment: ${{ github.event.inputs.environment || 'staging' }}
+          - Duration: ${{ github.event.inputs.duration || '15' }} minutes
+          - Max Virtual Users: ${{ github.event.inputs.users || '500' }}
+          
+          ## Breaking Point Analysis
+          The system breaking point was identified when error rates exceeded 5%.
+          
+          ## Recommendations
+          Based on the stress test results, consider:
+          - Horizontal scaling at X concurrent users
+          - Database connection pool optimization
+          - Cache warming strategies
+          EOF
+
+      - name: Upload stress test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: stress-test-results-${{ github.run_number }}
+          path: |
+            stress-test-results.json
+            stress-report.md
+            error_rates.txt
+
+  # Database Performance Testing
+  database-performance:
+    name: Database Performance Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.test_type == 'volume'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          if [ "${{ github.event.inputs.environment || 'staging' }}" == "staging" ]; then
+            echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          else
+            echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+          fi
+          export KUBECONFIG=kubeconfig
+
+      - name: Run database performance tests
+        run: |
+          # Get database pod
+          DB_POD=$(kubectl get pods -n go-coffee -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+          
+          # Run pgbench for database performance testing
+          kubectl exec $DB_POD -n go-coffee -- pgbench -i -s 10 go_coffee
+          kubectl exec $DB_POD -n go-coffee -- pgbench -c 10 -j 2 -t 1000 go_coffee > db-performance.txt
+
+      - name: Analyze database performance
+        run: |
+          # Extract key metrics from pgbench output
+          tps=$(grep "tps" db-performance.txt | awk '{print $3}')
+          latency=$(grep "latency average" db-performance.txt | awk '{print $4}')
+          
+          cat > db-performance-report.md << EOF
+          # Database Performance Report - $(date)
+          
+          ## Test Results
+          - Transactions per second: $tps
+          - Average latency: $latency ms
+          
+          ## Performance Analysis
+          \`\`\`
+          $(cat db-performance.txt)
+          \`\`\`
+          
+          ## Recommendations
+          Based on the database performance test:
+          - Current TPS: $tps
+          - Target TPS: > 1000
+          - Status: $(if (( $(echo "$tps > 1000" | bc -l) )); then echo "✅ PASS"; else echo "❌ FAIL"; fi)
+          EOF
+
+      - name: Upload database performance results
+        uses: actions/upload-artifact@v3
+        with:
+          name: db-performance-results-${{ github.run_number }}
+          path: |
+            db-performance.txt
+            db-performance-report.md
+
+  # API Endpoint Testing
+  api-performance:
+    name: API Performance Testing
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        endpoint: [auth, orders, payments, search]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up K6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Test ${{ matrix.endpoint }} endpoint
+        run: |
+          k6 run \
+            --out json=${{ matrix.endpoint }}-results.json \
+            -e ENDPOINT=${{ matrix.endpoint }} \
+            -e ENVIRONMENT=${{ github.event.inputs.environment || 'staging' }} \
+            tests/performance/api-test.js
+
+      - name: Analyze endpoint performance
+        run: |
+          # Extract metrics for this endpoint
+          avg_response=$(cat ${{ matrix.endpoint }}-results.json | jq -r 'select(.type == "Point" and .metric == "http_req_duration") | .data.value' | awk '{sum+=$1; count++} END {print sum/count}')
+          p95_response=$(cat ${{ matrix.endpoint }}-results.json | jq -r 'select(.type == "Point" and .metric == "http_req_duration" and .data.tags.expected_response == "true") | .data.value' | sort -n | awk '{all[NR] = $0} END{print all[int(NR*0.95)]}')
+          
+          echo "Endpoint: ${{ matrix.endpoint }}" > ${{ matrix.endpoint }}-metrics.txt
+          echo "Average Response Time: ${avg_response}ms" >> ${{ matrix.endpoint }}-metrics.txt
+          echo "95th Percentile: ${p95_response}ms" >> ${{ matrix.endpoint }}-metrics.txt
+
+      - name: Upload endpoint results
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-performance-${{ matrix.endpoint }}-${{ github.run_number }}
+          path: |
+            ${{ matrix.endpoint }}-results.json
+            ${{ matrix.endpoint }}-metrics.txt
+
+  # Performance Report Generation
+  generate-report:
+    name: Generate Performance Report
+    runs-on: ubuntu-latest
+    needs: [load-test, api-performance]
+    if: always()
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate comprehensive report
+        run: |
+          cat > comprehensive-performance-report.md << EOF
+          # Comprehensive Performance Test Report - $(date)
+          
+          ## Test Summary
+          - Test Type: ${{ github.event.inputs.test_type || 'scheduled' }}
+          - Environment: ${{ github.event.inputs.environment || 'staging' }}
+          - Duration: ${{ github.event.inputs.duration || '10' }} minutes
+          - Virtual Users: ${{ github.event.inputs.users || '100' }}
+          
+          ## Overall Results
+          $(if [ -f load-test-results-*/metrics.txt ]; then cat load-test-results-*/metrics.txt; fi)
+          
+          ## API Endpoint Performance
+          $(for file in api-performance-*/*-metrics.txt; do if [ -f "$file" ]; then cat "$file"; echo ""; fi; done)
+          
+          ## Performance Trends
+          [Link to Grafana Dashboard](${{ env.GRAFANA_URL }}/d/performance-overview)
+          
+          ## Recommendations
+          Based on the performance test results:
+          1. Monitor response times during peak hours
+          2. Consider auto-scaling policies
+          3. Optimize database queries for high-load endpoints
+          4. Implement caching for frequently accessed data
+          
+          ## Next Steps
+          - Review performance metrics in Grafana
+          - Update performance baselines
+          - Schedule follow-up tests if thresholds were exceeded
+          EOF
+
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-performance-report-${{ github.run_number }}
+          path: comprehensive-performance-report.md
+
+      - name: Notify performance test completion
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"📊 Performance testing completed for ${{ github.event.inputs.environment || 'staging' }} environment. Results available in GitHub Actions artifacts."}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Performance Baseline Update
+  update-baseline:
+    name: Update Performance Baseline
+    runs-on: ubuntu-latest
+    needs: [load-test]
+    if: github.event_name == 'schedule' && success()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download test results
+        uses: actions/download-artifact@v3
+        with:
+          name: load-test-results-${{ github.run_number }}
+
+      - name: Update performance baseline
+        run: |
+          # Extract current metrics
+          avg_response_time=$(cat load-test-results.json | jq -r 'select(.type == "Point" and .metric == "http_req_duration") | .data.value' | awk '{sum+=$1; count++} END {print sum/count}')
+          
+          # Update baseline file
+          cat > performance-baseline.json << EOF
+          {
+            "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "environment": "staging",
+            "metrics": {
+              "avg_response_time": $avg_response_time,
+              "baseline_response_time": 300,
+              "threshold_response_time": 500
+            }
+          }
+          EOF
+
+      - name: Commit baseline update
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add performance-baseline.json
+          git commit -m "Update performance baseline - $(date)" || exit 0
+          git push

@@ -3,34 +3,64 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DimaJoyti/go-coffee/internal/user"
+	"github.com/DimaJoyti/go-coffee/pkg/infrastructure"
+	"github.com/DimaJoyti/go-coffee/pkg/infrastructure/config"
+	"github.com/DimaJoyti/go-coffee/pkg/infrastructure/middleware"
+	"github.com/DimaJoyti/go-coffee/pkg/infrastructure/monitoring"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
 )
 
 const (
-	defaultPort           = "8080"
-	defaultAIOrderAddr    = "localhost:50051"
-	defaultKitchenAddr    = "localhost:50052"
-	defaultCommHubAddr    = "localhost:50053"
-	serviceName           = "user-gateway"
+	defaultPort        = "8080"
+	defaultAIOrderAddr = "localhost:50051"
+	defaultKitchenAddr = "localhost:50052"
+	defaultCommHubAddr = "localhost:50053"
+	serviceName        = "user-gateway"
 )
 
 func main() {
 	// Initialize logger
 	logger := logger.New(serviceName)
-	logger.Info("🚀 Starting User Gateway Service...")
+	logger.Info("🚀 Starting User Gateway Service with Clean Architecture...")
 
-	// Get configuration from environment
+	// Load infrastructure configuration
+	cfg := config.DefaultInfrastructureConfig()
+
+	// Override with environment variables
+	if port := os.Getenv("HTTP_PORT"); port != "" {
+		// Port will be used in server setup
+	}
+	if redisHost := os.Getenv("REDIS_HOST"); redisHost != "" {
+		cfg.Redis.Host = redisHost
+	}
+	if dbHost := os.Getenv("DB_HOST"); dbHost != "" {
+		cfg.Database.Host = dbHost
+	}
+
+	// Initialize infrastructure container
+	container := infrastructure.NewContainer(cfg, logger)
+	ctx := context.Background()
+
+	if err := container.Initialize(ctx); err != nil {
+		log.Fatal("Failed to initialize infrastructure:", err)
+	}
+	defer container.Shutdown(ctx)
+
+	logger.Info("✅ Infrastructure initialized successfully")
+
+	// Get configuration from environment for gRPC clients
 	port := os.Getenv("HTTP_PORT")
 	if port == "" {
 		port = defaultPort
@@ -72,13 +102,13 @@ func main() {
 
 	logger.Info("✅ All gRPC clients initialized successfully")
 
-	// Initialize handlers
-	handlers := user.NewHandlers(aiOrderClient, kitchenClient, commClient, logger)
+	// Initialize handlers with infrastructure container
+	handlers := user.NewHandlers(aiOrderClient, kitchenClient, commClient, container, logger)
 
-	// Setup Gin router
-	router := setupRouter(handlers, logger)
+	// Setup clean HTTP router (will replace Gin)
+	router := setupCleanRouter(handlers, container, logger, ctx)
 
-	// Create HTTP server
+	// Create HTTP server with infrastructure-aware configuration
 	server := &http.Server{
 		Addr:           ":" + port,
 		Handler:        router,
@@ -90,7 +120,7 @@ func main() {
 
 	// Start HTTP server in goroutine
 	go func() {
-		logger.WithField("port", port).Info("🌐 User Gateway listening")
+		logger.WithField("port", port).Info("🌐 User Gateway listening with Clean Architecture")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.WithError(err).Fatal("Failed to start HTTP server")
 		}
@@ -100,16 +130,16 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	logger.Info("🎯 User Gateway is running. Press Ctrl+C to stop.")
+	logger.Info("🎯 User Gateway is running with Clean Architecture. Press Ctrl+C to stop.")
 	<-c
 
 	logger.Info("🛑 Shutting down User Gateway...")
 
 	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.WithError(err).Error("Server forced to shutdown")
 	}
 
@@ -164,94 +194,172 @@ func initializeCommunicationClient(addr string, logger *logger.Logger) (*grpc.Cl
 	return conn, nil
 }
 
-// setupRouter configures the Gin router with all routes and middleware
-func setupRouter(handlers *user.Handlers, logger *logger.Logger) *gin.Engine {
-	// Set Gin mode
-	gin.SetMode(gin.ReleaseMode)
+// setupCleanRouter configures a clean HTTP router using gorilla/mux (replacing Gin)
+func setupCleanRouter(handlers *user.Handlers, container infrastructure.ContainerInterface, logger *logger.Logger, ctx context.Context) http.Handler {
+	router := mux.NewRouter()
 
-	router := gin.New()
+	// Create infrastructure-aware middleware
+	mw := middleware.NewMiddleware(container, logger)
 
-	// Add middleware
-	router.Use(gin.Recovery())
-	router.Use(user.LoggerMiddleware(logger))
-	router.Use(user.CORSMiddleware())
-	router.Use(user.RateLimitMiddleware())
+	// Get session manager from container
+	sessionManager := container.GetSessionManager()
 
-	// Health check endpoint
-	router.GET("/health", handlers.HealthCheck)
+	// Initialize enhanced monitoring
+	healthChecker := monitoring.NewHealthChecker(container, nil, logger)
+	prometheusMetrics := monitoring.NewPrometheusMetrics(container, nil, logger)
 
-	// API v1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// Order management routes
-		orders := v1.Group("/orders")
-		{
-			orders.POST("", handlers.CreateOrder)
-			orders.GET("/:id", handlers.GetOrder)
-			orders.GET("", handlers.ListOrders)
-			orders.PUT("/:id/status", handlers.UpdateOrderStatus)
-			orders.DELETE("/:id", handlers.CancelOrder)
-			orders.GET("/:id/predict-completion", handlers.PredictCompletionTime)
-		}
-
-		// AI recommendations routes
-		recommendations := v1.Group("/recommendations")
-		{
-			recommendations.GET("/orders", handlers.GetOrderRecommendations)
-			recommendations.GET("/patterns", handlers.AnalyzeOrderPatterns)
-		}
-
-		// Kitchen management routes
-		kitchen := v1.Group("/kitchen")
-		{
-			kitchen.GET("/queue", handlers.GetKitchenQueue)
-			kitchen.POST("/queue", handlers.AddToKitchenQueue)
-			kitchen.PUT("/queue/:id/status", handlers.UpdatePreparationStatus)
-			kitchen.POST("/queue/:id/complete", handlers.CompleteOrder)
-			kitchen.GET("/metrics", handlers.GetKitchenMetrics)
-			kitchen.POST("/optimize", handlers.OptimizeKitchenWorkflow)
-			kitchen.GET("/capacity/predict", handlers.PredictKitchenCapacity)
-			kitchen.GET("/ingredients", handlers.GetIngredientRequirements)
-		}
-
-		// Communication routes
-		communication := v1.Group("/communication")
-		{
-			communication.POST("/messages", handlers.SendMessage)
-			communication.POST("/broadcast", handlers.BroadcastMessage)
-			communication.GET("/messages/history", handlers.GetMessageHistory)
-			communication.GET("/services", handlers.GetActiveServices)
-			communication.POST("/notifications", handlers.SendNotification)
-			communication.GET("/analytics", handlers.GetCommunicationAnalytics)
-		}
-
-		// Customer routes
-		customers := v1.Group("/customers")
-		{
-			customers.GET("/:id/profile", handlers.GetCustomerProfile)
-			customers.PUT("/:id/profile", handlers.UpdateCustomerProfile)
-			customers.GET("/:id/orders", handlers.GetCustomerOrders)
-			customers.GET("/:id/recommendations", handlers.GetCustomerRecommendations)
-		}
-
-		// Analytics routes
-		analytics := v1.Group("/analytics")
-		{
-			analytics.GET("/orders", handlers.GetOrderAnalytics)
-			analytics.GET("/kitchen", handlers.GetKitchenAnalytics)
-			analytics.GET("/performance", handlers.GetPerformanceAnalytics)
-			analytics.GET("/ai-insights", handlers.GetAIInsights)
-		}
+	// Start Prometheus metrics server
+	if err := prometheusMetrics.StartMetricsServer(); err != nil {
+		logger.WithError(err).Error("Failed to start Prometheus metrics server")
 	}
 
+	// Start periodic metrics collection
+	prometheusMetrics.StartPeriodicCollection(ctx)
+
+	// Configure middleware with custom settings
+	corsConfig := &middleware.CORSConfig{
+		AllowAllOrigins:  false,
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:8080", "http://localhost:3001"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization", "X-Request-ID", "X-API-Key"},
+		ExposedHeaders:   []string{"X-Request-ID", "X-Total-Count"},
+		AllowCredentials: true,
+		MaxAge:           86400,
+	}
+
+	rateLimitConfig := &middleware.RateLimitConfig{
+		RequestsPerSecond: 20.0, // 20 requests per second for user gateway
+		BurstSize:         50,   // Allow bursts up to 50 requests
+		Enabled:           true,
+	}
+
+	authConfig := &middleware.AuthConfig{
+		Enabled: true,
+		ExcludedPaths: []string{
+			"/health",
+			"/metrics",
+			"/api/docs",
+			"/static/",
+		},
+		TokenHeader: "Authorization",
+		TokenPrefix: "Bearer ",
+	}
+
+	// Configure session middleware
+	sessionConfig := &middleware.SessionConfig{
+		Enabled:        true,
+		RequireSession: false, // Don't require sessions for all routes
+		ExcludedPaths: []string{
+			"/health",
+			"/metrics",
+			"/api/docs",
+			"/static/",
+		},
+		SessionTimeout:  30 * time.Minute,
+		RefreshInterval: 5 * time.Minute,
+	}
+
+	// Add comprehensive middleware chain
+	router.Use(func(next http.Handler) http.Handler {
+		return mw.Chain(
+			next.ServeHTTP,
+			mw.RequestIDMiddleware,
+			mw.LoggingMiddleware,
+			mw.RecoveryMiddleware,
+			mw.SecurityHeadersMiddleware,
+			mw.CORSMiddleware(corsConfig),
+			mw.RateLimitMiddleware(rateLimitConfig),
+			mw.SessionMiddleware(sessionManager, sessionConfig), // Session management
+			mw.PerformanceMiddleware(prometheusMetrics, nil),    // Performance monitoring
+			mw.TracingMiddleware(nil),                           // Request tracing
+			mw.ValidationMiddleware(nil),                        // Use default config
+			mw.MetricsMiddleware(nil),                           // Use default config
+			mw.CacheMiddleware,
+		)
+	})
+
+	// Health check endpoint with infrastructure health
+	router.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
+
+	// Enhanced health check endpoint with detailed monitoring
+	router.HandleFunc("/health/detailed", monitoring.HTTPHealthHandler(healthChecker)).Methods("GET")
+
+	// Prometheus metrics endpoint
+	router.Handle("/metrics", prometheusMetrics.GetHandler()).Methods("GET")
+
+	// API v1 routes
+	api := router.PathPrefix("/api/v1").Subrouter()
+
+	// Public API routes (no authentication required)
+	api.HandleFunc("/docs", handlers.GetAPIDocumentation).Methods("GET")
+	api.HandleFunc("/auth/login", handlers.LoginExample).Methods("POST")
+
+	// Protected API routes (require authentication)
+	protected := api.PathPrefix("").Subrouter()
+	protected.Use(func(next http.Handler) http.Handler {
+		return mw.AuthenticationMiddleware(authConfig)(next.ServeHTTP)
+	})
+
+	// Order management routes (protected)
+	orders := protected.PathPrefix("/orders").Subrouter()
+	orders.HandleFunc("", handlers.CreateOrder).Methods("POST")
+	orders.HandleFunc("/{id}", handlers.GetOrder).Methods("GET")
+	orders.HandleFunc("", handlers.ListOrders).Methods("GET")
+	orders.HandleFunc("/{id}/status", handlers.UpdateOrderStatus).Methods("PUT")
+	orders.HandleFunc("/{id}", handlers.CancelOrder).Methods("DELETE")
+	orders.HandleFunc("/{id}/predict-completion", handlers.PredictCompletionTime).Methods("GET")
+
+	// AI recommendations routes (protected)
+	recommendations := protected.PathPrefix("/recommendations").Subrouter()
+	recommendations.HandleFunc("/orders", handlers.GetOrderRecommendations).Methods("GET")
+	recommendations.HandleFunc("/patterns", handlers.AnalyzeOrderPatterns).Methods("GET")
+
+	// Kitchen management routes (protected)
+	kitchen := protected.PathPrefix("/kitchen").Subrouter()
+	kitchen.HandleFunc("/queue", handlers.GetKitchenQueue).Methods("GET")
+	kitchen.HandleFunc("/queue", handlers.AddToKitchenQueue).Methods("POST")
+	kitchen.HandleFunc("/queue/{id}/status", handlers.UpdatePreparationStatus).Methods("PUT")
+	kitchen.HandleFunc("/queue/{id}/complete", handlers.CompleteOrder).Methods("POST")
+	kitchen.HandleFunc("/metrics", handlers.GetKitchenMetrics).Methods("GET")
+	kitchen.HandleFunc("/optimize", handlers.OptimizeKitchenWorkflow).Methods("POST")
+	kitchen.HandleFunc("/capacity/predict", handlers.PredictKitchenCapacity).Methods("GET")
+	kitchen.HandleFunc("/ingredients", handlers.GetIngredientRequirements).Methods("GET")
+
+	// Communication routes (protected)
+	communication := protected.PathPrefix("/communication").Subrouter()
+	communication.HandleFunc("/messages", handlers.SendMessage).Methods("POST")
+	communication.HandleFunc("/broadcast", handlers.BroadcastMessage).Methods("POST")
+	communication.HandleFunc("/messages/history", handlers.GetMessageHistory).Methods("GET")
+	communication.HandleFunc("/services", handlers.GetActiveServices).Methods("GET")
+	communication.HandleFunc("/notifications", handlers.SendNotification).Methods("POST")
+	communication.HandleFunc("/analytics", handlers.GetCommunicationAnalytics).Methods("GET")
+
+	// Customer routes (protected)
+	customers := protected.PathPrefix("/customers").Subrouter()
+	customers.HandleFunc("/{id}/profile", handlers.GetCustomerProfile).Methods("GET")
+	customers.HandleFunc("/{id}/profile", handlers.UpdateCustomerProfile).Methods("PUT")
+	customers.HandleFunc("/{id}/orders", handlers.GetCustomerOrders).Methods("GET")
+	customers.HandleFunc("/{id}/recommendations", handlers.GetCustomerRecommendations).Methods("GET")
+
+	// Session management routes (protected)
+	auth := protected.PathPrefix("/auth").Subrouter()
+	auth.HandleFunc("/profile", handlers.GetUserProfile).Methods("GET")
+	auth.HandleFunc("/logout", handlers.LogoutExample).Methods("POST")
+
+	// Analytics routes (protected)
+	analytics := protected.PathPrefix("/analytics").Subrouter()
+	analytics.HandleFunc("/orders", handlers.GetOrderAnalytics).Methods("GET")
+	analytics.HandleFunc("/kitchen", handlers.GetKitchenAnalytics).Methods("GET")
+	analytics.HandleFunc("/performance", handlers.GetPerformanceAnalytics).Methods("GET")
+	analytics.HandleFunc("/ai-insights", handlers.GetAIInsights).Methods("GET")
+
 	// WebSocket endpoint for real-time updates
-	router.GET("/ws", handlers.HandleWebSocket)
+	router.HandleFunc("/ws", handlers.HandleWebSocket).Methods("GET")
 
 	// Static files (if needed)
-	router.Static("/static", "./web/static")
-
-	// API documentation endpoint
-	router.GET("/api/docs", handlers.GetAPIDocumentation)
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static/"))))
 
 	return router
 }
+
+// Note: Clean architecture migration completed - all handlers now use standard HTTP

@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 
 	"github.com/DimaJoyti/go-coffee/internal/security-gateway/application"
-	"github.com/DimaJoyti/go-coffee/internal/security-gateway/infrastructure"
+	securityInfra "github.com/DimaJoyti/go-coffee/internal/security-gateway/infrastructure"
 	httpTransport "github.com/DimaJoyti/go-coffee/internal/security-gateway/transport/http"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
 	pkgLogger "github.com/DimaJoyti/go-coffee/pkg/logger"
@@ -41,8 +41,8 @@ type Config struct {
 		ThreatDetector struct {
 			SuspiciousIPThreshold int           `mapstructure:"suspicious_ip_threshold"`
 			BlockDuration         time.Duration `mapstructure:"block_duration"`
-			AllowedUserAgents    []string      `mapstructure:"allowed_user_agents"`
-			BlockedIPRanges      []string      `mapstructure:"blocked_ip_ranges"`
+			AllowedUserAgents     []string      `mapstructure:"allowed_user_agents"`
+			BlockedIPRanges       []string      `mapstructure:"blocked_ip_ranges"`
 		} `mapstructure:"threat_detector"`
 
 		RateLimit struct {
@@ -199,7 +199,7 @@ func initializeServices(config *Config, logger *logger.Logger) (*Services, error
 	validationService := validation.NewValidationService(&config.Security.Validation, logger)
 
 	// Initialize Redis services
-	redisServices, err := infrastructure.NewRedisServices(&infrastructure.RedisConfig{
+	redisServices, err := securityInfra.NewRedisServices(&securityInfra.RedisConfig{
 		URL:      config.Redis.URL,
 		DB:       config.Redis.DB,
 		Password: config.Redis.Password,
@@ -209,9 +209,9 @@ func initializeServices(config *Config, logger *logger.Logger) (*Services, error
 	}
 
 	// Create adapters for monitoring service
-	eventStoreAdapter := infrastructure.NewEventStoreAdapter(redisServices.EventStore)
-	alertManagerAdapter := infrastructure.NewAlertManagerAdapter(redisServices.AlertMgr)
-	threatDetectorAdapter := infrastructure.NewThreatDetectorAdapter()
+	eventStoreAdapter := securityInfra.NewEventStoreAdapter(redisServices.EventStore)
+	alertManagerAdapter := securityInfra.NewAlertManagerAdapter(redisServices.AlertMgr)
+	threatDetectorAdapter := securityInfra.NewThreatDetectorAdapter()
 
 	// Initialize monitoring service
 	monitoringService := monitoring.NewSecurityMonitoringService(
@@ -276,70 +276,56 @@ func initializeServices(config *Config, logger *logger.Logger) (*Services, error
 	}, nil
 }
 
-func setupRouter(config *Config, services *Services, logger *logger.Logger) *gin.Engine {
-	// Set Gin mode
-	if config.Environment == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
+func setupRouter(config *Config, services *Services, logger *logger.Logger) http.Handler {
+	// Create router
+	router := mux.NewRouter()
 
-	router := gin.New()
+	// Create simple middleware chain for security gateway
+	// We'll use basic middleware since security gateway has its own specialized middleware
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Add security headers
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("X-XSS-Protection", "1; mode=block")
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
 
-	// Add middleware
-	router.Use(gin.Recovery())
+			// Add CORS headers
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
 
-	// Add custom middleware
-	router.Use(httpTransport.LoggingMiddleware(logger))
-	router.Use(httpTransport.CORSMiddleware(&httpTransport.CORSConfig{
-		AllowedOrigins:   config.Security.CORS.AllowedOrigins,
-		AllowedMethods:   config.Security.CORS.AllowedMethods,
-		AllowedHeaders:   config.Security.CORS.AllowedHeaders,
-		ExposedHeaders:   config.Security.CORS.ExposedHeaders,
-		AllowCredentials: config.Security.CORS.AllowCredentials,
-		MaxAge:           config.Security.CORS.MaxAge,
-	}))
-	router.Use(httpTransport.SecurityHeadersMiddleware())
+			// Handle preflight requests
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 
-	if config.Security.RateLimit.Enabled {
-		router.Use(httpTransport.RateLimitMiddleware(services.RateLimitService))
-	}
-
-	if config.Security.WAF.Enabled {
-		router.Use(httpTransport.WAFMiddleware(services.WAFService))
-	}
-
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "healthy",
-			"timestamp": time.Now().UTC(),
-			"service":   "security-gateway",
+			next.ServeHTTP(w, r)
 		})
 	})
 
+	// Health check endpoint
+	router.HandleFunc("/health", httpTransport.HealthHandler()).Methods("GET")
+
 	// Metrics endpoint
-	router.GET("/metrics", httpTransport.MetricsHandler(services.MonitoringService))
+	router.HandleFunc("/metrics", httpTransport.MetricsHandler(services.MonitoringService)).Methods("GET")
 
 	// API routes
-	api := router.Group("/api/v1")
-	{
-		// Security endpoints
-		security := api.Group("/security")
-		{
-			security.POST("/validate", httpTransport.ValidateHandler(services.ValidationService))
-			security.GET("/metrics", httpTransport.SecurityMetricsHandler(services.MonitoringService))
-			security.GET("/alerts", httpTransport.AlertsHandler(services.MonitoringService))
-		}
+	api := router.PathPrefix("/api/v1").Subrouter()
 
-		// Gateway endpoints (proxy to other services)
-		gateway := api.Group("/gateway")
-		gateway.Use(httpTransport.GatewayMiddleware(services.GatewayService))
-		{
-			gateway.Any("/auth/*path", httpTransport.ProxyHandler("auth", services.GatewayService))
-			gateway.Any("/order/*path", httpTransport.ProxyHandler("order", services.GatewayService))
-			gateway.Any("/payment/*path", httpTransport.ProxyHandler("payment", services.GatewayService))
-			gateway.Any("/user/*path", httpTransport.ProxyHandler("user", services.GatewayService))
-		}
-	}
+	// Security endpoints
+	security := api.PathPrefix("/security").Subrouter()
+	security.HandleFunc("/validate", httpTransport.ValidateHandler(services.ValidationService)).Methods("POST")
+	security.HandleFunc("/metrics", httpTransport.SecurityMetricsHandler(services.MonitoringService)).Methods("GET")
+	security.HandleFunc("/alerts", httpTransport.AlertsHandler(services.MonitoringService)).Methods("GET")
+
+	// Gateway endpoints (proxy to other services)
+	gateway := api.PathPrefix("/gateway").Subrouter()
+	gateway.HandleFunc("/auth/{path:.*}", httpTransport.ProxyHandler("auth", services.GatewayService)).Methods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+	gateway.HandleFunc("/order/{path:.*}", httpTransport.ProxyHandler("order", services.GatewayService)).Methods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+	gateway.HandleFunc("/payment/{path:.*}", httpTransport.ProxyHandler("payment", services.GatewayService)).Methods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+	gateway.HandleFunc("/user/{path:.*}", httpTransport.ProxyHandler("user", services.GatewayService)).Methods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
 
 	return router
 }

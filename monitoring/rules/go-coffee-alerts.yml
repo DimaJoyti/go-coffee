@@ -1,0 +1,303 @@
+# Prometheus Alerting Rules for Go Coffee Platform
+groups:
+  # Infrastructure Alerts
+  - name: infrastructure
+    rules:
+      # Service Down
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute."
+          runbook_url: "https://docs.go-coffee.com/runbooks/service-down"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% on {{ $labels.instance }} for more than 5 minutes."
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% on {{ $labels.instance }} for more than 5 minutes."
+
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "Disk usage is above 85% on {{ $labels.instance }} {{ $labels.mountpoint }}."
+
+      # Disk Space Critical
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Disk space critical on {{ $labels.instance }}"
+          description: "Disk usage is above 95% on {{ $labels.instance }} {{ $labels.mountpoint }}."
+
+  # Application Alerts
+  - name: application
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "Error rate is above 5% on {{ $labels.service }} for more than 5 minutes."
+
+      # Critical Error Rate
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.10
+        for: 2m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "Critical error rate on {{ $labels.service }}"
+          description: "Error rate is above 10% on {{ $labels.service }} for more than 2 minutes."
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "High response time on {{ $labels.service }}"
+          description: "95th percentile response time is above 1 second on {{ $labels.service }}."
+
+      # Low Request Rate
+      - alert: LowRequestRate
+        expr: rate(http_requests_total[5m]) < 1
+        for: 10m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Low request rate on {{ $labels.service }}"
+          description: "Request rate is below 1 req/sec on {{ $labels.service }} for more than 10 minutes."
+
+      # High Goroutine Count
+      - alert: HighGoroutineCount
+        expr: go_goroutines > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "High goroutine count on {{ $labels.service }}"
+          description: "Goroutine count is above 1000 on {{ $labels.service }}."
+
+      # Memory Leak Detection
+      - alert: PossibleMemoryLeak
+        expr: increase(go_memstats_alloc_bytes[1h]) > 100000000  # 100MB increase per hour
+        for: 2h
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Possible memory leak on {{ $labels.service }}"
+          description: "Memory allocation increased by more than 100MB in the last hour on {{ $labels.service }}."
+
+  # Database Alerts
+  - name: database
+    rules:
+      # PostgreSQL Down
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+          service: postgres
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database is down on {{ $labels.instance }}."
+
+      # High Database Connections
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: postgres
+        annotations:
+          summary: "High database connections"
+          description: "Database connections are above 80% of max on {{ $labels.instance }}."
+
+      # Long Running Queries
+      - alert: LongRunningQueries
+        expr: pg_stat_activity_max_tx_duration > 300
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: postgres
+        annotations:
+          summary: "Long running queries detected"
+          description: "Queries running for more than 5 minutes detected on {{ $labels.instance }}."
+
+      # Database Replication Lag
+      - alert: DatabaseReplicationLag
+        expr: pg_stat_replication_lag > 60
+        for: 2m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: postgres
+        annotations:
+          summary: "Database replication lag"
+          description: "Replication lag is above 60 seconds on {{ $labels.instance }}."
+
+  # Redis Alerts
+  - name: redis
+    rules:
+      # Redis Down
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance is down on {{ $labels.instance }}."
+
+      # High Redis Memory Usage
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: redis
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is above 90% on {{ $labels.instance }}."
+
+      # Redis Connection Limit
+      - alert: RedisConnectionLimit
+        expr: redis_connected_clients / redis_config_maxclients > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: redis
+        annotations:
+          summary: "Redis connection limit approaching"
+          description: "Redis connections are above 80% of max on {{ $labels.instance }}."
+
+      # Redis Slow Queries
+      - alert: RedisSlowQueries
+        expr: increase(redis_slowlog_length[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+          service: redis
+        annotations:
+          summary: "Redis slow queries detected"
+          description: "More than 10 slow queries in the last 5 minutes on {{ $labels.instance }}."
+
+  # Security Alerts
+  - name: security
+    rules:
+      # High Failed Login Rate
+      - alert: HighFailedLoginRate
+        expr: rate(auth_failed_logins_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High failed login rate"
+          description: "Failed login rate is above 10/min for more than 2 minutes."
+
+      # Suspicious Activity
+      - alert: SuspiciousActivity
+        expr: rate(auth_failed_logins_total[1m]) > 50
+        for: 30s
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Suspicious login activity detected"
+          description: "More than 50 failed logins per minute detected - possible brute force attack."
+
+      # JWT Token Validation Failures
+      - alert: HighJWTValidationFailures
+        expr: rate(jwt_validation_failures_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High JWT validation failures"
+          description: "JWT validation failure rate is above 5/min."
+
+  # Business Logic Alerts
+  - name: business
+    rules:
+      # Low Order Rate
+      - alert: LowOrderRate
+        expr: rate(coffee_orders_total[10m]) < 0.1
+        for: 15m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Low coffee order rate"
+          description: "Coffee order rate is below 0.1/min for more than 15 minutes."
+
+      # High Order Failure Rate
+      - alert: HighOrderFailureRate
+        expr: rate(coffee_orders_failed_total[5m]) / rate(coffee_orders_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "High order failure rate"
+          description: "Order failure rate is above 5% for more than 5 minutes."
+
+      # Payment Processing Issues
+      - alert: PaymentProcessingIssues
+        expr: rate(payment_failures_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "Payment processing issues"
+          description: "Payment failure rate is above 1/min for more than 5 minutes."

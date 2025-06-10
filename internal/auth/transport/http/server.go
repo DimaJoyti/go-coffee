@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/DimaJoyti/go-coffee/internal/auth/application"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
+	"github.com/gorilla/mux"
 )
 
 // Server represents HTTP server for auth service
 type Server struct {
-	handler     *Handler
-	server      *http.Server
-	logger      *logger.Logger
-	port        int
+	handler *Handler
+	server  *http.Server
+	logger  *logger.Logger
+	port    int
 }
 
 // Config represents HTTP server configuration
@@ -25,6 +25,16 @@ type Config struct {
 	ReadTimeout  time.Duration `yaml:"read_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 	IdleTimeout  time.Duration `yaml:"idle_timeout"`
+	CORS         *CORSConfig   `yaml:"cors"`
+}
+
+// CORSConfig represents CORS configuration
+type CORSConfig struct {
+	AllowedOrigins   []string      `yaml:"allowed_origins"`
+	AllowedMethods   []string      `yaml:"allowed_methods"`
+	AllowedHeaders   []string      `yaml:"allowed_headers"`
+	AllowCredentials bool          `yaml:"allow_credentials"`
+	MaxAge           time.Duration `yaml:"max_age"`
 }
 
 // NewServer creates a new HTTP server
@@ -35,13 +45,38 @@ func NewServer(
 	logger *logger.Logger,
 ) *Server {
 	handler := NewHandler(authService, mfaService, logger)
-	
+	router := mux.NewRouter()
+
+	// Set up routes
+	router.Use(handler.loggingMiddleware)
+	router.Use(handler.recoveryMiddleware)
+
+	v1 := router.PathPrefix("/api/v1").Subrouter()
+
+	// Auth routes
+	v1.HandleFunc("/auth/login", handler.Login).Methods("POST")
+	v1.HandleFunc("/auth/register", handler.Register).Methods("POST")
+	v1.HandleFunc("/auth/refresh", handler.RefreshToken).Methods("POST")
+	v1.HandleFunc("/auth/logout", handler.Logout).Methods("POST")
+
+	// MFA routes
+	v1.HandleFunc("/auth/mfa/enable", handler.EnableMFA).Methods("POST")
+	v1.HandleFunc("/auth/mfa/disable", handler.DisableMFA).Methods("POST")
+	v1.HandleFunc("/auth/mfa/verify", handler.VerifyMFA).Methods("POST")
+
+	// Protected routes
+	protected := v1.PathPrefix("/auth").Subrouter()
+	protected.Use(func(next http.Handler) http.Handler { return handler.authMiddleware(next) })
+	protected.HandleFunc("/me", handler.GetUserInfo).Methods("GET")
+	protected.HandleFunc("/password", handler.ChangePassword).Methods("PUT")
+
 	return &Server{
 		handler: handler,
 		logger:  logger,
 		port:    config.Port,
 		server: &http.Server{
 			Addr:         fmt.Sprintf(":%d", config.Port),
+			Handler:      router,
 			ReadTimeout:  config.ReadTimeout,
 			WriteTimeout: config.WriteTimeout,
 			IdleTimeout:  config.IdleTimeout,
@@ -51,42 +86,13 @@ func NewServer(
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
-	// Create router
-	router := mux.NewRouter()
-
-	// Apply global middleware
-	router.Use(s.handler.corsMiddleware)
-	router.Use(s.handler.loggingMiddleware)
-	router.Use(s.handler.recoveryMiddleware)
-	router.Use(s.handler.securityHeadersMiddleware)
-	router.Use(s.handler.requestIDMiddleware)
-	router.Use(s.handler.deviceFingerprintMiddleware)
-
-	// Apply content type validation for POST/PUT requests
-	router.Use(s.handler.contentTypeMiddleware([]string{
-		"application/json",
-		"application/x-www-form-urlencoded",
-	}))
-
-	// Register routes
-	s.handler.RegisterRoutes(router)
-
-	// Set router to server
-	s.server.Handler = router
-
 	s.logger.WithField("port", s.port).Info("Starting HTTP server")
-	
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("failed to start HTTP server: %w", err)
-	}
-
-	return nil
+	return s.server.ListenAndServe()
 }
 
-// Stop stops the HTTP server gracefully
+// Stop gracefully shuts down the server
 func (s *Server) Stop(ctx context.Context) error {
-	s.logger.Info("Stopping HTTP server")
-	
+	s.logger.Info("Shutting down HTTP server...")
 	return s.server.Shutdown(ctx)
 }
 
@@ -153,7 +159,7 @@ func NewServerWithGracefulShutdown(
 	shutdownTimeout time.Duration,
 ) *ServerWithGracefulShutdown {
 	server := NewServer(config, authService, mfaService, logger)
-	
+
 	return &ServerWithGracefulShutdown{
 		Server:          server,
 		shutdownTimeout: shutdownTimeout,
@@ -176,17 +182,17 @@ func (s *ServerWithGracefulShutdown) StartWithGracefulShutdown(ctx context.Conte
 		return err
 	case <-ctx.Done():
 		s.logger.Info("Received shutdown signal")
-		
+
 		// Create shutdown context with timeout
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 		defer cancel()
-		
+
 		// Attempt graceful shutdown
 		if err := s.Stop(shutdownCtx); err != nil {
 			s.logger.WithError(err).Error("Failed to shutdown server gracefully")
 			return err
 		}
-		
+
 		s.logger.Info("Server shutdown completed")
 		return nil
 	}

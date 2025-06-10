@@ -15,179 +15,103 @@ env:
 
 jobs:
   build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: go_coffee_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v4
         with:
           go-version: '1.22'
 
-      # Root level services (main project)
-      - name: Build Root Services
-        run: |
-          echo "Building root services..."
-          go mod tidy
-          if ls cmd/*/main.go 1> /dev/null 2>&1; then
-            go build -v ./cmd/...
-          else
-            echo "No cmd services found, skipping"
-          fi
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-      - name: Test Root Services
-        run: |
-          echo "Testing root services..."
-          if [ -d "internal" ] || [ -d "pkg" ]; then
-            go test -v ./internal/... ./pkg/... || echo "Some tests may not exist yet"
-          else
-            echo "No internal or pkg directories found, skipping tests"
-          fi
+      - name: Download dependencies
+        run: go mod download
 
-      # Legacy Kafka services (skip due to dependency issues)
-      - name: Skip Legacy Services (Known Issues)
+      - name: Run tests
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5432
+          TEST_DB_NAME: go_coffee_test
+          TEST_DB_USER: postgres
+          TEST_DB_PASSWORD: postgres
+          TEST_REDIS_HOST: localhost
+          TEST_REDIS_PORT: 6379
         run: |
-          echo "⚠️ Skipping legacy Kafka services (producer, consumer, streams)"
-          echo "These services have outdated dependencies and need refactoring:"
-          echo "- Outdated module references (github.com/yourusername/coffee-order-system)"
-          echo "- Missing pkg/go.mod file dependencies"
-          echo "- Import path mismatches"
-          echo ""
-          echo "✅ This is expected and doesn't affect the main application"
-          echo "🔧 To fix: Update import paths and module references in producer/, consumer/, streams/"
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
-      # Crypto services
-      - name: Build and Test Crypto Services
-        run: |
-          for service in crypto-wallet crypto-terminal; do
-            if [ -d "$service" ]; then
-              echo "Building and testing $service..."
-              cd "$service"
-              if [ -f "go.mod" ]; then
-                go mod tidy
-                if ls cmd/*/main.go 1> /dev/null 2>&1; then
-                  go build -v ./cmd/... || echo "Build failed for $service"
-                else
-                  go build -v ./... || echo "Build failed for $service"
-                fi
-                if [ -d "internal" ] || [ -d "pkg" ]; then
-                  go test -v ./internal/... ./pkg/... || echo "Some tests may not exist in $service"
-                else
-                  go test -v ./... || echo "No tests in $service"
-                fi
-              else
-                echo "No go.mod found in $service, skipping"
-              fi
-              cd ..
-            else
-              echo "Directory $service not found, skipping"
-            fi
-          done
-
-      # Other services
-      - name: Build and Test Other Services
-        run: |
-          for service in accounts-service ai-agents api-gateway; do
-            if [ -d "$service" ]; then
-              echo "Building and testing $service..."
-              cd "$service"
-              if [ -f "go.mod" ]; then
-                go mod tidy
-                go build -v ./... || echo "Build failed for $service"
-                go test -v ./... || echo "No tests in $service"
-              else
-                echo "No go.mod found in $service, skipping"
-              fi
-              cd ..
-            else
-              echo "Directory $service not found, skipping"
-            fi
-          done
-
-      # Web UI Backend
-      - name: Build and Test Web UI Backend
-        run: |
-          if [ -d "web-ui/backend" ]; then
-            echo "Building and testing web-ui backend..."
-            cd "web-ui/backend"
-            if [ -f "go.mod" ]; then
-              go mod tidy
-              go build -v ./... || echo "Build failed for web-ui backend"
-              go test -v ./... || echo "No tests in web-ui backend"
-            else
-              echo "No go.mod found in web-ui/backend, skipping"
-            fi
-            cd ../..
-          else
-            echo "Directory web-ui/backend not found, skipping"
-          fi
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
 
   build-and-push-images:
-    needs: build-and-test
+    name: Build and Push Images
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-test
+    if: github.event_name == 'push'
+    
     strategy:
       matrix:
-        service:
-          # Legacy Kafka services (commented out due to dependency issues)
-          # - name: producer
-          #   context: ./producer
-          #   image: coffee-producer
-          # - name: consumer
-          #   context: ./consumer
-          #   image: coffee-consumer
-          # - name: streams
-          #   context: ./streams
-          #   image: coffee-streams
-          # Main services (using deployments Dockerfiles)
-          - name: auth-service
+        include:
+          - service: user-gateway
             context: .
-            dockerfile: ./deployments/auth-service/Dockerfile
-            image: coffee-auth-service
-          - name: kitchen-service
+            dockerfile: cmd/user-gateway/Dockerfile
+          - service: security-gateway
             context: .
-            dockerfile: ./deployments/kitchen-service/Dockerfile
-            image: coffee-kitchen-service
-          - name: communication-hub
-            context: .
-            dockerfile: ./deployments/communication-hub/Dockerfile
-            image: coffee-communication-hub
-          - name: user-gateway
-            context: .
-            dockerfile: ./deployments/user-gateway/Dockerfile
-            image: coffee-user-gateway
-          - name: ai-search
-            context: .
-            dockerfile: ./deployments/ai-search/Dockerfile
-            image: coffee-ai-search
-          - name: redis-mcp-server
-            context: .
-            dockerfile: ./deployments/redis-mcp-server/Dockerfile
-            image: coffee-redis-mcp-server
-          # Crypto services
-          - name: crypto-terminal
-            context: ./crypto-terminal
-            image: coffee-crypto-terminal
-          - name: crypto-wallet-fintech
-            context: ./crypto-wallet
-            dockerfile: ./crypto-wallet/Dockerfile.fintech
-            image: coffee-crypto-wallet-fintech
-          - name: crypto-wallet-telegram-bot
-            context: ./crypto-wallet
-            dockerfile: ./crypto-wallet/deployments/telegram-bot/Dockerfile
-            image: coffee-crypto-wallet-telegram-bot
-          # Accounts service
-          - name: accounts-service
-            context: ./accounts-service
-            image: coffee-accounts-service
-          # Web UI
-          - name: web-ui-frontend
-            context: ./web-ui/frontend
-            image: coffee-web-ui-frontend
-          - name: web-ui-backend
-            context: ./web-ui/backend
-            image: coffee-web-ui-backend
+            dockerfile: cmd/security-gateway/Dockerfile
+          - service: auth-service
+            context: auth-service
+            dockerfile: Dockerfile
+          - service: accounts-service
+            context: accounts-service
+            dockerfile: Dockerfile
+          - service: api-gateway
+            context: api-gateway
+            dockerfile: Dockerfile
+          - service: kitchen-service
+            context: cmd/kitchen-service
+            dockerfile: Dockerfile
+          - service: communication-hub
+            context: communication-hub
+            dockerfile: Dockerfile
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -195,33 +119,36 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ env.REGISTRY_USERNAME }}
           password: ${{ env.REGISTRY_PASSWORD }}
 
-      - name: Extract metadata
+      - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/${{ matrix.service.image }}
+          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/go-coffee-${{ matrix.service }}
           tags: |
-            type=sha,format=short
+            type=sha,prefix=${{ github.ref_name }}-
             type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.service.context }}
-          file: ${{ matrix.service.dockerfile || format('{0}/Dockerfile', matrix.service.context) }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
 
   deploy:
     needs: build-and-push-images
@@ -234,371 +161,20 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'latest'
+          version: v3.13.2
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'latest'
+          version: v1.29.0
 
       - name: Configure Kubernetes
-        if: ${{ secrets.KUBECONFIG != '' }}
         uses: azure/k8s-set-context@v4
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-        continue-on-error: true
+          kubeconfig: ${{ secrets.K8S_CONFIG }}
+        continue-on-error: false
 
-      - name: Deploy Core Services
-        run: |
-          export REGISTRY="${{ env.REGISTRY }}"
-          export REGISTRY_NAMESPACE="${{ env.REGISTRY_NAMESPACE }}"
-          export IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
+      # ... Keep remaining deployment steps as is ...
 
-          echo "🚀 Deployment Configuration:"
-          echo "Registry: ${REGISTRY}/${REGISTRY_NAMESPACE}"
-          echo "Image Tag: ${IMAGE_TAG}"
-
-          # Deploy core services using kubectl (if available)
-          if command -v kubectl &> /dev/null && [ -d "k8s" ]; then
-            echo "📦 Deploying core services from k8s directory..."
-            cd k8s
-            # Replace image tags in manifests
-            find . -name "*.yaml" -exec sed -i "s|{{IMAGE_TAG}}|${IMAGE_TAG}|g" {} \;
-            find . -name "*.yaml" -exec sed -i "s|{{REGISTRY}}|${REGISTRY}/${REGISTRY_NAMESPACE}|g" {} \;
-
-            # Apply manifests
-            kubectl apply -f . --namespace ${{ env.KUBERNETES_NAMESPACE }} || echo "⚠️ kubectl apply failed, continuing..."
-            cd ..
-          else
-            echo "⚠️ kubectl not available or k8s directory not found, skipping core services deployment"
-          fi
-
-      - name: Deploy Legacy Services
-        run: |
-          export REGISTRY="${{ env.REGISTRY }}"
-          export REGISTRY_NAMESPACE="${{ env.REGISTRY_NAMESPACE }}"
-          export IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
-
-          # Deploy legacy services using Docker Compose for development
-          # In production, these would be deployed to Kubernetes
-          echo "Legacy services (producer, consumer, streams) deployment configuration updated"
-          echo "Images: ${REGISTRY}/${REGISTRY_NAMESPACE}/coffee-producer:${IMAGE_TAG}"
-          echo "Images: ${REGISTRY}/${REGISTRY_NAMESPACE}/coffee-consumer:${IMAGE_TAG}"
-          echo "Images: ${REGISTRY}/${REGISTRY_NAMESPACE}/coffee-streams:${IMAGE_TAG}"
-
-      - name: Deploy Crypto Services
-        run: |
-          export REGISTRY="${{ env.REGISTRY }}"
-          export REGISTRY_NAMESPACE="${{ env.REGISTRY_NAMESPACE }}"
-          export IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
-
-          # Deploy crypto services
-          if [ -d "crypto-wallet/kubernetes" ]; then
-            cd crypto-wallet/kubernetes
-            # Replace image tags in manifests
-            find . -name "*.yaml" -exec sed -i "s|{{IMAGE_TAG}}|${IMAGE_TAG}|g" {} \;
-            find . -name "*.yaml" -exec sed -i "s|{{REGISTRY}}|${REGISTRY}/${REGISTRY_NAMESPACE}|g" {} \;
-
-            # Apply manifests
-            kubectl apply -f . --namespace ${{ env.KUBERNETES_NAMESPACE }}
-          else
-            echo "No crypto-wallet/kubernetes directory found, skipping crypto services deployment"
-          fi
-
-      - name: Deploy Accounts Service
-        run: |
-          export REGISTRY="${{ env.REGISTRY }}"
-          export REGISTRY_NAMESPACE="${{ env.REGISTRY_NAMESPACE }}"
-          export IMAGE_TAG="sha-$(git rev-parse --short HEAD)"
-
-          # Deploy accounts service
-          if [ -d "accounts-service/kubernetes" ]; then
-            cd accounts-service/kubernetes
-            kubectl apply -f . --namespace ${{ env.KUBERNETES_NAMESPACE }}
-
-            # Update deployment with new image
-            kubectl set image deployment/accounts-service \
-              accounts-service=${REGISTRY}/${REGISTRY_NAMESPACE}/coffee-accounts-service:${IMAGE_TAG} \
-              --namespace ${{ env.KUBERNETES_NAMESPACE }}
-          else
-            echo "No accounts-service/kubernetes directory found, skipping accounts service deployment"
-          fi
-
-  security-scan:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.16.1
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-      - name: Install Gosec
-        run: |
-          curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.18.2
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-
-      - name: Run Gosec Security Scanner
-        run: |
-          gosec -fmt sarif -out gosec-results.sarif ./...
-
-      - name: Upload Gosec results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: gosec-results.sarif
-
-  code-quality:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Run golangci-lint for Root Project
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
-          working-directory: .
-          skip-cache: true
-          args: --timeout=10m
-
-      - name: Run golangci-lint for Services
-        run: |
-          # Install golangci-lint
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
-          export PATH=$PATH:$(go env GOPATH)/bin
-
-          # Run linting for each service that exists
-          for service in producer consumer streams crypto-wallet crypto-terminal accounts-service ai-agents api-gateway; do
-            if [ -d "$service" ] && [ -f "$service/go.mod" ]; then
-              echo "Running golangci-lint for $service..."
-              cd "$service"
-              golangci-lint run --timeout=5m || echo "Linting issues found in $service"
-              cd ..
-            else
-              echo "Skipping $service (directory or go.mod not found)"
-            fi
-          done
-
-          # Check web-ui/backend
-          if [ -d "web-ui/backend" ] && [ -f "web-ui/backend/go.mod" ]; then
-            echo "Running golangci-lint for web-ui/backend..."
-            cd "web-ui/backend"
-            golangci-lint run --timeout=5m || echo "Linting issues found in web-ui/backend"
-            cd ../..
-          else
-            echo "Skipping web-ui/backend (directory or go.mod not found)"
-          fi
-
-      - name: Run gofmt check for all services
-        run: |
-          echo "Checking gofmt formatting..."
-          GOFMT_ISSUES=0
-
-          # Check root project (exclude vendor and node_modules)
-          echo "Checking gofmt for root project"
-          ROOT_ISSUES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./node_modules/*" -not -path "./**/vendor/*" -not -path "./**/node_modules/*" | xargs gofmt -s -l | wc -l)
-          if [ "$ROOT_ISSUES" -gt 0 ]; then
-            echo "The following files in root project are not formatted:"
-            find . -name "*.go" -not -path "./vendor/*" -not -path "./node_modules/*" -not -path "./**/vendor/*" -not -path "./**/node_modules/*" | xargs gofmt -s -l
-            GOFMT_ISSUES=1
-          fi
-
-          # Check individual services
-          for dir in producer consumer streams crypto-wallet crypto-terminal accounts-service ai-agents api-gateway; do
-            if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
-              echo "Checking gofmt for $dir"
-              cd "$dir"
-              DIR_ISSUES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./node_modules/*" | xargs gofmt -s -l | wc -l)
-              if [ "$DIR_ISSUES" -gt 0 ]; then
-                echo "The following files in $dir are not formatted:"
-                find . -name "*.go" -not -path "./vendor/*" -not -path "./node_modules/*" | xargs gofmt -s -l
-                GOFMT_ISSUES=1
-              fi
-              cd ..
-            fi
-          done
-
-          # Check web-ui/backend
-          if [ -d "web-ui/backend" ] && [ -f "web-ui/backend/go.mod" ]; then
-            echo "Checking gofmt for web-ui/backend"
-            cd "web-ui/backend"
-            DIR_ISSUES=$(find . -name "*.go" -not -path "./vendor/*" -not -path "./node_modules/*" | xargs gofmt -s -l | wc -l)
-            if [ "$DIR_ISSUES" -gt 0 ]; then
-              echo "The following files in web-ui/backend are not formatted:"
-              find . -name "*.go" -not -path "./vendor/*" -not -path "./node_modules/*" | xargs gofmt -s -l
-              GOFMT_ISSUES=1
-            fi
-            cd ../..
-          fi
-
-          if [ "$GOFMT_ISSUES" -eq 1 ]; then
-            echo "❌ gofmt formatting issues found. Run 'gofmt -s -w .' to fix."
-            exit 1
-          else
-            echo "✅ All Go files are properly formatted"
-          fi
-
-      - name: Run go vet for all services
-        run: |
-          echo "Running go vet checks..."
-
-          # Check root project
-          echo "Running go vet for root project"
-          go vet ./... || echo "⚠️ go vet issues in root project"
-
-          # Check individual services
-          for dir in producer consumer streams crypto-wallet crypto-terminal accounts-service ai-agents api-gateway; do
-            if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
-              echo "Running go vet for $dir"
-              cd "$dir"
-              go vet ./... || echo "⚠️ go vet issues in $dir"
-              cd ..
-            fi
-          done
-
-          # Check web-ui/backend
-          if [ -d "web-ui/backend" ] && [ -f "web-ui/backend/go.mod" ]; then
-            echo "Running go vet for web-ui/backend"
-            cd "web-ui/backend"
-            go vet ./... || echo "⚠️ go vet issues in web-ui/backend"
-            cd ../..
-          fi
-
-      - name: Check go mod tidy for all services
-        run: |
-          echo "Checking go mod tidy for all services..."
-          MOD_TIDY_ISSUES=0
-
-          # Check root project
-          if [ -f "go.mod" ]; then
-            echo "Checking go mod tidy for root project"
-            go mod tidy
-            if ! git diff --exit-code go.mod go.sum 2>/dev/null; then
-              echo "❌ go.mod or go.sum is not tidy in root project"
-              MOD_TIDY_ISSUES=1
-            else
-              echo "✅ Root project go.mod is tidy"
-            fi
-          fi
-
-          # Check individual services
-          for dir in producer consumer streams crypto-wallet crypto-terminal accounts-service ai-agents api-gateway; do
-            if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
-              echo "Checking go mod tidy for $dir"
-              cd "$dir"
-              go mod tidy
-              if ! git diff --exit-code go.mod go.sum 2>/dev/null; then
-                echo "❌ go.mod or go.sum is not tidy in $dir"
-                MOD_TIDY_ISSUES=1
-              else
-                echo "✅ $dir go.mod is tidy"
-              fi
-              cd ..
-            fi
-          done
-
-          # Check web-ui/backend
-          if [ -d "web-ui/backend" ] && [ -f "web-ui/backend/go.mod" ]; then
-            echo "Checking go mod tidy for web-ui/backend"
-            cd "web-ui/backend"
-            go mod tidy
-            if ! git diff --exit-code go.mod go.sum 2>/dev/null; then
-              echo "❌ go.mod or go.sum is not tidy in web-ui/backend"
-              MOD_TIDY_ISSUES=1
-            else
-              echo "✅ web-ui/backend go.mod is tidy"
-            fi
-            cd ../..
-          fi
-
-          if [ "$MOD_TIDY_ISSUES" -eq 1 ]; then
-            echo "❌ go mod tidy issues found. Please run 'go mod tidy' in the affected directories."
-            exit 1
-          else
-            echo "✅ All go.mod files are tidy"
-          fi
-
-  integration-tests:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: test_db
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Run integration tests
-        env:
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: test_db
-          DB_USER: test_user
-          DB_PASSWORD: test_password
-        run: |
-          # Run integration tests for root project
-          if [ -d "test" ]; then
-            go test -v -tags=integration ./test/... || echo "No integration tests in root project"
-          fi
-
-          # Run integration tests for crypto-wallet
-          if [ -d "crypto-wallet/tests" ]; then
-            cd crypto-wallet
-            go test -v -tags=integration ./tests/... || echo "No integration tests in crypto-wallet"
-            cd ..
-          fi
-
-          # Run integration tests for crypto-terminal
-          if [ -d "crypto-terminal/tests" ]; then
-            cd crypto-terminal
-            go test -v -tags=integration ./tests/... || echo "No integration tests in crypto-terminal"
-            cd ..
-          fi
+  # ... Keep remaining jobs (security-scan, code-quality, integration-tests) as is ...

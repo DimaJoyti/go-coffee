@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
+	"net/http"
+
 	"github.com/DimaJoyti/go-coffee/web-ui/backend/internal/websocket"
 )
 
@@ -15,6 +16,6 @@ func NewWebSocketHandler(hub *websocket.Hub) *WebSocketHandler {
 	}
 }
 
-func (h *WebSocketHandler) HandleWebSocket(c *gin.Context) {
-	h.hub.ServeWS(c.Writer, c.Request)
+func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	h.hub.ServeWS(w, r)
 }

@@ -240,6 +240,49 @@ func ToSecurityEventDTO(event *domain.SecurityEvent) *SecurityEventDTO {
 	}
 }
 
+// TokenPair represents access and refresh token pair
+type TokenPair struct {
+	AccessToken           string    `json:"access_token"`
+	RefreshToken          string    `json:"refresh_token"`
+	AccessTokenExpiresAt  time.Time `json:"access_token_expires_at"`
+	RefreshTokenExpiresAt time.Time `json:"refresh_token_expires_at"`
+	TokenType             string    `json:"token_type"`
+}
+
+// TokenClaims represents JWT token claims for application layer
+type TokenClaims struct {
+	UserID    string    `json:"user_id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	SessionID string    `json:"session_id"`
+	TokenID   string    `json:"token_id"`
+	Type      string    `json:"type"`
+	IssuedAt  time.Time `json:"issued_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Issuer    string    `json:"issuer"`
+	Audience  string    `json:"audience"`
+}
+
+// TokenMetadata represents token metadata
+type TokenMetadata struct {
+	UserID    string    `json:"user_id"`
+	SessionID string    `json:"session_id"`
+	IssuedAt  time.Time `json:"issued_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Expired   bool      `json:"expired"`
+}
+
+// SecurityAnalysis represents the result of security analysis
+type SecurityAnalysis struct {
+	UserID    string    `json:"user_id"`
+	IPAddress string    `json:"ip_address"`
+	UserAgent string    `json:"user_agent"`
+	RiskScore float64   `json:"risk_score"`
+	RiskLevel string    `json:"risk_level"`
+	Factors   []string  `json:"factors"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // Additional DTOs for transport layer
 
 // MFA DTOs
