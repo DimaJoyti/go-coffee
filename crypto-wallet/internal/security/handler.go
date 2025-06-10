@@ -3,9 +3,9 @@ package security
 import (
 	"context"
 
-	pb "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/security"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/proto/security"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 )
 
 // MockRepository is a mock implementation of Repository

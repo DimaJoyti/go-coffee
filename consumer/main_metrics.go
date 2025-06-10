@@ -11,10 +11,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"kafka_worker/config"
-	"kafka_worker/kafka"
-	"kafka_worker/metrics"
-	"kafka_worker/worker"
+	"github.com/DimaJoyti/go-coffee/consumer/config"
+	"github.com/DimaJoyti/go-coffee/consumer/kafka"
+	"github.com/DimaJoyti/go-coffee/consumer/metrics"
+	"github.com/DimaJoyti/go-coffee/consumer/worker"
 )
 
 func main() {

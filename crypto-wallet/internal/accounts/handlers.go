@@ -8,7 +8,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 )
 
 // Handler handles HTTP requests for accounts

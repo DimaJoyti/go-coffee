@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/crypto"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/crypto"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"github.com/golang-jwt/jwt/v4"
 )
 

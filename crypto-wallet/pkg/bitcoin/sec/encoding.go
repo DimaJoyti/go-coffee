@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin/ecc"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin/ecc"
 )
 
 // SEC1 format constants

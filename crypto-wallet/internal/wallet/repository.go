@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 )
 
 // Repository provides access to wallet storage

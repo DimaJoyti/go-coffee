@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"kafka_worker/config"
+	"github.com/DimaJoyti/go-coffee/consumer/config"
 
 	"github.com/IBM/sarama"
 )

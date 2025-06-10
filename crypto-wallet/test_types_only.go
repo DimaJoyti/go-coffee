@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/defi"
 )
 
 func main() {

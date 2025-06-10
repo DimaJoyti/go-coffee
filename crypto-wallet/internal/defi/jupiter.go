@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/gagliardetto/solana-go"
 	"github.com/shopspring/decimal"
 )

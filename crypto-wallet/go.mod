@@ -1,4 +1,4 @@
-module github.com/DimaJoyti/go-coffee/web3-wallet-backend
+module github.com/DimaJoyti/go-coffee/crypto-wallet
 
 go 1.23.0
 

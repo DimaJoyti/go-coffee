@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"kafka_worker/config"
-	"kafka_worker/kafka"
-	"kafka_worker/worker"
+	"github.com/DimaJoyti/go-coffee/consumer/config"
+	"github.com/DimaJoyti/go-coffee/consumer/kafka"
+	"github.com/DimaJoyti/go-coffee/consumer/worker"
 )
 
 func main() {

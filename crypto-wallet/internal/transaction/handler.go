@@ -3,9 +3,9 @@ package transaction
 import (
 	"context"
 
-	pb "github.com/DimaJoyti/go-coffee/web3-wallet-backend/api/proto/transaction"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/models"
+	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/proto/transaction"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

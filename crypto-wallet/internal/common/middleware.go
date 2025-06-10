@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )

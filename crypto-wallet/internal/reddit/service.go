@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common" // New import for common models
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/content"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/kafka"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/common" // New import for common models
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/content"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/kafka"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 )
 
 // Service provides Reddit content collection and analysis

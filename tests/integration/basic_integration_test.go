@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package integration
@@ -77,6 +78,21 @@ func (suite *BasicIntegrationTestSuite) TestBasicFunctionality() {
 	})
 }
 
+// TestInterface for testing interface operations
+type TestInterface interface {
+	GetValue() string
+}
+
+// TestImpl implements TestInterface
+type TestImpl struct {
+	value string
+}
+
+// GetValue returns the value
+func (ti *TestImpl) GetValue() string {
+	return ti.value
+}
+
 // TestDataStructures tests data structure operations
 func (suite *BasicIntegrationTestSuite) TestDataStructures() {
 	suite.T().Run("StructOperations", func(t *testing.T) {
@@ -102,22 +118,9 @@ func (suite *BasicIntegrationTestSuite) TestDataStructures() {
 	})
 
 	suite.T().Run("InterfaceOperations", func(t *testing.T) {
-		// Define a test interface
-		type TestInterface interface {
-			GetValue() string
-		}
-
-		// Define a test implementation
-		type TestImpl struct {
-			value string
-		}
-
-		func (ti *TestImpl) GetValue() string {
-			return ti.value
-		}
-
 		// Test interface usage
-		var ti TestInterface = &TestImpl{value: "test"}
+		impl := &TestImpl{value: "test"}
+		var ti TestInterface = impl
 		assert.Equal(t, "test", ti.GetValue())
 	})
 }
@@ -127,7 +130,7 @@ func (suite *BasicIntegrationTestSuite) TestConcurrency() {
 	suite.T().Run("Goroutines", func(t *testing.T) {
 		// Test basic goroutine
 		done := make(chan bool)
-		
+
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			done <- true
@@ -144,17 +147,17 @@ func (suite *BasicIntegrationTestSuite) TestConcurrency() {
 	suite.T().Run("Channels", func(t *testing.T) {
 		// Test channel communication
 		ch := make(chan string, 1)
-		
+
 		// Send value
 		ch <- "test"
-		
+
 		// Receive value
 		value := <-ch
 		assert.Equal(t, "test", value)
 
 		// Test channel closing
 		close(ch)
-		
+
 		// Reading from closed channel should return zero value
 		value, ok := <-ch
 		assert.False(t, ok)
@@ -165,7 +168,7 @@ func (suite *BasicIntegrationTestSuite) TestConcurrency() {
 		// Test sync.WaitGroup
 		var counter int
 		var wg sync.WaitGroup
-		
+
 		for i := 0; i < 5; i++ {
 			wg.Add(1)
 			go func() {
@@ -173,7 +176,7 @@ func (suite *BasicIntegrationTestSuite) TestConcurrency() {
 				counter++
 			}()
 		}
-		
+
 		wg.Wait()
 		assert.Equal(t, 5, counter)
 	})
@@ -248,7 +251,10 @@ func (suite *BasicIntegrationTestSuite) TestTimeOperations() {
 		// Test time parsing
 		parsed, err := time.Parse("2006-01-02 15:04:05", formatted)
 		require.NoError(t, err)
-		assert.True(t, parsed.Equal(now.Truncate(time.Second)))
+		// Use time comparison with truncation to handle precision differences
+		expected := now.Truncate(time.Second)
+		actual := parsed.Truncate(time.Second)
+		assert.True(t, expected.Equal(actual), "Expected %v, got %v", expected, actual)
 	})
 
 	suite.T().Run("TimeComparisons", func(t *testing.T) {
@@ -267,24 +273,22 @@ func (suite *BasicIntegrationTestSuite) TestStringOperations() {
 	suite.T().Run("StringManipulation", func(t *testing.T) {
 		// Test string operations
 		s := "Hello, World!"
-		
+
 		assert.True(t, strings.Contains(s, "World"))
 		assert.True(t, strings.HasPrefix(s, "Hello"))
 		assert.True(t, strings.HasSuffix(s, "World!"))
-		
+
 		// Test string splitting
 		parts := strings.Split(s, ", ")
 		assert.Len(t, parts, 2)
 		assert.Equal(t, "Hello", parts[0])
 		assert.Equal(t, "World!", parts[1])
-		
+
 		// Test string joining
 		joined := strings.Join(parts, " - ")
 		assert.Equal(t, "Hello - World!", joined)
 	})
 }
-
-
 
 // TestBasicIntegration runs the basic integration test suite
 func TestBasicIntegration(t *testing.T) {

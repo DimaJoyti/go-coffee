@@ -13,6 +13,7 @@ env:
   GO_VERSION: '1.22'
   NODE_VERSION: '18'
   KUSTOMIZE_VERSION: '5.0.0'
+  CI: true
 
 jobs:
   # Code Quality and Security Checks

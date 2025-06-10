@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/defi"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 )
 
 // DeFiSecurityHandler handles security for DeFi operations

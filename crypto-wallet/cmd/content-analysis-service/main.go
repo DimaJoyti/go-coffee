@@ -13,15 +13,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/common"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/content"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/rag"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/reddit"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/kafka"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/ai"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/common"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/content"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/rag"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/reddit"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/kafka"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 )
 
 // ContentAnalysisService represents the main service

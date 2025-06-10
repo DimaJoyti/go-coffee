@@ -5,12 +5,12 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin/address"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin/base58"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin/ecc"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin/script"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin/sec"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin/transaction"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin/address"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin/base58"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin/ecc"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin/script"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin/sec"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

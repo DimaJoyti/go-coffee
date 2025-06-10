@@ -1,6 +1,6 @@
 package main
 
-import "github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/bitcoin"
+import "github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/bitcoin"
 
 func main() {
 	bitcoin.Example()

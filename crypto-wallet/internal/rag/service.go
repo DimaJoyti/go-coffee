@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/ai"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 )
 
 // Service provides RAG (Retrieval-Augmented Generation) capabilities

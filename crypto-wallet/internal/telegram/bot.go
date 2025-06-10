@@ -9,12 +9,12 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/ai"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/wallet"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/ai"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/defi"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/wallet"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 )
 
 // Bot represents the Telegram bot

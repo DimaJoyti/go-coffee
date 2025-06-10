@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/blockchain"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/redis"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/blockchain"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )

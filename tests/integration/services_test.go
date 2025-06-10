@@ -39,6 +39,12 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 		Timeout: 30 * time.Second,
 	}
 
+	// Skip Docker-dependent tests in CI
+	if os.Getenv("CI") == "true" || os.Getenv("SKIP_DOCKER_TESTS") == "true" {
+		suite.T().Skip("Skipping Docker-dependent tests in CI environment")
+		return
+	}
+
 	// Start PostgreSQL container
 	postgresReq := testcontainers.ContainerRequest{
 		Image:        "postgres:16-alpine",

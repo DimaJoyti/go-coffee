@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/internal/defi"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/config"
-	"github.com/DimaJoyti/go-coffee/web3-wallet-backend/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/defi"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/shopspring/decimal"
 )
 
