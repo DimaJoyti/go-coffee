@@ -1,0 +1,401 @@
+# Go Coffee Platform Helm Chart Values
+
+# Global configuration
+global:
+  imageRegistry: "gcr.io/go-coffee"
+  imagePullSecrets: []
+  storageClass: "standard"
+  environment: "production"
+  domain: "gocoffee.dev"
+  
+# Core Services Configuration
+services:
+  # API Gateway
+  apiGateway:
+    enabled: true
+    image:
+      repository: api-gateway
+      tag: "v1.0.0"
+      pullPolicy: IfNotPresent
+    replicaCount: 3
+    service:
+      type: LoadBalancer
+      port: 80
+      targetPort: 8080
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      hosts:
+        - host: api.gocoffee.dev
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: api-gateway-tls
+          hosts:
+            - api.gocoffee.dev
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+  # Authentication Service
+  authService:
+    enabled: true
+    image:
+      repository: auth-service
+      tag: "v1.0.0"
+    replicaCount: 3
+    service:
+      type: ClusterIP
+      port: 8081
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # Order Service
+  orderService:
+    enabled: true
+    image:
+      repository: order-service
+      tag: "v1.1.0"
+    replicaCount: 5
+    service:
+      type: ClusterIP
+      port: 8082
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Kitchen Service (gRPC)
+  kitchenService:
+    enabled: true
+    image:
+      repository: kitchen-service
+      tag: "v1.0.0"
+    replicaCount: 2
+    service:
+      type: ClusterIP
+      port: 50052
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+  # AI Services
+  aiArbitrage:
+    enabled: true
+    image:
+      repository: ai-arbitrage
+      tag: "v0.9.0"
+    replicaCount: 1
+    service:
+      type: ClusterIP
+      port: 8090
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+        nvidia.com/gpu: 1
+
+  # Payment Service (Web3)
+  paymentService:
+    enabled: true
+    image:
+      repository: payment-service
+      tag: "v1.0.0"
+    replicaCount: 2
+    service:
+      type: ClusterIP
+      port: 8083
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Database Configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "changeme"
+    database: "gocoffee"
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# Cache Configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "changeme"
+  master:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# Monitoring Configuration
+monitoring:
+  prometheus:
+    enabled: true
+    server:
+      retention: "30d"
+      persistentVolume:
+        size: 100Gi
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+  
+  grafana:
+    enabled: true
+    adminPassword: "admin"
+    persistence:
+      enabled: true
+      size: 10Gi
+    dashboards:
+      default:
+        go-coffee-overview:
+          gnetId: 1860
+          revision: 27
+          datasource: Prometheus
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Tracing Configuration
+tracing:
+  jaeger:
+    enabled: true
+    strategy: production
+    collector:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    query:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+# Logging Configuration
+logging:
+  elasticsearch:
+    enabled: true
+    replicas: 3
+    minimumMasterNodes: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 1000m
+        memory: 4Gi
+    volumeClaimTemplate:
+      resources:
+        requests:
+          storage: 100Gi
+  
+  fluentd:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Service Mesh Configuration
+serviceMesh:
+  istio:
+    enabled: false
+    injection:
+      enabled: true
+      namespaces:
+        - go-coffee
+    gateway:
+      enabled: true
+      hosts:
+        - "*.gocoffee.dev"
+
+# Security Configuration
+security:
+  certManager:
+    enabled: true
+    clusterIssuer:
+      name: letsencrypt-prod
+      email: admin@gocoffee.dev
+      server: https://acme-v02.api.letsencrypt.org/directory
+  
+  networkPolicies:
+    enabled: true
+    defaultDeny: true
+  
+  podSecurityPolicies:
+    enabled: true
+    
+  rbac:
+    enabled: true
+
+# Operators Configuration
+operators:
+  coffeeOperator:
+    enabled: true
+    image:
+      repository: coffee-operator
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  
+  aiWorkloadOperator:
+    enabled: true
+    image:
+      repository: ai-workload-operator
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  
+  multitenantOperator:
+    enabled: true
+    image:
+      repository: multitenant-operator
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  
+  observabilityOperator:
+    enabled: true
+    image:
+      repository: observability-operator
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: "30d"
+  storage:
+    type: "gcs"
+    bucket: "go-coffee-backups"
+
+# Scaling Configuration
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 100
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+# Resource Quotas
+resourceQuotas:
+  enabled: true
+  hard:
+    requests.cpu: "10"
+    requests.memory: "20Gi"
+    limits.cpu: "20"
+    limits.memory: "40Gi"
+    persistentvolumeclaims: "10"
+    services: "20"
+    secrets: "50"
+    configmaps: "50"
+
+# Node Affinity and Tolerations
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod Disruption Budgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

@@ -1,0 +1,420 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multitenant-system
+  labels:
+    control-plane: multitenant-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tenants.tenant.gocoffee.dev
+spec:
+  group: tenant.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              tenantId:
+                type: string
+                pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+              displayName:
+                type: string
+              description:
+                type: string
+              tier:
+                type: string
+                enum: ["free", "basic", "premium", "enterprise"]
+              resources:
+                type: object
+                properties:
+                  namespaces:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  storage:
+                    type: string
+                  networkPolicies:
+                    type: boolean
+                  loadBalancers:
+                    type: integer
+                    minimum: 0
+                    maximum: 10
+              isolation:
+                type: object
+                properties:
+                  level:
+                    type: string
+                    enum: ["soft", "hard", "strict"]
+                  networkPolicy:
+                    type: boolean
+                  podSecurityPolicy:
+                    type: boolean
+                  rbac:
+                    type: boolean
+                  nodeAffinity:
+                    type: boolean
+              services:
+                type: object
+                properties:
+                  coffee:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      features:
+                        type: array
+                        items:
+                          type: string
+                  ai:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      models:
+                        type: array
+                        items:
+                          type: string
+                      gpuQuota:
+                        type: integer
+                  web3:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      networks:
+                        type: array
+                        items:
+                          type: string
+              billing:
+                type: object
+                properties:
+                  plan:
+                    type: string
+                  billingContact:
+                    type: string
+                  paymentMethod:
+                    type: string
+                  costCenter:
+                    type: string
+              compliance:
+                type: object
+                properties:
+                  dataResidency:
+                    type: string
+                  encryption:
+                    type: boolean
+                  auditLogging:
+                    type: boolean
+                  backupRetention:
+                    type: string
+            required:
+            - tenantId
+            - tier
+            - resources
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Provisioning", "Active", "Suspended", "Terminating"]
+              namespaces:
+                type: array
+                items:
+                  type: string
+              resourceUsage:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  storage:
+                    type: string
+                  networkTraffic:
+                    type: string
+              serviceStatus:
+                type: object
+                properties:
+                  coffee:
+                    type: string
+                  ai:
+                    type: string
+                  web3:
+                    type: string
+              billing:
+                type: object
+                properties:
+                  currentCost:
+                    type: string
+                  projectedCost:
+                    type: string
+                  lastBilled:
+                    type: string
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Cluster
+  names:
+    plural: tenants
+    singular: tenant
+    kind: Tenant
+    shortNames:
+    - tn
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tenantresourcequotas.tenant.gocoffee.dev
+spec:
+  group: tenant.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              tenantId:
+                type: string
+              quotas:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  storage:
+                    type: string
+                  pods:
+                    type: integer
+                  services:
+                    type: integer
+                  secrets:
+                    type: integer
+                  configmaps:
+                    type: integer
+                  persistentvolumeclaims:
+                    type: integer
+              enforcement:
+                type: string
+                enum: ["soft", "hard"]
+          status:
+            type: object
+            properties:
+              used:
+                type: object
+                additionalProperties:
+                  type: string
+              hard:
+                type: object
+                additionalProperties:
+                  type: string
+  scope: Namespaced
+  names:
+    plural: tenantresourcequotas
+    singular: tenantresourcequota
+    kind: TenantResourceQuota
+    shortNames:
+    - trq
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multitenant-operator-controller
+  namespace: multitenant-system
+  labels:
+    control-plane: multitenant-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: multitenant-operator
+  template:
+    metadata:
+      labels:
+        control-plane: multitenant-operator
+    spec:
+      serviceAccountName: multitenant-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/multitenant-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "multitenant-operator"
+        - name: ENABLE_BILLING_INTEGRATION
+          value: "true"
+        - name: DEFAULT_ISOLATION_LEVEL
+          value: "hard"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: multitenant-operator-controller
+  namespace: multitenant-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multitenant-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - resourcequotas
+  - limitranges
+  - configmaps
+  - secrets
+  - services
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  - clusterroles
+  - clusterrolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tenant.gocoffee.dev
+  resources:
+  - tenants
+  - tenantresourcequotas
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tenant.gocoffee.dev
+  resources:
+  - tenants/status
+  - tenantresourcequotas/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - use
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multitenant-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multitenant-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: multitenant-operator-controller
+  namespace: multitenant-system

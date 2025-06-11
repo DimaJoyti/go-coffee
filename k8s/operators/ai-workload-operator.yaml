@@ -1,0 +1,429 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-workload-system
+  labels:
+    control-plane: ai-workload-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: aiworkloads.ai.gocoffee.dev
+spec:
+  group: ai.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              workloadType:
+                type: string
+                enum: ["llm", "ml-training", "inference", "arbitrage", "analysis"]
+              model:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+                  source:
+                    type: string
+                  parameters:
+                    type: object
+                    additionalProperties:
+                      type: string
+              resources:
+                type: object
+                properties:
+                  gpu:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        enum: ["nvidia-tesla-t4", "nvidia-tesla-v100", "nvidia-a100"]
+                      count:
+                        type: integer
+                        minimum: 0
+                        maximum: 8
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  storage:
+                    type: string
+              scaling:
+                type: object
+                properties:
+                  minReplicas:
+                    type: integer
+                    minimum: 0
+                  maxReplicas:
+                    type: integer
+                    minimum: 1
+                  targetCPUUtilization:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                  targetGPUUtilization:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                  scaleDownDelay:
+                    type: string
+                  scaleUpDelay:
+                    type: string
+              dataSource:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: ["s3", "gcs", "azure-blob", "persistent-volume"]
+                  location:
+                    type: string
+                  credentials:
+                    type: string
+                  preprocessing:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      pipeline:
+                        type: array
+                        items:
+                          type: string
+              monitoring:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  metricsEndpoint:
+                    type: string
+                  loggingLevel:
+                    type: string
+                    enum: ["debug", "info", "warn", "error"]
+                  alerting:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      thresholds:
+                        type: object
+                        properties:
+                          errorRate:
+                            type: number
+                          latency:
+                            type: string
+                          resourceUtilization:
+                            type: number
+              security:
+                type: object
+                properties:
+                  networkPolicy:
+                    type: boolean
+                  podSecurityContext:
+                    type: object
+                  serviceAccount:
+                    type: string
+                  secrets:
+                    type: array
+                    items:
+                      type: string
+            required:
+            - workloadType
+            - model
+            - resources
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Initializing", "Running", "Scaling", "Failed", "Completed"]
+              replicas:
+                type: integer
+              readyReplicas:
+                type: integer
+              modelStatus:
+                type: object
+                properties:
+                  loaded:
+                    type: boolean
+                  version:
+                    type: string
+                  loadTime:
+                    type: string
+              performance:
+                type: object
+                properties:
+                  averageLatency:
+                    type: string
+                  throughput:
+                    type: number
+                  errorRate:
+                    type: number
+                  resourceUtilization:
+                    type: object
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+                      gpu:
+                        type: string
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: aiworkloads
+    singular: aiworkload
+    kind: AIWorkload
+    shortNames:
+    - aiw
+    - ai
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: modelregistries.ai.gocoffee.dev
+spec:
+  group: ai.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              models:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    version:
+                      type: string
+                    type:
+                      type: string
+                    source:
+                      type: string
+                    metadata:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    performance:
+                      type: object
+                      properties:
+                        accuracy:
+                          type: number
+                        latency:
+                          type: string
+                        throughput:
+                          type: number
+          status:
+            type: object
+            properties:
+              totalModels:
+                type: integer
+              availableModels:
+                type: integer
+  scope: Namespaced
+  names:
+    plural: modelregistries
+    singular: modelregistry
+    kind: ModelRegistry
+    shortNames:
+    - mr
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-workload-operator-controller
+  namespace: ai-workload-system
+  labels:
+    control-plane: ai-workload-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: ai-workload-operator
+  template:
+    metadata:
+      labels:
+        control-plane: ai-workload-operator
+    spec:
+      serviceAccountName: ai-workload-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/ai-workload-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "ai-workload-operator"
+        - name: ENABLE_GPU_SUPPORT
+          value: "true"
+        - name: MODEL_REGISTRY_ENDPOINT
+          value: "http://model-registry-service:8080"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-workload-operator-controller
+  namespace: ai-workload-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ai-workload-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ai.gocoffee.dev
+  resources:
+  - aiworkloads
+  - modelregistries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ai.gocoffee.dev
+  resources:
+  - aiworkloads/status
+  - modelregistries/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ai-workload-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ai-workload-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: ai-workload-operator-controller
+  namespace: ai-workload-system

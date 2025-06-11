@@ -108,9 +108,9 @@ func (tc *TenantContext) GetMetadata(key string) (interface{}, bool) {
 type SubscriptionPlan string
 
 const (
-	SubscriptionBasic      SubscriptionPlan = "basic"
+	SubscriptionBasic        SubscriptionPlan = "basic"
 	SubscriptionProfessional SubscriptionPlan = "professional"
-	SubscriptionEnterprise SubscriptionPlan = "enterprise"
+	SubscriptionEnterprise   SubscriptionPlan = "enterprise"
 )
 
 // IsValid checks if the subscription plan is valid
@@ -133,32 +133,32 @@ func (sp SubscriptionPlan) GetFeatures() map[string]bool {
 	switch sp {
 	case SubscriptionBasic:
 		return map[string]bool{
-			"basic_orders":     true,
+			"basic_orders":       true,
 			"ai_recommendations": false,
 			"advanced_analytics": false,
-			"multi_location":   false,
-			"api_access":       false,
+			"multi_location":     false,
+			"api_access":         false,
 		}
 	case SubscriptionProfessional:
 		return map[string]bool{
-			"basic_orders":     true,
+			"basic_orders":       true,
 			"ai_recommendations": true,
 			"advanced_analytics": true,
-			"multi_location":   true,
-			"api_access":       true,
-			"custom_branding":  false,
-			"priority_support": false,
+			"multi_location":     true,
+			"api_access":         true,
+			"custom_branding":    false,
+			"priority_support":   false,
 		}
 	case SubscriptionEnterprise:
 		return map[string]bool{
-			"basic_orders":     true,
-			"ai_recommendations": true,
-			"advanced_analytics": true,
-			"multi_location":   true,
-			"api_access":       true,
-			"custom_branding":  true,
-			"priority_support": true,
-			"white_label":      true,
+			"basic_orders":        true,
+			"ai_recommendations":  true,
+			"advanced_analytics":  true,
+			"multi_location":      true,
+			"api_access":          true,
+			"custom_branding":     true,
+			"priority_support":    true,
+			"white_label":         true,
 			"custom_integrations": true,
 		}
 	default:
@@ -196,12 +196,6 @@ func MustFromContext(ctx context.Context) *TenantContext {
 	return tenantCtx
 }
 
-// TenantAware interface for entities that belong to a tenant
-type TenantAware interface {
-	GetTenantID() TenantID
-	SetTenantID(TenantID)
-}
-
 // TenantIsolationLevel defines the level of tenant isolation
 type TenantIsolationLevel int
 
@@ -228,14 +222,30 @@ func (til TenantIsolationLevel) String() string {
 	}
 }
 
+// IsValid checks if the isolation level is valid
+func (til TenantIsolationLevel) IsValid() bool {
+	switch til {
+	case SharedDatabase, SchemaPerTenant, DatabasePerTenant:
+		return true
+	default:
+		return false
+	}
+}
+
+// TenantAware interface for entities that belong to a tenant
+type TenantAware interface {
+	GetTenantID() TenantID
+	SetTenantID(TenantID)
+}
+
 // TenantConfiguration holds tenant-specific configuration
 type TenantConfiguration struct {
-	tenantID        TenantID
-	isolationLevel  TenantIsolationLevel
-	databaseConfig  map[string]string
-	aiModelConfig   map[string]interface{}
-	businessRules   map[string]interface{}
-	integrations    map[string]bool
+	tenantID       TenantID
+	isolationLevel TenantIsolationLevel
+	databaseConfig map[string]string
+	aiModelConfig  map[string]interface{}
+	businessRules  map[string]interface{}
+	integrations   map[string]bool
 }
 
 // NewTenantConfiguration creates a new tenant configuration

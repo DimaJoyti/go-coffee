@@ -1,0 +1,622 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-system
+  labels:
+    control-plane: mlops-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: mlpipelines.mlops.gocoffee.dev
+spec:
+  group: mlops.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              pipelineName:
+                type: string
+              description:
+                type: string
+              schedule:
+                type: string
+              stages:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                      enum: ["data-ingestion", "data-validation", "data-preprocessing", "feature-engineering", "model-training", "model-validation", "model-deployment", "monitoring"]
+                    image:
+                      type: string
+                    command:
+                      type: array
+                      items:
+                        type: string
+                    args:
+                      type: array
+                      items:
+                        type: string
+                    env:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            type: string
+                    resources:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+                        gpu:
+                          type: integer
+                        storage:
+                          type: string
+                    inputs:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          type:
+                            type: string
+                          source:
+                            type: string
+                          format:
+                            type: string
+                    outputs:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          type:
+                            type: string
+                          destination:
+                            type: string
+                          format:
+                            type: string
+                    dependencies:
+                      type: array
+                      items:
+                        type: string
+                    retryPolicy:
+                      type: object
+                      properties:
+                        maxRetries:
+                          type: integer
+                        backoffStrategy:
+                          type: string
+                        retryDelay:
+                          type: string
+              dataSource:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: ["s3", "gcs", "azure-blob", "database", "kafka", "api"]
+                  connection:
+                    type: object
+                    properties:
+                      endpoint:
+                        type: string
+                      credentials:
+                        type: string
+                      database:
+                        type: string
+                      table:
+                        type: string
+                  schema:
+                    type: object
+                    properties:
+                      format:
+                        type: string
+                      columns:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            type:
+                              type: string
+                            nullable:
+                              type: boolean
+              modelConfig:
+                type: object
+                properties:
+                  framework:
+                    type: string
+                    enum: ["tensorflow", "pytorch", "scikit-learn", "xgboost", "lightgbm", "huggingface"]
+                  type:
+                    type: string
+                    enum: ["classification", "regression", "clustering", "nlp", "computer-vision", "recommendation"]
+                  hyperparameters:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  metrics:
+                    type: array
+                    items:
+                      type: string
+                  validation:
+                    type: object
+                    properties:
+                      strategy:
+                        type: string
+                      splitRatio:
+                        type: number
+                      crossValidation:
+                        type: object
+                        properties:
+                          folds:
+                            type: integer
+                          stratified:
+                            type: boolean
+              deployment:
+                type: object
+                properties:
+                  strategy:
+                    type: string
+                    enum: ["blue-green", "canary", "rolling", "shadow"]
+                  target:
+                    type: string
+                    enum: ["kubernetes", "serverless", "edge", "batch"]
+                  scaling:
+                    type: object
+                    properties:
+                      minReplicas:
+                        type: integer
+                      maxReplicas:
+                        type: integer
+                      targetCPU:
+                        type: integer
+                      targetMemory:
+                        type: integer
+                      targetLatency:
+                        type: string
+                  monitoring:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      metrics:
+                        type: array
+                        items:
+                          type: string
+                      alerts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            condition:
+                              type: string
+                            threshold:
+                              type: number
+                            action:
+                              type: string
+              governance:
+                type: object
+                properties:
+                  approval:
+                    type: object
+                    properties:
+                      required:
+                        type: boolean
+                      approvers:
+                        type: array
+                        items:
+                          type: string
+                      stages:
+                        type: array
+                        items:
+                          type: string
+                  compliance:
+                    type: object
+                    properties:
+                      dataPrivacy:
+                        type: boolean
+                      auditLogging:
+                        type: boolean
+                      encryption:
+                        type: boolean
+                      retention:
+                        type: string
+                  versioning:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      strategy:
+                        type: string
+                      registry:
+                        type: string
+            required:
+            - pipelineName
+            - stages
+            - dataSource
+            - modelConfig
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Running", "Succeeded", "Failed", "Cancelled"]
+              currentStage:
+                type: string
+              startTime:
+                type: string
+              completionTime:
+                type: string
+              stages:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    status:
+                      type: string
+                    startTime:
+                      type: string
+                    completionTime:
+                      type: string
+                    duration:
+                      type: string
+                    logs:
+                      type: string
+                    metrics:
+                      type: object
+                      additionalProperties:
+                        type: string
+              model:
+                type: object
+                properties:
+                  version:
+                    type: string
+                  accuracy:
+                    type: number
+                  metrics:
+                    type: object
+                    additionalProperties:
+                      type: number
+                  artifacts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        type:
+                          type: string
+                        location:
+                          type: string
+                        size:
+                          type: string
+              deployment:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  endpoint:
+                    type: string
+                  replicas:
+                    type: integer
+                  traffic:
+                    type: object
+                    properties:
+                      current:
+                        type: integer
+                      canary:
+                        type: integer
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: mlpipelines
+    singular: mlpipeline
+    kind: MLPipeline
+    shortNames:
+    - mlp
+    - pipeline
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: modelregistries.mlops.gocoffee.dev
+spec:
+  group: mlops.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              registryName:
+                type: string
+              storage:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: ["s3", "gcs", "azure-blob", "minio"]
+                  bucket:
+                    type: string
+                  path:
+                    type: string
+                  credentials:
+                    type: string
+              versioning:
+                type: object
+                properties:
+                  strategy:
+                    type: string
+                    enum: ["semantic", "timestamp", "hash"]
+                  retention:
+                    type: object
+                    properties:
+                      maxVersions:
+                        type: integer
+                      maxAge:
+                        type: string
+              metadata:
+                type: object
+                properties:
+                  tracking:
+                    type: array
+                    items:
+                      type: string
+                  tags:
+                    type: object
+                    additionalProperties:
+                      type: string
+              access:
+                type: object
+                properties:
+                  public:
+                    type: boolean
+                  users:
+                    type: array
+                    items:
+                      type: string
+                  groups:
+                    type: array
+                    items:
+                      type: string
+            required:
+            - registryName
+            - storage
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Ready", "Failed"]
+              models:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    version:
+                      type: string
+                    framework:
+                      type: string
+                    size:
+                      type: string
+                    created:
+                      type: string
+                    status:
+                      type: string
+              totalModels:
+                type: integer
+              totalSize:
+                type: string
+  scope: Namespaced
+  names:
+    plural: modelregistries
+    singular: modelregistry
+    kind: ModelRegistry
+    shortNames:
+    - mr
+    - registry
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlops-operator-controller
+  namespace: mlops-system
+  labels:
+    control-plane: mlops-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: mlops-operator
+  template:
+    metadata:
+      labels:
+        control-plane: mlops-operator
+    spec:
+      serviceAccountName: mlops-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/mlops-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "mlops-operator"
+        - name: ENABLE_GPU_SUPPORT
+          value: "true"
+        - name: MODEL_REGISTRY_ENDPOINT
+          value: "http://model-registry-service:8080"
+        - name: KUBEFLOW_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mlops-operator-controller
+  namespace: mlops-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mlops-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  - cronjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - mlops.gocoffee.dev
+  resources:
+  - mlpipelines
+  - modelregistries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - mlops.gocoffee.dev
+  resources:
+  - mlpipelines/status
+  - modelregistries/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mlops-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mlops-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: mlops-operator-controller
+  namespace: mlops-system

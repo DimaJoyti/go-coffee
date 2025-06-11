@@ -1,0 +1,65 @@
+apiVersion: v2
+name: go-coffee-platform
+description: A comprehensive Helm chart for the Go Coffee cloud-native platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/DimaJoyti/go-coffee
+sources:
+  - https://github.com/DimaJoyti/go-coffee
+maintainers:
+  - name: Go Coffee Team
+    email: team@gocoffee.dev
+    url: https://gocoffee.dev
+keywords:
+  - coffee
+  - microservices
+  - cloud-native
+  - kubernetes
+  - ai
+  - web3
+  - defi
+annotations:
+  category: Application
+  licenses: MIT
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: "18.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: prometheus
+    version: "25.x.x"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: monitoring.prometheus.enabled
+  - name: grafana
+    version: "7.x.x"
+    repository: https://grafana.github.io/helm-charts
+    condition: monitoring.grafana.enabled
+  - name: jaeger
+    version: "0.x.x"
+    repository: https://jaegertracing.github.io/helm-charts
+    condition: tracing.jaeger.enabled
+  - name: elasticsearch
+    version: "8.x.x"
+    repository: https://helm.elastic.co
+    condition: logging.elasticsearch.enabled
+  - name: fluentd
+    version: "5.x.x"
+    repository: https://fluent.github.io/helm-charts
+    condition: logging.fluentd.enabled
+  - name: istio-base
+    version: "1.x.x"
+    repository: https://istio-release.storage.googleapis.com/charts
+    condition: serviceMesh.istio.enabled
+  - name: istiod
+    version: "1.x.x"
+    repository: https://istio-release.storage.googleapis.com/charts
+    condition: serviceMesh.istio.enabled
+  - name: cert-manager
+    version: "1.x.x"
+    repository: https://charts.jetstack.io
+    condition: security.certManager.enabled

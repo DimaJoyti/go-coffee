@@ -1,0 +1,385 @@
+name: Infrastructure Deployment
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - 'k8s/**'
+      - 'helm/**'
+      - '.github/workflows/infrastructure-deploy.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - 'k8s/**'
+      - 'helm/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+        - development
+        - staging
+        - production
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+        - plan
+        - apply
+        - destroy
+
+env:
+  TF_VERSION: '1.6.0'
+  KUBECTL_VERSION: '1.28.0'
+  HELM_VERSION: '3.13.0'
+  GCLOUD_VERSION: '450.0.0'
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'development' }}
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    strategy:
+      matrix:
+        environment: 
+          - ${{ github.event.inputs.environment || 'development' }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+        service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        version: ${{ env.GCLOUD_VERSION }}
+
+    - name: Configure Terraform Backend
+      run: |
+        cat > terraform/environments/${{ matrix.environment }}/backend.tf << EOF
+        terraform {
+          backend "gcs" {
+            bucket = "${{ secrets.TF_STATE_BUCKET }}"
+            prefix = "go-coffee/${{ matrix.environment }}"
+          }
+        }
+        EOF
+
+    - name: Terraform Init
+      run: |
+        cd terraform/environments/${{ matrix.environment }}
+        terraform init
+
+    - name: Terraform Validate
+      run: |
+        cd terraform/environments/${{ matrix.environment }}
+        terraform validate
+
+    - name: Terraform Plan
+      id: plan
+      run: |
+        cd terraform/environments/${{ matrix.environment }}
+        terraform plan -detailed-exitcode -out=tfplan
+      continue-on-error: true
+
+    - name: Upload Terraform Plan
+      uses: actions/upload-artifact@v3
+      with:
+        name: tfplan-${{ matrix.environment }}
+        path: terraform/environments/${{ matrix.environment }}/tfplan
+
+    - name: Comment PR with Plan
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const plan = fs.readFileSync('terraform/environments/${{ matrix.environment }}/tfplan.txt', 'utf8');
+          const output = `#### Terraform Plan for ${{ matrix.environment }} 📖
+          
+          <details><summary>Show Plan</summary>
+          
+          \`\`\`terraform
+          ${plan}
+          \`\`\`
+          
+          </details>
+          
+          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          });
+
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: github.ref == 'refs/heads/main' && (github.event.inputs.action == 'apply' || github.event_name == 'push')
+    environment: ${{ github.event.inputs.environment || 'development' }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        environment: 
+          - ${{ github.event.inputs.environment || 'development' }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+        service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        version: ${{ env.GCLOUD_VERSION }}
+
+    - name: Download Terraform Plan
+      uses: actions/download-artifact@v3
+      with:
+        name: tfplan-${{ matrix.environment }}
+        path: terraform/environments/${{ matrix.environment }}
+
+    - name: Configure Terraform Backend
+      run: |
+        cat > terraform/environments/${{ matrix.environment }}/backend.tf << EOF
+        terraform {
+          backend "gcs" {
+            bucket = "${{ secrets.TF_STATE_BUCKET }}"
+            prefix = "go-coffee/${{ matrix.environment }}"
+          }
+        }
+        EOF
+
+    - name: Terraform Init
+      run: |
+        cd terraform/environments/${{ matrix.environment }}
+        terraform init
+
+    - name: Terraform Apply
+      run: |
+        cd terraform/environments/${{ matrix.environment }}
+        terraform apply -auto-approve tfplan
+
+    - name: Get GKE Credentials
+      run: |
+        gcloud container clusters get-credentials go-coffee-gke \
+          --region us-central1 \
+          --project ${{ secrets.GCP_PROJECT_ID }}
+
+    - name: Save Kubeconfig
+      run: |
+        mkdir -p ~/.kube
+        cp ~/.kube/config kubeconfig-${{ matrix.environment }}
+
+    - name: Upload Kubeconfig
+      uses: actions/upload-artifact@v3
+      with:
+        name: kubeconfig-${{ matrix.environment }}
+        path: kubeconfig-${{ matrix.environment }}
+
+  deploy-operators:
+    name: Deploy Operators
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    if: github.ref == 'refs/heads/main'
+    environment: ${{ github.event.inputs.environment || 'development' }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: ${{ env.KUBECTL_VERSION }}
+
+    - name: Download Kubeconfig
+      uses: actions/download-artifact@v3
+      with:
+        name: kubeconfig-${{ github.event.inputs.environment || 'development' }}
+
+    - name: Configure kubectl
+      run: |
+        mkdir -p ~/.kube
+        cp kubeconfig-${{ github.event.inputs.environment || 'development' }} ~/.kube/config
+
+    - name: Deploy Coffee Operator
+      run: |
+        kubectl apply -f k8s/operators/coffee-operator.yaml
+        kubectl wait --for=condition=available --timeout=300s deployment/coffee-operator-controller -n coffee-operator-system
+
+    - name: Deploy AI Workload Operator
+      run: |
+        kubectl apply -f k8s/operators/ai-workload-operator.yaml
+        kubectl wait --for=condition=available --timeout=300s deployment/ai-workload-operator-controller -n ai-workload-system
+
+    - name: Deploy Multi-tenant Operator
+      run: |
+        kubectl apply -f k8s/operators/multitenant-operator.yaml
+        kubectl wait --for=condition=available --timeout=300s deployment/multitenant-operator-controller -n multitenant-system
+
+    - name: Deploy Observability Operator
+      run: |
+        kubectl apply -f k8s/operators/observability-operator.yaml
+        kubectl wait --for=condition=available --timeout=300s deployment/observability-operator-controller -n observability-system
+
+    - name: Verify Operators
+      run: |
+        kubectl get pods -n coffee-operator-system
+        kubectl get pods -n ai-workload-system
+        kubectl get pods -n multitenant-system
+        kubectl get pods -n observability-system
+
+  deploy-platform:
+    name: Deploy Platform
+    runs-on: ubuntu-latest
+    needs: deploy-operators
+    if: github.ref == 'refs/heads/main'
+    environment: ${{ github.event.inputs.environment || 'development' }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: ${{ env.HELM_VERSION }}
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: ${{ env.KUBECTL_VERSION }}
+
+    - name: Download Kubeconfig
+      uses: actions/download-artifact@v3
+      with:
+        name: kubeconfig-${{ github.event.inputs.environment || 'development' }}
+
+    - name: Configure kubectl
+      run: |
+        mkdir -p ~/.kube
+        cp kubeconfig-${{ github.event.inputs.environment || 'development' }} ~/.kube/config
+
+    - name: Add Helm Repositories
+      run: |
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo add grafana https://grafana.github.io/helm-charts
+        helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+        helm repo add elastic https://helm.elastic.co
+        helm repo add fluent https://fluent.github.io/helm-charts
+        helm repo add jetstack https://charts.jetstack.io
+        helm repo update
+
+    - name: Deploy Go Coffee Platform
+      run: |
+        helm upgrade --install go-coffee-platform ./helm/go-coffee-platform \
+          --namespace go-coffee \
+          --create-namespace \
+          --values ./helm/go-coffee-platform/values.yaml \
+          --values ./helm/go-coffee-platform/values-${{ github.event.inputs.environment || 'development' }}.yaml \
+          --set global.environment=${{ github.event.inputs.environment || 'development' }} \
+          --wait \
+          --timeout=600s
+
+    - name: Verify Deployment
+      run: |
+        kubectl get pods -n go-coffee
+        kubectl get services -n go-coffee
+        kubectl get ingress -n go-coffee
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: deploy-platform
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Terraform Security Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'config'
+        scan-ref: 'terraform/'
+        format: 'sarif'
+        output: 'trivy-terraform.sarif'
+
+    - name: Run Kubernetes Security Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'config'
+        scan-ref: 'k8s/'
+        format: 'sarif'
+        output: 'trivy-k8s.sarif'
+
+    - name: Upload Security Scan Results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-terraform.sarif'
+
+    - name: Upload Kubernetes Scan Results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-k8s.sarif'
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [terraform-plan, terraform-apply, deploy-operators, deploy-platform]
+    if: always()
+    steps:
+    - name: Notify Slack on success
+      if: needs.deploy-platform.result == 'success'
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        channel: '#go-coffee-deployments'
+        text: '🚀 Infrastructure deployment to ${{ github.event.inputs.environment || "development" }} completed successfully!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify Slack on failure
+      if: needs.terraform-apply.result == 'failure' || needs.deploy-operators.result == 'failure' || needs.deploy-platform.result == 'failure'
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: '#go-coffee-deployments'
+        text: '❌ Infrastructure deployment to ${{ github.event.inputs.environment || "development" }} failed!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -5,10 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/DimaJoyti/go-coffee/domain/shared"
 	"github.com/DimaJoyti/go-coffee/domain/tenant"
+	"github.com/gin-gonic/gin"
 )
 
 // TenantContextMiddleware extracts and validates tenant context from requests
@@ -195,7 +194,7 @@ func (m *TenantContextMiddleware) extractFromJWT(r *http.Request) string {
 // extractFromPath extracts tenant ID from URL path
 func (m *TenantContextMiddleware) extractFromPath(r *http.Request) string {
 	path := r.URL.Path
-	
+
 	// Look for patterns like /api/v1/tenants/{tenant_id}/...
 	if strings.Contains(path, "/tenants/") {
 		parts := strings.Split(path, "/")
@@ -271,8 +270,8 @@ func (m *TenantContextMiddleware) RequireSubscription(plan shared.SubscriptionPl
 
 		if ctx.Subscription() != plan {
 			c.JSON(http.StatusForbidden, gin.H{
-				"error":        "Forbidden",
-				"message":      "Subscription plan required",
+				"error":         "Forbidden",
+				"message":       "Subscription plan required",
 				"required_plan": plan.String(),
 				"current_plan":  ctx.Subscription().String(),
 			})

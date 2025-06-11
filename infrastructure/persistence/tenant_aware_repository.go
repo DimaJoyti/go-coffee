@@ -14,13 +14,13 @@ import (
 type TenantAwareDB interface {
 	// GetConnection returns a database connection for the tenant
 	GetConnection(ctx context.Context, tenantID shared.TenantID) (*sql.DB, error)
-	
+
 	// GetSchema returns the schema name for the tenant
 	GetSchema(tenantID shared.TenantID) string
-	
+
 	// GetTableName returns the table name with tenant prefix/suffix
 	GetTableName(tenantID shared.TenantID, baseTableName string) string
-	
+
 	// ExecuteInTenantContext executes a function within tenant context
 	ExecuteInTenantContext(ctx context.Context, tenantID shared.TenantID, fn func(*sql.DB) error) error
 }
@@ -89,7 +89,7 @@ func (db *MultiTenantDB) ExecuteInTenantContext(ctx context.Context, tenantID sh
 	if err != nil {
 		return err
 	}
-	
+
 	// Set schema for schema-per-tenant isolation
 	if db.isolationLevel == shared.SchemaPerTenant {
 		schema := db.GetSchema(tenantID)
@@ -97,18 +97,18 @@ func (db *MultiTenantDB) ExecuteInTenantContext(ctx context.Context, tenantID sh
 			return fmt.Errorf("failed to set schema: %w", err)
 		}
 	}
-	
+
 	return fn(conn)
 }
 
 // getDatabasePerTenantConnection returns a connection for database-per-tenant isolation
 func (db *MultiTenantDB) getDatabasePerTenantConnection(tenantID shared.TenantID) (*sql.DB, error) {
 	connectionKey := tenantID.Value()
-	
+
 	if conn, exists := db.connections[connectionKey]; exists {
 		return conn, nil
 	}
-	
+
 	// In a real implementation, you would create a new connection to the tenant-specific database
 	// For now, we'll return an error indicating the connection needs to be configured
 	return nil, fmt.Errorf("database connection for tenant %s not configured", tenantID.Value())
@@ -134,11 +134,11 @@ func NewBaseTenantAwareRepository(db TenantAwareDB, tableName, entityName string
 func (r *BaseTenantAwareRepository) BuildSelectQuery(tenantID shared.TenantID, columns []string, whereClause string, args []interface{}) (string, []interface{}) {
 	tableName := r.db.GetTableName(tenantID, r.tableName)
 	columnsStr := strings.Join(columns, ", ")
-	
+
 	query := fmt.Sprintf("SELECT %s FROM %s", columnsStr, tableName)
-	
+
 	// Add tenant filter for shared database
-	if r.db.(*MultiTenantDB).isolationLevel == shared.SharedDatabase {
+	if multiTenantDB, ok := r.db.(*MultiTenantDB); ok && multiTenantDB.isolationLevel == shared.SharedDatabase {
 		tenantFilter := "tenant_id = ?"
 		if whereClause != "" {
 			whereClause = fmt.Sprintf("(%s) AND %s", whereClause, tenantFilter)
@@ -147,41 +147,41 @@ func (r *BaseTenantAwareRepository) BuildSelectQuery(tenantID shared.TenantID, c
 		}
 		args = append(args, tenantID.Value())
 	}
-	
+
 	if whereClause != "" {
 		query += " WHERE " + whereClause
 	}
-	
+
 	return query, args
 }
 
 // BuildInsertQuery builds an INSERT query with tenant awareness
 func (r *BaseTenantAwareRepository) BuildInsertQuery(tenantID shared.TenantID, columns []string, values []interface{}) (string, []interface{}) {
 	tableName := r.db.GetTableName(tenantID, r.tableName)
-	
+
 	// Add tenant_id for shared database
-	if r.db.(*MultiTenantDB).isolationLevel == shared.SharedDatabase {
+	if multiTenantDB, ok := r.db.(*MultiTenantDB); ok && multiTenantDB.isolationLevel == shared.SharedDatabase {
 		columns = append(columns, "tenant_id")
 		values = append(values, tenantID.Value())
 	}
-	
+
 	columnsStr := strings.Join(columns, ", ")
 	placeholders := strings.Repeat("?,", len(columns))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
-	
+
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", tableName, columnsStr, placeholders)
-	
+
 	return query, values
 }
 
 // BuildUpdateQuery builds an UPDATE query with tenant awareness
 func (r *BaseTenantAwareRepository) BuildUpdateQuery(tenantID shared.TenantID, setClause string, whereClause string, args []interface{}) (string, []interface{}) {
 	tableName := r.db.GetTableName(tenantID, r.tableName)
-	
+
 	query := fmt.Sprintf("UPDATE %s SET %s", tableName, setClause)
-	
+
 	// Add tenant filter for shared database
-	if r.db.(*MultiTenantDB).isolationLevel == shared.SharedDatabase {
+	if multiTenantDB, ok := r.db.(*MultiTenantDB); ok && multiTenantDB.isolationLevel == shared.SharedDatabase {
 		tenantFilter := "tenant_id = ?"
 		if whereClause != "" {
 			whereClause = fmt.Sprintf("(%s) AND %s", whereClause, tenantFilter)
@@ -190,22 +190,22 @@ func (r *BaseTenantAwareRepository) BuildUpdateQuery(tenantID shared.TenantID, s
 		}
 		args = append(args, tenantID.Value())
 	}
-	
+
 	if whereClause != "" {
 		query += " WHERE " + whereClause
 	}
-	
+
 	return query, args
 }
 
 // BuildDeleteQuery builds a DELETE query with tenant awareness
 func (r *BaseTenantAwareRepository) BuildDeleteQuery(tenantID shared.TenantID, whereClause string, args []interface{}) (string, []interface{}) {
 	tableName := r.db.GetTableName(tenantID, r.tableName)
-	
+
 	query := fmt.Sprintf("DELETE FROM %s", tableName)
-	
+
 	// Add tenant filter for shared database
-	if r.db.(*MultiTenantDB).isolationLevel == shared.SharedDatabase {
+	if multiTenantDB, ok := r.db.(*MultiTenantDB); ok && multiTenantDB.isolationLevel == shared.SharedDatabase {
 		tenantFilter := "tenant_id = ?"
 		if whereClause != "" {
 			whereClause = fmt.Sprintf("(%s) AND %s", whereClause, tenantFilter)
@@ -214,11 +214,11 @@ func (r *BaseTenantAwareRepository) BuildDeleteQuery(tenantID shared.TenantID, w
 		}
 		args = append(args, tenantID.Value())
 	}
-	
+
 	if whereClause != "" {
 		query += " WHERE " + whereClause
 	}
-	
+
 	return query, args
 }
 
@@ -226,16 +226,16 @@ func (r *BaseTenantAwareRepository) BuildDeleteQuery(tenantID shared.TenantID, w
 func (r *BaseTenantAwareRepository) ExecuteQuery(ctx context.Context, tenantID shared.TenantID, query string, args []interface{}) (*sql.Rows, error) {
 	var rows *sql.Rows
 	var err error
-	
+
 	executeErr := r.db.ExecuteInTenantContext(ctx, tenantID, func(db *sql.DB) error {
 		rows, err = db.QueryContext(ctx, query, args...)
 		return err
 	})
-	
+
 	if executeErr != nil {
 		return nil, executeErr
 	}
-	
+
 	return rows, err
 }
 
@@ -243,16 +243,16 @@ func (r *BaseTenantAwareRepository) ExecuteQuery(ctx context.Context, tenantID s
 func (r *BaseTenantAwareRepository) ExecuteNonQuery(ctx context.Context, tenantID shared.TenantID, query string, args []interface{}) (sql.Result, error) {
 	var result sql.Result
 	var err error
-	
+
 	executeErr := r.db.ExecuteInTenantContext(ctx, tenantID, func(db *sql.DB) error {
 		result, err = db.ExecContext(ctx, query, args...)
 		return err
 	})
-	
+
 	if executeErr != nil {
 		return nil, executeErr
 	}
-	
+
 	return result, err
 }
 
@@ -269,12 +269,12 @@ func NewTenantAwareTransaction(ctx context.Context, db TenantAwareDB, tenantID s
 	if err != nil {
 		return nil, err
 	}
-	
+
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Set schema for schema-per-tenant isolation
 	if multiTenantDB, ok := db.(*MultiTenantDB); ok && multiTenantDB.isolationLevel == shared.SchemaPerTenant {
 		schema := db.GetSchema(tenantID)
@@ -283,7 +283,7 @@ func NewTenantAwareTransaction(ctx context.Context, db TenantAwareDB, tenantID s
 			return nil, fmt.Errorf("failed to set schema in transaction: %w", err)
 		}
 	}
-	
+
 	return &TenantAwareTransaction{
 		tx:       tx,
 		tenantID: tenantID,
@@ -330,11 +330,11 @@ func (v *TenantContextValidator) ValidateContext(ctx context.Context) (*shared.T
 	if err != nil {
 		return nil, errors.New("tenant context is required")
 	}
-	
+
 	if tenantCtx.TenantID().IsEmpty() {
 		return nil, errors.New("tenant ID cannot be empty")
 	}
-	
+
 	return tenantCtx, nil
 }
 
@@ -344,11 +344,11 @@ func (v *TenantContextValidator) ValidateTenantAccess(ctx context.Context, targe
 	if err != nil {
 		return err
 	}
-	
+
 	if !tenantCtx.TenantID().Equals(targetTenantID) {
 		return errors.New("access denied: tenant mismatch")
 	}
-	
+
 	return nil
 }
 
@@ -358,10 +358,10 @@ func (v *TenantContextValidator) ValidateFeatureAccess(ctx context.Context, feat
 	if err != nil {
 		return err
 	}
-	
+
 	if !tenantCtx.HasFeature(feature) {
 		return fmt.Errorf("access denied: feature '%s' not available for current subscription", feature)
 	}
-	
+
 	return nil
 }

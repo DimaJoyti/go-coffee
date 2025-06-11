@@ -1,0 +1,552 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arvr-system
+  labels:
+    control-plane: arvr-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: arvrexperiences.arvr.gocoffee.dev
+spec:
+  group: arvr.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              experienceName:
+                type: string
+              type:
+                type: string
+                enum: ["ar", "vr", "mr", "xr"]
+              platform:
+                type: string
+                enum: ["oculus", "hololens", "magic-leap", "arcore", "arkit", "webxr"]
+              content:
+                type: object
+                properties:
+                  scenes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        type:
+                          type: string
+                          enum: ["3d-model", "360-video", "interactive", "spatial-audio"]
+                        assets:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              type:
+                                type: string
+                              url:
+                                type: string
+                              size:
+                                type: string
+                        interactions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              trigger:
+                                type: string
+                              action:
+                                type: string
+                              target:
+                                type: string
+                  audio:
+                    type: object
+                    properties:
+                      spatialAudio:
+                        type: boolean
+                      ambientSounds:
+                        type: array
+                        items:
+                          type: string
+                      voiceOver:
+                        type: boolean
+                      musicTracks:
+                        type: array
+                        items:
+                          type: string
+                  haptics:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      patterns:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            intensity:
+                              type: number
+                            duration:
+                              type: string
+              rendering:
+                type: object
+                properties:
+                  engine:
+                    type: string
+                    enum: ["unity", "unreal", "webgl", "three.js", "a-frame"]
+                  quality:
+                    type: string
+                    enum: ["low", "medium", "high", "ultra"]
+                  frameRate:
+                    type: integer
+                    minimum: 30
+                    maximum: 120
+                  resolution:
+                    type: string
+                  antiAliasing:
+                    type: boolean
+                  shadows:
+                    type: boolean
+                  lighting:
+                    type: string
+                    enum: ["basic", "advanced", "ray-tracing"]
+              tracking:
+                type: object
+                properties:
+                  headTracking:
+                    type: boolean
+                  handTracking:
+                    type: boolean
+                  eyeTracking:
+                    type: boolean
+                  bodyTracking:
+                    type: boolean
+                  markerTracking:
+                    type: boolean
+                  markerless:
+                    type: boolean
+                  slam:
+                    type: boolean
+              networking:
+                type: object
+                properties:
+                  multiplayer:
+                    type: boolean
+                  maxUsers:
+                    type: integer
+                  voiceChat:
+                    type: boolean
+                  textChat:
+                    type: boolean
+                  collaboration:
+                    type: boolean
+                  streaming:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      quality:
+                        type: string
+                      bandwidth:
+                        type: string
+              analytics:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  metrics:
+                    type: array
+                    items:
+                      type: string
+                      enum: ["user-engagement", "performance", "interactions", "spatial-data", "biometrics"]
+                  privacy:
+                    type: object
+                    properties:
+                      anonymize:
+                        type: boolean
+                      retention:
+                        type: string
+                      consent:
+                        type: boolean
+              deployment:
+                type: object
+                properties:
+                  target:
+                    type: string
+                    enum: ["cloud", "edge", "local", "hybrid"]
+                  scaling:
+                    type: object
+                    properties:
+                      minInstances:
+                        type: integer
+                      maxInstances:
+                        type: integer
+                      targetLatency:
+                        type: string
+                  cdn:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      regions:
+                        type: array
+                        items:
+                          type: string
+            required:
+            - experienceName
+            - type
+            - platform
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Building", "Deploying", "Ready", "Failed"]
+              deployment:
+                type: object
+                properties:
+                  instances:
+                    type: integer
+                  activeUsers:
+                    type: integer
+                  avgLatency:
+                    type: string
+                  frameRate:
+                    type: number
+              performance:
+                type: object
+                properties:
+                  renderTime:
+                    type: string
+                  memoryUsage:
+                    type: string
+                  cpuUsage:
+                    type: number
+                  gpuUsage:
+                    type: number
+              analytics:
+                type: object
+                properties:
+                  totalSessions:
+                    type: integer
+                  avgSessionDuration:
+                    type: string
+                  userEngagement:
+                    type: number
+                  interactions:
+                    type: integer
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: arvrexperiences
+    singular: arvrexperience
+    kind: ARVRExperience
+    shortNames:
+    - arvr
+    - xr
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: spatialanchors.arvr.gocoffee.dev
+spec:
+  group: arvr.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              anchorName:
+                type: string
+              type:
+                type: string
+                enum: ["persistent", "temporary", "shared", "cloud"]
+              location:
+                type: object
+                properties:
+                  coordinates:
+                    type: object
+                    properties:
+                      latitude:
+                        type: number
+                      longitude:
+                        type: number
+                      altitude:
+                        type: number
+                  indoor:
+                    type: object
+                    properties:
+                      building:
+                        type: string
+                      floor:
+                        type: integer
+                      room:
+                        type: string
+                  spatial:
+                    type: object
+                    properties:
+                      x:
+                        type: number
+                      y:
+                        type: number
+                      z:
+                        type: number
+                      rotation:
+                        type: object
+                        properties:
+                          x:
+                            type: number
+                          y:
+                            type: number
+                          z:
+                            type: number
+                          w:
+                            type: number
+              content:
+                type: object
+                properties:
+                  model:
+                    type: string
+                  animation:
+                    type: string
+                  audio:
+                    type: string
+                  metadata:
+                    type: object
+                    additionalProperties:
+                      type: string
+              sharing:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                  expiration:
+                    type: string
+              tracking:
+                type: object
+                properties:
+                  accuracy:
+                    type: string
+                    enum: ["low", "medium", "high"]
+                  persistence:
+                    type: boolean
+                  cloudSync:
+                    type: boolean
+            required:
+            - anchorName
+            - type
+            - location
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Locating", "Anchored", "Lost", "Failed"]
+              tracking:
+                type: object
+                properties:
+                  confidence:
+                    type: number
+                  lastSeen:
+                    type: string
+                  accuracy:
+                    type: number
+              sharing:
+                type: object
+                properties:
+                  activeShares:
+                    type: integer
+                  totalViews:
+                    type: integer
+  scope: Namespaced
+  names:
+    plural: spatialanchors
+    singular: spatialanchor
+    kind: SpatialAnchor
+    shortNames:
+    - anchor
+    - sa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arvr-operator-controller
+  namespace: arvr-system
+  labels:
+    control-plane: arvr-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: arvr-operator
+  template:
+    metadata:
+      labels:
+        control-plane: arvr-operator
+    spec:
+      serviceAccountName: arvr-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/arvr-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "arvr-operator"
+        - name: SUPPORTED_PLATFORMS
+          value: "oculus,hololens,magic-leap,arcore,arkit,webxr"
+        - name: RENDERING_ENGINES
+          value: "unity,unreal,webgl,three.js,a-frame"
+        - name: ENABLE_CLOUD_ANCHORS
+          value: "true"
+        - name: ENABLE_SPATIAL_MAPPING
+          value: "true"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arvr-operator-controller
+  namespace: arvr-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: arvr-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - arvr.gocoffee.dev
+  resources:
+  - arvrexperiences
+  - spatialanchors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - arvr.gocoffee.dev
+  resources:
+  - arvrexperiences/status
+  - spatialanchors/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: arvr-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: arvr-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: arvr-operator-controller
+  namespace: arvr-system

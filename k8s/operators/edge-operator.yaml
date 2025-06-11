@@ -1,0 +1,640 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge-system
+  labels:
+    control-plane: edge-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: edgenodes.edge.gocoffee.dev
+spec:
+  group: edge.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              nodeId:
+                type: string
+              location:
+                type: object
+                properties:
+                  region:
+                    type: string
+                  zone:
+                    type: string
+                  coordinates:
+                    type: object
+                    properties:
+                      latitude:
+                        type: number
+                      longitude:
+                        type: number
+                  address:
+                    type: string
+                  datacenter:
+                    type: string
+              provider:
+                type: string
+                enum: ["aws-wavelength", "azure-edge", "gcp-edge", "cloudflare", "fastly"]
+              capacity:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  storage:
+                    type: string
+                  network:
+                    type: string
+                  gpu:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      type:
+                        type: string
+                      count:
+                        type: integer
+              connectivity:
+                type: object
+                properties:
+                  bandwidth:
+                    type: string
+                  latency:
+                    type: object
+                    properties:
+                      target:
+                        type: integer
+                      sla:
+                        type: integer
+                  uplink:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        provider:
+                          type: string
+                        type:
+                          type: string
+                        bandwidth:
+                          type: string
+                        redundancy:
+                          type: boolean
+              workloads:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                      enum: ["cdn", "compute", "ai-inference", "iot-gateway", "streaming"]
+                    priority:
+                      type: integer
+                    resources:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+                        storage:
+                          type: string
+                        gpu:
+                          type: integer
+                    replicas:
+                      type: integer
+                    affinity:
+                      type: object
+                      properties:
+                        required:
+                          type: boolean
+                        weight:
+                          type: integer
+              security:
+                type: object
+                properties:
+                  encryption:
+                    type: object
+                    properties:
+                      atRest:
+                        type: boolean
+                      inTransit:
+                        type: boolean
+                      algorithm:
+                        type: string
+                  firewall:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      rules:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            action:
+                              type: string
+                            protocol:
+                              type: string
+                            ports:
+                              type: array
+                              items:
+                                type: integer
+                            sources:
+                              type: array
+                              items:
+                                type: string
+                  vpn:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      type:
+                        type: string
+                      endpoint:
+                        type: string
+              monitoring:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  metrics:
+                    type: array
+                    items:
+                      type: string
+                  alerts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        condition:
+                          type: string
+                        threshold:
+                          type: number
+                        action:
+                          type: string
+                  healthCheck:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      interval:
+                        type: string
+                      timeout:
+                        type: string
+                      endpoint:
+                        type: string
+            required:
+            - nodeId
+            - location
+            - provider
+            - capacity
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Provisioning", "Ready", "Degraded", "Failed", "Terminating"]
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+              connectivity:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  latency:
+                    type: integer
+                  bandwidth:
+                    type: string
+                  lastChecked:
+                    type: string
+              workloads:
+                type: object
+                properties:
+                  running:
+                    type: integer
+                  pending:
+                    type: integer
+                  failed:
+                    type: integer
+              resources:
+                type: object
+                properties:
+                  cpu:
+                    type: object
+                    properties:
+                      used:
+                        type: string
+                      available:
+                        type: string
+                      utilization:
+                        type: number
+                  memory:
+                    type: object
+                    properties:
+                      used:
+                        type: string
+                      available:
+                        type: string
+                      utilization:
+                        type: number
+                  storage:
+                    type: object
+                    properties:
+                      used:
+                        type: string
+                      available:
+                        type: string
+                      utilization:
+                        type: number
+              lastUpdated:
+                type: string
+  scope: Cluster
+  names:
+    plural: edgenodes
+    singular: edgenode
+    kind: EdgeNode
+    shortNames:
+    - en
+    - edge
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: edgedeployments.edge.gocoffee.dev
+spec:
+  group: edge.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              deploymentName:
+                type: string
+              strategy:
+                type: string
+                enum: ["nearest", "latency-based", "cost-optimized", "load-balanced"]
+              selector:
+                type: object
+                properties:
+                  regions:
+                    type: array
+                    items:
+                      type: string
+                  providers:
+                    type: array
+                    items:
+                      type: string
+                  capabilities:
+                    type: array
+                    items:
+                      type: string
+                  maxLatency:
+                    type: integer
+                  minBandwidth:
+                    type: string
+              workload:
+                type: object
+                properties:
+                  image:
+                    type: string
+                  tag:
+                    type: string
+                  replicas:
+                    type: integer
+                  resources:
+                    type: object
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+                      storage:
+                        type: string
+                  ports:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        port:
+                          type: integer
+                        protocol:
+                          type: string
+                  env:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                  volumes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        mountPath:
+                          type: string
+                        size:
+                          type: string
+              scaling:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  minReplicas:
+                    type: integer
+                  maxReplicas:
+                    type: integer
+                  metrics:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                        target:
+                          type: number
+              networking:
+                type: object
+                properties:
+                  loadBalancer:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      type:
+                        type: string
+                      algorithm:
+                        type: string
+                  cdn:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      provider:
+                        type: string
+                      caching:
+                        type: object
+                        properties:
+                          ttl:
+                            type: integer
+                          rules:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                path:
+                                  type: string
+                                ttl:
+                                  type: integer
+            required:
+            - deploymentName
+            - strategy
+            - workload
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Deploying", "Ready", "Scaling", "Failed"]
+              deployedNodes:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    nodeId:
+                      type: string
+                    status:
+                      type: string
+                    replicas:
+                      type: integer
+                    lastUpdated:
+                      type: string
+              totalReplicas:
+                type: integer
+              readyReplicas:
+                type: integer
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: edgedeployments
+    singular: edgedeployment
+    kind: EdgeDeployment
+    shortNames:
+    - ed
+    - edgedeploy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-operator-controller
+  namespace: edge-system
+  labels:
+    control-plane: edge-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: edge-operator
+  template:
+    metadata:
+      labels:
+        control-plane: edge-operator
+    spec:
+      serviceAccountName: edge-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/edge-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "edge-operator"
+        - name: ENABLE_EDGE_DISCOVERY
+          value: "true"
+        - name: EDGE_PROVIDERS
+          value: "aws-wavelength,azure-edge,gcp-edge,cloudflare,fastly"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: edge-operator-controller
+  namespace: edge-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: edge-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  - nodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - edge.gocoffee.dev
+  resources:
+  - edgenodes
+  - edgedeployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - edge.gocoffee.dev
+  resources:
+  - edgenodes/status
+  - edgedeployments/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: edge-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edge-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: edge-operator-controller
+  namespace: edge-system

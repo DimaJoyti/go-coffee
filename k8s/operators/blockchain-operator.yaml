@@ -1,0 +1,551 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: blockchain-system
+  labels:
+    control-plane: blockchain-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: blockchainnetworks.blockchain.gocoffee.dev
+spec:
+  group: blockchain.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              networkName:
+                type: string
+              blockchain:
+                type: string
+                enum: ["ethereum", "bitcoin", "solana", "polygon", "binance-smart-chain", "avalanche", "cardano", "polkadot"]
+              networkType:
+                type: string
+                enum: ["mainnet", "testnet", "devnet", "private"]
+              consensus:
+                type: string
+                enum: ["proof-of-work", "proof-of-stake", "proof-of-authority", "delegated-proof-of-stake"]
+              nodes:
+                type: object
+                properties:
+                  validators:
+                    type: integer
+                    minimum: 1
+                  fullNodes:
+                    type: integer
+                    minimum: 0
+                  lightNodes:
+                    type: integer
+                    minimum: 0
+                  archiveNodes:
+                    type: integer
+                    minimum: 0
+              nodeConfig:
+                type: object
+                properties:
+                  resources:
+                    type: object
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+                      storage:
+                        type: string
+                  networking:
+                    type: object
+                    properties:
+                      p2pPort:
+                        type: integer
+                      rpcPort:
+                        type: integer
+                      wsPort:
+                        type: integer
+                      maxPeers:
+                        type: integer
+                  security:
+                    type: object
+                    properties:
+                      encryption:
+                        type: boolean
+                      firewall:
+                        type: boolean
+                      ddosProtection:
+                        type: boolean
+              smartContracts:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  runtime:
+                    type: string
+                    enum: ["evm", "wasm", "native", "move"]
+                  gasLimit:
+                    type: integer
+                  gasPrice:
+                    type: string
+              defi:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  protocols:
+                    type: array
+                    items:
+                      type: string
+                      enum: ["uniswap", "aave", "compound", "curve", "balancer", "1inch", "sushiswap"]
+                  liquidityPools:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        token0:
+                          type: string
+                        token1:
+                          type: string
+                        fee:
+                          type: number
+                        initialLiquidity:
+                          type: string
+              nft:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  standards:
+                    type: array
+                    items:
+                      type: string
+                      enum: ["erc721", "erc1155", "spl-token", "metaplex"]
+                  marketplace:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      royalties:
+                        type: number
+                      fees:
+                        type: number
+              monitoring:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  metrics:
+                    type: array
+                    items:
+                      type: string
+                  alerts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        condition:
+                          type: string
+                        threshold:
+                          type: number
+              backup:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  schedule:
+                    type: string
+                  retention:
+                    type: string
+                  storage:
+                    type: string
+            required:
+            - networkName
+            - blockchain
+            - networkType
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Initializing", "Syncing", "Ready", "Degraded", "Failed"]
+              blockHeight:
+                type: integer
+              syncProgress:
+                type: number
+              peers:
+                type: integer
+              validators:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    address:
+                      type: string
+                    status:
+                      type: string
+                    stake:
+                      type: string
+                    uptime:
+                      type: number
+              networkStats:
+                type: object
+                properties:
+                  tps:
+                    type: number
+                  avgBlockTime:
+                    type: string
+                  totalTransactions:
+                    type: integer
+                  activeAddresses:
+                    type: integer
+              smartContractStats:
+                type: object
+                properties:
+                  deployed:
+                    type: integer
+                  totalCalls:
+                    type: integer
+                  gasUsed:
+                    type: string
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: blockchainnetworks
+    singular: blockchainnetwork
+    kind: BlockchainNetwork
+    shortNames:
+    - bn
+    - blockchain
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: defiprotocols.blockchain.gocoffee.dev
+spec:
+  group: blockchain.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              protocolName:
+                type: string
+              type:
+                type: string
+                enum: ["dex", "lending", "yield-farming", "staking", "derivatives", "insurance"]
+              blockchain:
+                type: string
+              contracts:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    address:
+                      type: string
+                    abi:
+                      type: string
+                    verified:
+                      type: boolean
+              tokens:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    symbol:
+                      type: string
+                    address:
+                      type: string
+                    decimals:
+                      type: integer
+                    totalSupply:
+                      type: string
+              liquidityPools:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    pair:
+                      type: string
+                    address:
+                      type: string
+                    fee:
+                      type: number
+                    tvl:
+                      type: string
+                    apr:
+                      type: number
+              strategies:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    riskLevel:
+                      type: string
+                      enum: ["low", "medium", "high"]
+                    expectedReturn:
+                      type: number
+                    autoCompound:
+                      type: boolean
+              governance:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  token:
+                    type: string
+                  votingPower:
+                    type: string
+                  proposals:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        status:
+                          type: string
+              security:
+                type: object
+                properties:
+                  audited:
+                    type: boolean
+                  auditors:
+                    type: array
+                    items:
+                      type: string
+                  bugBounty:
+                    type: boolean
+                  insurance:
+                    type: boolean
+            required:
+            - protocolName
+            - type
+            - blockchain
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Deploying", "Active", "Paused", "Deprecated"]
+              tvl:
+                type: string
+              volume24h:
+                type: string
+              users:
+                type: integer
+              transactions:
+                type: integer
+              performance:
+                type: object
+                properties:
+                  apy:
+                    type: number
+                  fees:
+                    type: string
+                  slippage:
+                    type: number
+              health:
+                type: object
+                properties:
+                  score:
+                    type: number
+                  factors:
+                    type: object
+                    additionalProperties:
+                      type: number
+  scope: Namespaced
+  names:
+    plural: defiprotocols
+    singular: defiprotocol
+    kind: DeFiProtocol
+    shortNames:
+    - defi
+    - protocol
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blockchain-operator-controller
+  namespace: blockchain-system
+  labels:
+    control-plane: blockchain-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: blockchain-operator
+  template:
+    metadata:
+      labels:
+        control-plane: blockchain-operator
+    spec:
+      serviceAccountName: blockchain-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/blockchain-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "blockchain-operator"
+        - name: SUPPORTED_BLOCKCHAINS
+          value: "ethereum,bitcoin,solana,polygon,binance-smart-chain"
+        - name: ENABLE_DEFI_PROTOCOLS
+          value: "true"
+        - name: ENABLE_NFT_SUPPORT
+          value: "true"
+        - name: WEB3_PROVIDER_ENDPOINTS
+          valueFrom:
+            secretKeyRef:
+              name: web3-providers
+              key: endpoints
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: blockchain-operator-controller
+  namespace: blockchain-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: blockchain-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - blockchain.gocoffee.dev
+  resources:
+  - blockchainnetworks
+  - defiprotocols
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - blockchain.gocoffee.dev
+  resources:
+  - blockchainnetworks/status
+  - defiprotocols/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: blockchain-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: blockchain-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: blockchain-operator-controller
+  namespace: blockchain-system

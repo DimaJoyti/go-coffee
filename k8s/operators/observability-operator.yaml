@@ -1,0 +1,479 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability-system
+  labels:
+    control-plane: observability-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: observabilitystacks.observability.gocoffee.dev
+spec:
+  group: observability.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              stackName:
+                type: string
+              components:
+                type: object
+                properties:
+                  prometheus:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      retention:
+                        type: string
+                      storage:
+                        type: string
+                      replicas:
+                        type: integer
+                      resources:
+                        type: object
+                        properties:
+                          requests:
+                            type: object
+                            properties:
+                              cpu:
+                                type: string
+                              memory:
+                                type: string
+                          limits:
+                            type: object
+                            properties:
+                              cpu:
+                                type: string
+                              memory:
+                                type: string
+                  grafana:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      adminPassword:
+                        type: string
+                      dashboards:
+                        type: array
+                        items:
+                          type: string
+                      datasources:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            type:
+                              type: string
+                            url:
+                              type: string
+                  jaeger:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      strategy:
+                        type: string
+                        enum: ["allInOne", "production"]
+                      storage:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            enum: ["memory", "elasticsearch", "cassandra"]
+                          options:
+                            type: object
+                            additionalProperties:
+                              type: string
+                  elasticsearch:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      nodes:
+                        type: integer
+                      storage:
+                        type: string
+                      version:
+                        type: string
+                  fluentd:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      outputs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            type:
+                              type: string
+                            config:
+                              type: object
+                              additionalProperties:
+                                type: string
+                  alertmanager:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      config:
+                        type: object
+                        properties:
+                          global:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          route:
+                            type: object
+                          receivers:
+                            type: array
+                            items:
+                              type: object
+              monitoring:
+                type: object
+                properties:
+                  targets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                        selector:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        port:
+                          type: string
+                        path:
+                          type: string
+                        interval:
+                          type: string
+                  rules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        rules:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              alert:
+                                type: string
+                              expr:
+                                type: string
+                              for:
+                                type: string
+                              labels:
+                                type: object
+                                additionalProperties:
+                                  type: string
+                              annotations:
+                                type: object
+                                additionalProperties:
+                                  type: string
+              tracing:
+                type: object
+                properties:
+                  samplingRate:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                  exporters:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        type:
+                          type: string
+                        endpoint:
+                          type: string
+                        headers:
+                          type: object
+                          additionalProperties:
+                            type: string
+              logging:
+                type: object
+                properties:
+                  level:
+                    type: string
+                    enum: ["debug", "info", "warn", "error"]
+                  format:
+                    type: string
+                    enum: ["json", "text"]
+                  retention:
+                    type: string
+                  aggregation:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      backend:
+                        type: string
+                        enum: ["elasticsearch", "loki", "cloudwatch"]
+            required:
+            - stackName
+            - components
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Installing", "Ready", "Updating", "Failed"]
+              components:
+                type: object
+                properties:
+                  prometheus:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      endpoint:
+                        type: string
+                      version:
+                        type: string
+                  grafana:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      endpoint:
+                        type: string
+                      version:
+                        type: string
+                  jaeger:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      endpoint:
+                        type: string
+                      version:
+                        type: string
+              metrics:
+                type: object
+                properties:
+                  targetsDiscovered:
+                    type: integer
+                  targetsUp:
+                    type: integer
+                  rulesLoaded:
+                    type: integer
+                  alertsActive:
+                    type: integer
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: observabilitystacks
+    singular: observabilitystack
+    kind: ObservabilityStack
+    shortNames:
+    - obs
+    - stack
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observability-operator-controller
+  namespace: observability-system
+  labels:
+    control-plane: observability-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: observability-operator
+  template:
+    metadata:
+      labels:
+        control-plane: observability-operator
+    spec:
+      serviceAccountName: observability-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/observability-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "observability-operator"
+        - name: ENABLE_AUTO_DISCOVERY
+          value: "true"
+        - name: DEFAULT_RETENTION
+          value: "30d"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: observability-operator-controller
+  namespace: observability-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: observability-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  - persistentvolumeclaims
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheuses
+  - servicemonitors
+  - prometheusrules
+  - alertmanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - jaegertracing.io
+  resources:
+  - jaegers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - observability.gocoffee.dev
+  resources:
+  - observabilitystacks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - observability.gocoffee.dev
+  resources:
+  - observabilitystacks/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: observability-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: observability-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: observability-operator-controller
+  namespace: observability-system

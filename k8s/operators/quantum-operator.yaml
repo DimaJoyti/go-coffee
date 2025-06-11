@@ -1,0 +1,469 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quantum-system
+  labels:
+    control-plane: quantum-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: quantumworkloads.quantum.gocoffee.dev
+spec:
+  group: quantum.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              workloadName:
+                type: string
+              algorithm:
+                type: string
+                enum: ["shor", "grover", "qaoa", "vqe", "quantum-ml", "optimization"]
+              quantumProvider:
+                type: string
+                enum: ["ibm-quantum", "google-quantum", "aws-braket", "azure-quantum", "rigetti", "ionq"]
+              qubits:
+                type: integer
+                minimum: 1
+                maximum: 1000
+              circuitDepth:
+                type: integer
+                minimum: 1
+                maximum: 10000
+              shots:
+                type: integer
+                minimum: 1
+                maximum: 1000000
+              hybridMode:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  classicalNodes:
+                    type: integer
+                  quantumNodes:
+                    type: integer
+                  communicationProtocol:
+                    type: string
+                    enum: ["grpc", "mpi", "quantum-network"]
+              optimization:
+                type: object
+                properties:
+                  objective:
+                    type: string
+                  constraints:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                        value:
+                          type: number
+                        operator:
+                          type: string
+              quantumML:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  framework:
+                    type: string
+                    enum: ["pennylane", "qiskit-ml", "cirq", "tensorflow-quantum"]
+                  dataEncoding:
+                    type: string
+                    enum: ["amplitude", "angle", "basis", "iqp"]
+                  ansatz:
+                    type: string
+                    enum: ["hardware-efficient", "real-amplitudes", "two-local", "custom"]
+              errorCorrection:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  code:
+                    type: string
+                    enum: ["surface", "color", "repetition", "steane", "shor"]
+                  threshold:
+                    type: number
+              resources:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  quantumTime:
+                    type: string
+                  priority:
+                    type: string
+                    enum: ["low", "medium", "high", "critical"]
+              scheduling:
+                type: object
+                properties:
+                  strategy:
+                    type: string
+                    enum: ["immediate", "scheduled", "queue", "adaptive"]
+                  timeWindow:
+                    type: string
+                  maxWaitTime:
+                    type: string
+                  retryPolicy:
+                    type: object
+                    properties:
+                      maxRetries:
+                        type: integer
+                      backoffStrategy:
+                        type: string
+            required:
+            - workloadName
+            - algorithm
+            - quantumProvider
+            - qubits
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Queued", "Running", "Completed", "Failed", "Cancelled"]
+              quantumState:
+                type: string
+                enum: ["Initializing", "Calibrating", "Executing", "Measuring", "PostProcessing"]
+              results:
+                type: object
+                properties:
+                  fidelity:
+                    type: number
+                  executionTime:
+                    type: string
+                  quantumVolume:
+                    type: integer
+                  errorRate:
+                    type: number
+                  measurements:
+                    type: object
+                    additionalProperties:
+                      type: number
+              quantumMetrics:
+                type: object
+                properties:
+                  gateErrors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        gate:
+                          type: string
+                        errorRate:
+                          type: number
+                  coherenceTime:
+                    type: string
+                  readoutFidelity:
+                    type: number
+                  crossTalk:
+                    type: number
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: quantumworkloads
+    singular: quantumworkload
+    kind: QuantumWorkload
+    shortNames:
+    - qw
+    - quantum
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: quantumclusters.quantum.gocoffee.dev
+spec:
+  group: quantum.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              clusterName:
+                type: string
+              providers:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    endpoint:
+                      type: string
+                    credentials:
+                      type: string
+                    capabilities:
+                      type: object
+                      properties:
+                        maxQubits:
+                          type: integer
+                        gateSet:
+                          type: array
+                          items:
+                            type: string
+                        connectivity:
+                          type: string
+                        errorRates:
+                          type: object
+                          additionalProperties:
+                            type: number
+              loadBalancing:
+                type: object
+                properties:
+                  strategy:
+                    type: string
+                    enum: ["round-robin", "least-loaded", "capability-based", "cost-optimized"]
+                  weights:
+                    type: object
+                    additionalProperties:
+                      type: number
+              monitoring:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  metrics:
+                    type: array
+                    items:
+                      type: string
+                  alerting:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      thresholds:
+                        type: object
+                        additionalProperties:
+                          type: number
+            required:
+            - clusterName
+            - providers
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Ready", "Degraded", "Failed"]
+              providers:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    status:
+                      type: string
+                    availability:
+                      type: number
+                    queueLength:
+                      type: integer
+                    lastHealthCheck:
+                      type: string
+              totalQubits:
+                type: integer
+              activeJobs:
+                type: integer
+              queuedJobs:
+                type: integer
+  scope: Cluster
+  names:
+    plural: quantumclusters
+    singular: quantumcluster
+    kind: QuantumCluster
+    shortNames:
+    - qc
+    - qcluster
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quantum-operator-controller
+  namespace: quantum-system
+  labels:
+    control-plane: quantum-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: quantum-operator
+  template:
+    metadata:
+      labels:
+        control-plane: quantum-operator
+    spec:
+      serviceAccountName: quantum-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/quantum-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "quantum-operator"
+        - name: QUANTUM_PROVIDERS
+          value: "ibm-quantum,google-quantum,aws-braket,azure-quantum"
+        - name: ENABLE_HYBRID_COMPUTING
+          value: "true"
+        - name: QUANTUM_SIMULATOR_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: quantum-operator-controller
+  namespace: quantum-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: quantum-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  - cronjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - quantum.gocoffee.dev
+  resources:
+  - quantumworkloads
+  - quantumclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - quantum.gocoffee.dev
+  resources:
+  - quantumworkloads/status
+  - quantumclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: quantum-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: quantum-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: quantum-operator-controller
+  namespace: quantum-system

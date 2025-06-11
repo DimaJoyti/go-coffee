@@ -1,0 +1,406 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: go-coffee
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: go-coffee-prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: go-coffee
+spec:
+  serviceAccountName: prometheus
+  serviceMonitorSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: go-coffee
+  ruleSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: go-coffee
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 1000m
+    limits:
+      memory: 4Gi
+      cpu: 2000m
+  retention: 30d
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 100Gi
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  alerting:
+    alertmanagers:
+    - namespace: monitoring
+      name: go-coffee-alertmanager
+      port: web
+  additionalScrapeConfigs:
+    name: additional-scrape-configs
+    key: prometheus-additional.yaml
+  remoteWrite:
+  - url: "https://prometheus-remote-write.gocoffee.dev/api/v1/write"
+    writeRelabelConfigs:
+    - sourceLabels: [__name__]
+      regex: 'go_coffee_.*'
+      action: keep
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: go-coffee-alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: go-coffee
+spec:
+  replicas: 3
+  serviceAccountName: alertmanager
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 10Gi
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  configSecret: alertmanager-config
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: go-coffee
+stringData:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'alerts@gocoffee.dev'
+      smtp_auth_username: 'alerts@gocoffee.dev'
+      smtp_auth_password: 'app-password'
+      slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'web.hook'
+      routes:
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+      - match:
+          severity: warning
+        receiver: 'warning-alerts'
+      - match:
+          alertname: DeadMansSwitch
+        receiver: 'null'
+    
+    receivers:
+    - name: 'web.hook'
+      webhook_configs:
+      - url: 'http://webhook-service:8080/webhook'
+    
+    - name: 'critical-alerts'
+      email_configs:
+      - to: 'oncall@gocoffee.dev'
+        subject: '[CRITICAL] Go Coffee Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Labels: {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+          {{ end }}
+      slack_configs:
+      - channel: '#alerts-critical'
+        title: 'Critical Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        color: 'danger'
+    
+    - name: 'warning-alerts'
+      slack_configs:
+      - channel: '#alerts-warning'
+        title: 'Warning: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        color: 'warning'
+    
+    - name: 'null'
+    
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'cluster', 'service']
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: go-coffee-services
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: servicemonitor
+    app.kubernetes.io/part-of: go-coffee
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: go-coffee
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    honorLabels: true
+  namespaceSelector:
+    matchNames:
+    - go-coffee
+    - operators
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kubernetes-system
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: servicemonitor
+    app.kubernetes.io/part-of: go-coffee
+spec:
+  selector:
+    matchLabels:
+      k8s-app: kube-state-metrics
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+    honorLabels: true
+  namespaceSelector:
+    matchNames:
+    - kube-system
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: go-coffee-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheusrule
+    app.kubernetes.io/part-of: go-coffee
+spec:
+  groups:
+  - name: go-coffee.rules
+    rules:
+    - alert: HighErrorRate
+      expr: |
+        (
+          rate(http_requests_total{job=~"go-coffee-.*",code=~"5.."}[5m])
+          /
+          rate(http_requests_total{job=~"go-coffee-.*"}[5m])
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+    
+    - alert: HighLatency
+      expr: |
+        histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=~"go-coffee-.*"}[5m])) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High latency detected"
+        description: "95th percentile latency is {{ $value }}s for {{ $labels.job }}"
+    
+    - alert: PodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod is crash looping"
+        description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+    
+    - alert: PodNotReady
+      expr: |
+        kube_pod_status_ready{condition="false"} == 1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod not ready"
+        description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been not ready for more than 10 minutes"
+    
+    - alert: NodeNotReady
+      expr: |
+        kube_node_status_ready{condition="false"} == 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Node not ready"
+        description: "Node {{ $labels.node }} has been not ready for more than 5 minutes"
+    
+    - alert: HighCPUUsage
+      expr: |
+        (
+          rate(container_cpu_usage_seconds_total{container!="POD",container!=""}[5m])
+          /
+          container_spec_cpu_quota * container_spec_cpu_period
+        ) > 0.8
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage"
+        description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has high CPU usage: {{ $value | humanizePercentage }}"
+    
+    - alert: HighMemoryUsage
+      expr: |
+        (
+          container_memory_working_set_bytes{container!="POD",container!=""}
+          /
+          container_spec_memory_limit_bytes
+        ) > 0.9
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory usage"
+        description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has high memory usage: {{ $value | humanizePercentage }}"
+    
+    - alert: DatabaseConnectionsHigh
+      expr: |
+        pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Database connections high"
+        description: "Database {{ $labels.datname }} has {{ $value | humanizePercentage }} of max connections in use"
+    
+    - alert: RedisMemoryHigh
+      expr: |
+        redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis memory usage high"
+        description: "Redis instance {{ $labels.instance }} memory usage is {{ $value | humanizePercentage }}"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: go-coffee
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: go-coffee
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: go-coffee
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: go-coffee
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: go-coffee
+spec:
+  ports:
+  - name: web
+    port: 9090
+    targetPort: 9090
+  selector:
+    app.kubernetes.io/name: prometheus
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-service
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: go-coffee
+spec:
+  ports:
+  - name: web
+    port: 9093
+    targetPort: 9093
+  selector:
+    app.kubernetes.io/name: alertmanager

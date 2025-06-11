@@ -1,0 +1,260 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coffee-operator-system
+  labels:
+    control-plane: coffee-operator
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: coffeeservices.coffee.gocoffee.dev
+spec:
+  group: coffee.gocoffee.dev
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              serviceName:
+                type: string
+              replicas:
+                type: integer
+                minimum: 1
+                maximum: 100
+              image:
+                type: string
+              port:
+                type: integer
+              resources:
+                type: object
+                properties:
+                  requests:
+                    type: object
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+                  limits:
+                    type: object
+                    properties:
+                      cpu:
+                        type: string
+                      memory:
+                        type: string
+              environment:
+                type: string
+                enum: ["development", "staging", "production"]
+              monitoring:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  metricsPath:
+                    type: string
+                  healthPath:
+                    type: string
+              security:
+                type: object
+                properties:
+                  tlsEnabled:
+                    type: boolean
+                  rbacEnabled:
+                    type: boolean
+            required:
+            - serviceName
+            - replicas
+            - image
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Running", "Failed", "Succeeded"]
+              replicas:
+                type: integer
+              readyReplicas:
+                type: integer
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: coffeeservices
+    singular: coffeeservice
+    kind: CoffeeService
+    shortNames:
+    - cs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee-operator-controller
+  namespace: coffee-operator-system
+  labels:
+    control-plane: coffee-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: coffee-operator
+  template:
+    metadata:
+      labels:
+        control-plane: coffee-operator
+    spec:
+      serviceAccountName: coffee-operator-controller
+      containers:
+      - name: manager
+        image: gocoffee/coffee-operator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 9443
+          name: webhook
+        env:
+        - name: WATCH_NAMESPACE
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: "coffee-operator"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coffee-operator-controller
+  namespace: coffee-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: coffee-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  - services
+  - pods
+  - events
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - coffee.gocoffee.dev
+  resources:
+  - coffeeservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - coffee.gocoffee.dev
+  resources:
+  - coffeeservices/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: coffee-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: coffee-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: coffee-operator-controller
+  namespace: coffee-operator-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffee-operator-metrics-service
+  namespace: coffee-operator-system
+  labels:
+    control-plane: coffee-operator
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+  selector:
+    control-plane: coffee-operator
