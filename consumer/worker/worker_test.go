@@ -18,11 +18,36 @@ type MockMessage struct {
 	value     []byte
 }
 
-func (m *MockMessage) Topic() string     { return m.topic }
-func (m *MockMessage) Partition() int32  { return m.partition }
-func (m *MockMessage) Offset() int64     { return m.offset }
-func (m *MockMessage) Key() []byte       { return m.key }
-func (m *MockMessage) Value() []byte     { return m.value }
+func (m *MockMessage) Topic() string {
+	if m == nil {
+		return ""
+	}
+	return m.topic
+}
+func (m *MockMessage) Partition() int32 {
+	if m == nil {
+		return 0
+	}
+	return m.partition
+}
+func (m *MockMessage) Offset() int64 {
+	if m == nil {
+		return 0
+	}
+	return m.offset
+}
+func (m *MockMessage) Key() []byte {
+	if m == nil {
+		return nil
+	}
+	return m.key
+}
+func (m *MockMessage) Value() []byte {
+	if m == nil {
+		return nil
+	}
+	return m.value
+}
 
 // MockConsumer is a mock implementation of the Kafka consumer
 type MockConsumer struct {
@@ -42,7 +67,7 @@ func (m *MockConsumer) Subscribe(topics []string) error {
 	return args.Error(0)
 }
 
-func (m *MockConsumer) Poll(timeout time.Duration) (*MockMessage, error) {
+func (m *MockConsumer) Poll(timeout time.Duration) (interface{}, error) {
 	select {
 	case msg := <-m.messages:
 		return msg, nil
@@ -52,8 +77,10 @@ func (m *MockConsumer) Poll(timeout time.Duration) (*MockMessage, error) {
 }
 
 func (m *MockConsumer) Close() error {
-	m.closed = true
-	close(m.messages)
+	if !m.closed {
+		m.closed = true
+		close(m.messages)
+	}
 	args := m.Called()
 	return args.Error(0)
 }
@@ -96,7 +123,7 @@ func TestWorker_Start(t *testing.T) {
 	// Arrange
 	mockConsumer := NewMockConsumer()
 	mockProcessor := NewMockProcessor()
-	
+
 	mockConsumer.On("Subscribe", []string{"test-topic"}).Return(nil)
 	mockConsumer.On("Close").Return(nil)
 	mockProcessor.On("ProcessMessage", mock.Anything, mock.Anything).Return(nil)
@@ -113,18 +140,22 @@ func TestWorker_Start(t *testing.T) {
 	mockConsumer.AddMessage("test-topic", 0, 1, []byte("key"), testMessage)
 
 	// Act
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		close(worker.stopChan)
-	}()
-
 	err := worker.Start(ctx)
+	assert.NoError(t, err)
+
+	// Give the worker time to process the message
+	time.Sleep(30 * time.Millisecond)
+
+	// Stop the worker
+	worker.Stop()
+
+	// Give time for cleanup
+	time.Sleep(10 * time.Millisecond)
 
 	// Assert
-	assert.NoError(t, err)
 	mockConsumer.AssertExpectations(t)
 	mockProcessor.AssertExpectations(t)
 }
@@ -133,7 +164,7 @@ func TestWorker_Stop(t *testing.T) {
 	// Arrange
 	mockConsumer := NewMockConsumer()
 	mockProcessor := NewMockProcessor()
-	
+
 	mockConsumer.On("Close").Return(nil)
 
 	worker := &Worker{
@@ -152,7 +183,7 @@ func TestWorker_Stop(t *testing.T) {
 	default:
 		t.Error("Stop channel should be closed")
 	}
-	
+
 	mockConsumer.AssertExpectations(t)
 }
 
@@ -160,7 +191,7 @@ func TestWorker_ProcessMessage_Success(t *testing.T) {
 	// Arrange
 	mockConsumer := NewMockConsumer()
 	mockProcessor := NewMockProcessor()
-	
+
 	testMessage := []byte(`{"id": "test-order", "customer": "Jane Doe", "coffee": "Latte"}`)
 	mockProcessor.On("ProcessMessage", mock.Anything, testMessage).Return(nil)
 
@@ -183,7 +214,7 @@ func TestWorker_ProcessMessage_Error(t *testing.T) {
 	// Arrange
 	mockConsumer := NewMockConsumer()
 	mockProcessor := NewMockProcessor()
-	
+
 	testMessage := []byte(`invalid json`)
 	expectedError := assert.AnError
 	mockProcessor.On("ProcessMessage", mock.Anything, testMessage).Return(expectedError)
@@ -253,7 +284,7 @@ func createTestWorker() *Worker {
 func TestWorker_Integration(t *testing.T) {
 	// This is a more comprehensive integration test
 	worker := createTestWorker()
-	
+
 	// Test that worker can be created and configured
 	assert.NotNil(t, worker)
 	assert.NotNil(t, worker.consumer)

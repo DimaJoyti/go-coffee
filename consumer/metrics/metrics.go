@@ -67,4 +67,10 @@ var (
 		Help:    "The time it takes for a worker to process a message",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"worker_id", "topic"})
+
+	// StreamsErrorsTotal is a counter for the total number of stream errors
+	StreamsErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "streams_errors_total",
+		Help: "The total number of stream errors",
+	}, []string{"error_type"})
 )

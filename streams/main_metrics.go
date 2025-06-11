@@ -10,12 +10,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"kafka_streams/config"
-	"kafka_streams/kafka"
-	"kafka_streams/metrics"
+	"github.com/DimaJoyti/go-coffee/streams/config"
+	"github.com/DimaJoyti/go-coffee/streams/kafka"
 )
 
-func main() {
+func mainWithMetrics() {
 	// Set up logging
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	log.Println("Starting Kafka Streams processor...")
@@ -49,14 +48,10 @@ func main() {
 		log.Fatalf("Failed to start stream processor: %v", err)
 	}
 	log.Println("Stream processor started successfully")
-	metrics.StreamsRunning.Set(1)
 
 	// Set up signal handler for graceful shutdown
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Start delivery report handler
-	go processor.DeliveryReportHandler()
 
 	// Wait for termination signal
 	sig := <-sigchan
@@ -64,6 +59,5 @@ func main() {
 
 	// Stop the processor
 	processor.Stop()
-	metrics.StreamsRunning.Set(0)
 	log.Println("Stream processor stopped")
 }

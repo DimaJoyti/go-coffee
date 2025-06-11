@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-orchestrator
+  labels:
+    name: llm-orchestrator
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+    app.kubernetes.io/part-of: go-coffee
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-workloads
+  labels:
+    name: llm-workloads
+    app.kubernetes.io/name: llm-workloads
+    app.kubernetes.io/component: workloads
+    app.kubernetes.io/part-of: go-coffee

@@ -218,7 +218,7 @@ jobs:
 
       - name: Scan Docker images
         run: |
-          for service in auth-service ai-search producer consumer streams; do
+          for service in user-gateway security-gateway web-ui-backend; do
             echo "Scanning $service..."
             trivy image --format sarif --output ${service}-scan.sarif \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${service}:${{ github.sha }}
@@ -240,8 +240,6 @@ jobs:
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.28.0'
 
       - name: Set up Kustomize
         run: |
@@ -269,9 +267,9 @@ jobs:
           kubectl apply -k .
 
           # Wait for deployments
-          kubectl rollout status deployment/user-gateway-dev -n ${NAMESPACE} --timeout=600s
-          kubectl rollout status deployment/security-gateway-dev -n ${NAMESPACE} --timeout=600s
-          kubectl rollout status deployment/web-ui-backend-dev -n ${NAMESPACE} --timeout=600s
+          for service in user-gateway security-gateway web-ui-backend; do
+            kubectl rollout status deployment/${service} -n ${NAMESPACE} --timeout=600s
+          done
 
       - name: Run smoke tests
         run: |

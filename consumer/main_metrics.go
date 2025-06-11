@@ -17,7 +17,7 @@ import (
 	"github.com/DimaJoyti/go-coffee/consumer/worker"
 )
 
-func main() {
+func mainWithMetrics() {
 	// Set up logging
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	log.Println("Starting consumer...")
@@ -108,7 +108,7 @@ func main() {
 		for msg := range handler.Messages() {
 			// Update metrics
 			metrics.KafkaMessagesReceivedTotal.WithLabelValues(msg.Topic).Inc()
-			
+
 			// Submit message to worker pool
 			workerPool.Submit(msg)
 		}

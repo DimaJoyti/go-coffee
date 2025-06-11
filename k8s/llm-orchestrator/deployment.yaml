@@ -1,0 +1,361 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-orchestrator-config
+  namespace: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: config
+data:
+  config.yaml: |
+    kubeConfig: ""
+    namespace: "llm-orchestrator"
+    
+    scheduler:
+      strategy: "performance-aware"
+      resourceOvercommitRatio: 1.2
+      gpuFragmentationThreshold: 0.8
+      localityPreference: true
+      modelAffinityWeight: 0.3
+      latencyOptimization: true
+      throughputOptimization: true
+      scaleUpCooldown: "3m"
+      scaleDownCooldown: "10m"
+      predictiveScaling: true
+      
+      qosClasses:
+        premium:
+          priority: 100
+          resourceGuarantee: 0.9
+          maxLatency: 50
+          preemptionPolicy: "never"
+          burstingAllowed: true
+        standard:
+          priority: 50
+          resourceGuarantee: 0.7
+          maxLatency: 200
+          preemptionPolicy: "lower-priority"
+          burstingAllowed: true
+        basic:
+          priority: 10
+          resourceGuarantee: 0.5
+          maxLatency: 1000
+          preemptionPolicy: "always"
+          burstingAllowed: false
+    
+    resourceManager:
+      defaultCPURequest: "1000m"
+      defaultMemoryRequest: "2Gi"
+      defaultGPURequest: 0
+      optimizationInterval: "5m"
+      resourceUtilizationTarget: 0.8
+      overcommitRatio: 1.2
+      scaleUpThreshold: 0.8
+      scaleDownThreshold: 0.3
+      scaleUpCooldown: "3m"
+      scaleDownCooldown: "10m"
+      maxCPUPerWorkload: "8000m"
+      maxMemoryPerWorkload: "32Gi"
+      maxGPUPerWorkload: 4
+      
+      qosResourceAllocation:
+        premium:
+          cpuMultiplier: 2.0
+          memoryMultiplier: 2.0
+          gpuPriority: 10
+          burstingAllowed: true
+        standard:
+          cpuMultiplier: 1.0
+          memoryMultiplier: 1.0
+          gpuPriority: 5
+          burstingAllowed: true
+        basic:
+          cpuMultiplier: 0.5
+          memoryMultiplier: 0.5
+          gpuPriority: 1
+          burstingAllowed: false
+    
+    modelRegistry:
+      storageType: "local"
+      storagePath: "/var/lib/llm-models"
+      cacheSize: 107374182400
+      cacheEnabled: true
+      maxVersions: 10
+      autoCleanup: true
+      cleanupInterval: "24h"
+      metricsEnabled: true
+      benchmarkOnRegister: true
+      performanceThreshold: 0.8
+      checksumValidation: true
+      signatureValidation: false
+    
+    operator:
+      reconcileInterval: "30s"
+      maxConcurrentReconciles: 10
+      defaultNamespace: "llm-workloads"
+      defaultImage: "llm-server:latest"
+      defaultServiceAccount: "llm-orchestrator"
+      defaultCPURequest: "500m"
+      defaultMemoryRequest: "1Gi"
+      defaultCPULimit: "2000m"
+      defaultMemoryLimit: "4Gi"
+      metricsEnabled: true
+      healthCheckEnabled: true
+      
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+    
+    metricsEnabled: true
+    metricsPort: 8080
+    healthPort: 8081
+    workerThreads: 10
+    syncInterval: "30s"
+    leaderElection: true
+    leaderLockName: "llm-orchestrator-leader"
+    tlsEnabled: false
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-orchestrator
+  namespace: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+spec:
+  selector:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: health
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  - name: webhook
+    port: 9443
+    targetPort: 9443
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-orchestrator
+  namespace: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llm-orchestrator
+      app.kubernetes.io/component: orchestrator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: llm-orchestrator
+        app.kubernetes.io/component: orchestrator
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: llm-orchestrator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+      - name: orchestrator
+        image: ghcr.io/dimajoyti/go-coffee/llm-orchestrator:latest
+        imagePullPolicy: Always
+        command:
+        - /manager
+        args:
+        - --config=/etc/config/config.yaml
+        - --metrics-bind-address=:8080
+        - --health-probe-bind-address=:8081
+        - --leader-elect
+        - --zap-log-level=info
+        - --zap-encoder=json
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        - name: health
+          containerPort: 8081
+          protocol: TCP
+        - name: webhook
+          containerPort: 9443
+          protocol: TCP
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: model-storage
+          mountPath: /var/lib/llm-models
+      volumes:
+      - name: config
+        configMap:
+          name: llm-orchestrator-config
+      - name: tmp
+        emptyDir: {}
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: llm-model-storage
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - llm-orchestrator
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: llm-model-storage
+  namespace: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: fast-ssd
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: llm-orchestrator
+  namespace: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: llm-orchestrator
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      selectPolicy: Min

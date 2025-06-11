@@ -1,0 +1,416 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: llmworkloads.llm.orchestrator.io
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: crd
+spec:
+  group: llm.orchestrator.io
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              modelName:
+                type: string
+                description: "Name of the LLM model"
+              modelVersion:
+                type: string
+                description: "Version of the LLM model"
+              modelSize:
+                type: string
+                enum: ["small", "medium", "large", "xlarge"]
+                description: "Size category of the model"
+              modelType:
+                type: string
+                enum: ["text-generation", "embedding", "classification"]
+                description: "Type of the model"
+              parameters:
+                type: object
+                additionalProperties:
+                  type: string
+                description: "Model-specific parameters"
+              resources:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                    description: "CPU requirement"
+                  memory:
+                    type: string
+                    description: "Memory requirement"
+                  gpu:
+                    type: string
+                    description: "GPU requirement"
+                  gpuType:
+                    type: string
+                    description: "GPU type requirement"
+                  storage:
+                    type: string
+                    description: "Storage requirement"
+                  networkBandwidth:
+                    type: string
+                    description: "Network bandwidth requirement"
+                required: ["cpu", "memory"]
+              scaling:
+                type: object
+                properties:
+                  minReplicas:
+                    type: integer
+                    minimum: 1
+                    description: "Minimum number of replicas"
+                  maxReplicas:
+                    type: integer
+                    minimum: 1
+                    description: "Maximum number of replicas"
+                  targetMetrics:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: ["cpu", "memory", "requests_per_second", "queue_length", "latency"]
+                        target:
+                          type: number
+                      required: ["type", "target"]
+                  strategy:
+                    type: string
+                    enum: ["horizontal", "vertical", "hybrid"]
+                    default: "horizontal"
+                required: ["minReplicas", "maxReplicas"]
+              performance:
+                type: object
+                properties:
+                  maxLatency:
+                    type: string
+                    description: "Maximum acceptable latency"
+                  minThroughput:
+                    type: number
+                    description: "Minimum required throughput"
+                  maxTokensPerSec:
+                    type: integer
+                    description: "Maximum tokens per second"
+                  batchSize:
+                    type: integer
+                    description: "Optimal batch size"
+                  concurrentUsers:
+                    type: integer
+                    description: "Expected concurrent users"
+                  slaRequirements:
+                    type: object
+                    properties:
+                      availability:
+                        type: number
+                        minimum: 0
+                        maximum: 100
+                      responseTimeP95:
+                        type: integer
+                      responseTimeP99:
+                        type: integer
+                      errorRate:
+                        type: number
+                        minimum: 0
+                        maximum: 1
+              security:
+                type: object
+                properties:
+                  encryption:
+                    type: boolean
+                    default: true
+                  accessControl:
+                    type: array
+                    items:
+                      type: string
+                  networkPolicies:
+                    type: array
+                    items:
+                      type: string
+                  secretRefs:
+                    type: array
+                    items:
+                      type: string
+                  complianceLevel:
+                    type: string
+                    enum: ["basic", "strict", "enterprise"]
+                    default: "basic"
+                  dataClassification:
+                    type: string
+                    enum: ["public", "internal", "confidential"]
+                    default: "internal"
+            required: ["modelName", "modelVersion", "modelType", "resources", "scaling", "performance"]
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Pending", "Running", "Failed", "Succeeded"]
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                      enum: ["True", "False", "Unknown"]
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                  required: ["type", "status", "lastTransitionTime"]
+              currentReplicas:
+                type: integer
+              readyReplicas:
+                type: integer
+              lastScaleTime:
+                type: string
+                format: date-time
+              currentMetrics:
+                type: object
+                additionalProperties:
+                  type: number
+              resourceUsage:
+                type: object
+                properties:
+                  cpu:
+                    type: number
+                  memory:
+                    type: number
+                  gpu:
+                    type: number
+                  network:
+                    type: number
+                  storage:
+                    type: number
+              performanceMetrics:
+                type: object
+                properties:
+                  requestsPerSecond:
+                    type: number
+                  averageLatency:
+                    type: string
+                  p95Latency:
+                    type: string
+                  p99Latency:
+                    type: string
+                  tokensPerSecond:
+                    type: number
+                  errorRate:
+                    type: number
+                  queueLength:
+                    type: integer
+                  activeConnections:
+                    type: integer
+                  throughputMBps:
+                    type: number
+                  modelAccuracy:
+                    type: number
+                  lastUpdated:
+                    type: string
+                    format: date-time
+              endpoints:
+                type: array
+                items:
+                  type: string
+    additionalPrinterColumns:
+    - name: Model
+      type: string
+      description: Model name
+      jsonPath: .spec.modelName
+    - name: Version
+      type: string
+      description: Model version
+      jsonPath: .spec.modelVersion
+    - name: Type
+      type: string
+      description: Model type
+      jsonPath: .spec.modelType
+    - name: Phase
+      type: string
+      description: Current phase
+      jsonPath: .status.phase
+    - name: Replicas
+      type: string
+      description: Current/Ready replicas
+      jsonPath: .status.currentReplicas
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+  scope: Namespaced
+  names:
+    plural: llmworkloads
+    singular: llmworkload
+    kind: LLMWorkload
+    shortNames:
+    - llmw
+    - llmworkload
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: llmmodels.llm.orchestrator.io
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: crd
+spec:
+  group: llm.orchestrator.io
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              name:
+                type: string
+              version:
+                type: string
+              description:
+                type: string
+              author:
+                type: string
+              license:
+                type: string
+              type:
+                type: string
+                enum: ["text-generation", "embedding", "classification"]
+              architecture:
+                type: string
+              framework:
+                type: string
+                enum: ["pytorch", "tensorflow", "onnx"]
+              size:
+                type: object
+                properties:
+                  category:
+                    type: string
+                    enum: ["small", "medium", "large", "xlarge"]
+                  parameters:
+                    type: integer
+                  sizeBytes:
+                    type: integer
+                  quantization:
+                    type: string
+              capabilities:
+                type: array
+                items:
+                  type: string
+              languages:
+                type: array
+                items:
+                  type: string
+              inputFormat:
+                type: string
+              outputFormat:
+                type: string
+              maxTokens:
+                type: integer
+              contextLength:
+                type: integer
+              vocabulary:
+                type: integer
+              minResources:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  gpu:
+                    type: integer
+              recommendedResources:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+                  gpu:
+                    type: integer
+              files:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    path:
+                      type: string
+                    size:
+                      type: integer
+                    checksum:
+                      type: string
+                    type:
+                      type: string
+              tags:
+                type: array
+                items:
+                  type: string
+              labels:
+                type: object
+                additionalProperties:
+                  type: string
+            required: ["name", "version", "type", "framework"]
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum: ["Registering", "Available", "Deprecated", "Archived", "Failed"]
+              totalSize:
+                type: integer
+              checksum:
+                type: string
+              deployments:
+                type: array
+                items:
+                  type: object
+              usageStats:
+                type: object
+              benchmarks:
+                type: object
+        required: ["spec"]
+    additionalPrinterColumns:
+    - name: Version
+      type: string
+      jsonPath: .spec.version
+    - name: Type
+      type: string
+      jsonPath: .spec.type
+    - name: Framework
+      type: string
+      jsonPath: .spec.framework
+    - name: Size
+      type: string
+      jsonPath: .spec.size.category
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+  scope: Cluster
+  names:
+    plural: llmmodels
+    singular: llmmodel
+    kind: LLMModel
+    shortNames:
+    - llmm
+    - llmmodel

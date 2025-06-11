@@ -1,0 +1,315 @@
+# LLM Orchestrator Configuration
+# Cutting-edge control systems for containerized LLM workloads
+
+# Kubernetes Configuration
+kubeConfig: ""  # Leave empty for in-cluster config
+namespace: "llm-orchestrator"
+
+# Core Component Configurations
+scheduler:
+  strategy: "performance-aware"  # round-robin, least-loaded, performance-aware, cost-optimized
+  resourceOvercommitRatio: 1.2
+  gpuFragmentationThreshold: 0.8
+  localityPreference: true
+  modelAffinityWeight: 0.3
+  latencyOptimization: true
+  throughputOptimization: true
+  scaleUpCooldown: "3m"
+  scaleDownCooldown: "10m"
+  predictiveScaling: true
+  
+  # Quality of Service Classes
+  qosClasses:
+    premium:
+      priority: 100
+      resourceGuarantee: 0.9
+      maxLatency: 50
+      preemptionPolicy: "never"
+      burstingAllowed: true
+    standard:
+      priority: 50
+      resourceGuarantee: 0.7
+      maxLatency: 200
+      preemptionPolicy: "lower-priority"
+      burstingAllowed: true
+    basic:
+      priority: 10
+      resourceGuarantee: 0.5
+      maxLatency: 1000
+      preemptionPolicy: "always"
+      burstingAllowed: false
+
+resourceManager:
+  # Resource allocation defaults
+  defaultCPURequest: "1000m"
+  defaultMemoryRequest: "2Gi"
+  defaultGPURequest: 0
+  
+  # Optimization settings
+  optimizationInterval: "5m"
+  resourceUtilizationTarget: 0.8
+  overcommitRatio: 1.2
+  
+  # Auto-scaling thresholds
+  scaleUpThreshold: 0.8
+  scaleDownThreshold: 0.3
+  scaleUpCooldown: "3m"
+  scaleDownCooldown: "10m"
+  
+  # Resource limits
+  maxCPUPerWorkload: "8000m"
+  maxMemoryPerWorkload: "32Gi"
+  maxGPUPerWorkload: 4
+  
+  # QoS resource allocation
+  qosResourceAllocation:
+    premium:
+      cpuMultiplier: 2.0
+      memoryMultiplier: 2.0
+      gpuPriority: 10
+      burstingAllowed: true
+    standard:
+      cpuMultiplier: 1.0
+      memoryMultiplier: 1.0
+      gpuPriority: 5
+      burstingAllowed: true
+    basic:
+      cpuMultiplier: 0.5
+      memoryMultiplier: 0.5
+      gpuPriority: 1
+      burstingAllowed: false
+
+modelRegistry:
+  # Storage configuration
+  storageType: "local"  # local, s3, gcs, azure
+  storagePath: "/var/lib/llm-models"
+  cacheSize: 107374182400  # 100GB
+  cacheEnabled: true
+  
+  # Versioning configuration
+  maxVersions: 10
+  autoCleanup: true
+  cleanupInterval: "24h"
+  
+  # Performance tracking
+  metricsEnabled: true
+  benchmarkOnRegister: true
+  performanceThreshold: 0.8
+  
+  # Security
+  checksumValidation: true
+  signatureValidation: false
+
+operator:
+  # Reconciliation settings
+  reconcileInterval: "30s"
+  maxConcurrentReconciles: 10
+  
+  # Workload management
+  defaultNamespace: "llm-workloads"
+  defaultImage: "llm-server:latest"
+  defaultServiceAccount: "llm-orchestrator"
+  
+  # Resource defaults
+  defaultCPURequest: "500m"
+  defaultMemoryRequest: "1Gi"
+  defaultCPULimit: "2000m"
+  defaultMemoryLimit: "4Gi"
+  
+  # Monitoring
+  metricsEnabled: true
+  healthCheckEnabled: true
+  
+  # Security
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 2000
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+# Monitoring Configuration
+metricsEnabled: true
+metricsPort: 8080
+healthPort: 8081
+
+# Performance Tuning
+workerThreads: 10
+syncInterval: "30s"
+
+# High Availability
+leaderElection: true
+leaderLockName: "llm-orchestrator-leader"
+
+# Security
+tlsEnabled: false
+certFile: ""
+keyFile: ""
+
+# Logging Configuration
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+# Feature Flags
+features:
+  predictiveScaling: true
+  autoModelOptimization: true
+  crossClusterScheduling: false
+  advancedMetrics: true
+  costOptimization: true
+  securityScanning: false
+
+# Advanced Settings
+advanced:
+  # Model optimization
+  modelOptimization:
+    enabled: true
+    quantizationEnabled: true
+    pruningEnabled: false
+    distillationEnabled: false
+  
+  # Network optimization
+  networkOptimization:
+    enabled: true
+    compressionEnabled: true
+    batchingEnabled: true
+    pipeliningEnabled: true
+  
+  # Cache optimization
+  cacheOptimization:
+    enabled: true
+    layerCaching: true
+    resultCaching: true
+    prefetching: true
+  
+  # Experimental features
+  experimental:
+    multiModalSupport: false
+    federatedLearning: false
+    edgeDeployment: false
+    quantumOptimization: false
+
+# Integration Settings
+integrations:
+  # Monitoring systems
+  prometheus:
+    enabled: true
+    endpoint: "http://prometheus:9090"
+    scrapeInterval: "15s"
+  
+  grafana:
+    enabled: true
+    endpoint: "http://grafana:3000"
+    dashboardsEnabled: true
+  
+  # Alerting
+  alertmanager:
+    enabled: true
+    endpoint: "http://alertmanager:9093"
+    
+  # External APIs
+  externalAPIs:
+    huggingFace:
+      enabled: false
+      apiKey: ""
+    openAI:
+      enabled: false
+      apiKey: ""
+    anthropic:
+      enabled: false
+      apiKey: ""
+
+# Resource Profiles
+resourceProfiles:
+  small:
+    cpu: "500m"
+    memory: "1Gi"
+    gpu: 0
+    maxReplicas: 3
+  medium:
+    cpu: "2000m"
+    memory: "4Gi"
+    gpu: 1
+    maxReplicas: 5
+  large:
+    cpu: "4000m"
+    memory: "16Gi"
+    gpu: 2
+    maxReplicas: 10
+  xlarge:
+    cpu: "8000m"
+    memory: "32Gi"
+    gpu: 4
+    maxReplicas: 20
+
+# Model Profiles
+modelProfiles:
+  textGeneration:
+    small:
+      parameters: "7B"
+      contextLength: 4096
+      resourceProfile: "medium"
+    medium:
+      parameters: "13B"
+      contextLength: 8192
+      resourceProfile: "large"
+    large:
+      parameters: "70B"
+      contextLength: 16384
+      resourceProfile: "xlarge"
+  
+  embedding:
+    small:
+      dimensions: 384
+      resourceProfile: "small"
+    medium:
+      dimensions: 768
+      resourceProfile: "medium"
+    large:
+      dimensions: 1536
+      resourceProfile: "large"
+  
+  classification:
+    small:
+      classes: 100
+      resourceProfile: "small"
+    medium:
+      classes: 1000
+      resourceProfile: "medium"
+    large:
+      classes: 10000
+      resourceProfile: "large"
+
+# Deployment Strategies
+deploymentStrategies:
+  canary:
+    enabled: true
+    trafficSplit: 10  # percentage
+    duration: "10m"
+    successThreshold: 0.99
+  
+  blueGreen:
+    enabled: true
+    switchDelay: "5m"
+    rollbackThreshold: 0.95
+  
+  rollingUpdate:
+    enabled: true
+    maxUnavailable: "25%"
+    maxSurge: "25%"
+
+# Disaster Recovery
+disasterRecovery:
+  enabled: true
+  backupInterval: "6h"
+  retentionPeriod: "30d"
+  crossRegionReplication: false
+  automaticFailover: true
+  rpoTarget: "1h"  # Recovery Point Objective
+  rtoTarget: "15m" # Recovery Time Objective

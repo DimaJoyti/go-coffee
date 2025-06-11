@@ -59,7 +59,7 @@ func TestKafkaConsumer_RegisterHandler(t *testing.T) {
 	mockConsumer := NewMockKafkaConsumer()
 
 	// Set up expectations
-	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("events.EventHandler")).Return()
 
 	// Create a handler
 	handler := func(event events.Event) error {
@@ -92,7 +92,7 @@ func TestKafkaConsumer_SimulateEvent(t *testing.T) {
 	}
 
 	// Set up expectations
-	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("events.EventHandler")).Return()
 
 	// Register the handler
 	mockConsumer.RegisterHandler(events.EventTypeAccountCreated, handler)
@@ -126,18 +126,18 @@ func TestEventHandlers_RegisterHandlers(t *testing.T) {
 	mockConsumer := NewMockKafkaConsumer()
 
 	// Set up expectations for all event types
-	mockConsumer.On("RegisterHandler", events.EventTypeOrderCreated, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeOrderStatusChanged, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeOrderDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeProductCreated, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeProductUpdated, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeProductDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeVendorCreated, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeVendorUpdated, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeVendorDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeAccountUpdated, mock.AnythingOfType("func(events.Event) error")).Return()
-	mockConsumer.On("RegisterHandler", events.EventTypeAccountDeleted, mock.AnythingOfType("func(events.Event) error")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeOrderCreated, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeOrderStatusChanged, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeOrderDeleted, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeProductCreated, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeProductUpdated, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeProductDeleted, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeVendorCreated, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeVendorUpdated, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeVendorDeleted, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountCreated, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountUpdated, mock.AnythingOfType("events.EventHandler")).Return()
+	mockConsumer.On("RegisterHandler", events.EventTypeAccountDeleted, mock.AnythingOfType("events.EventHandler")).Return()
 
 	// Create event handlers (simplified, no service dependencies)
 	eventHandlers := NewEventHandlers()

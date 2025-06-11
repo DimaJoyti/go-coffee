@@ -24,8 +24,9 @@ CORE_SERVICES := api-gateway producer consumer streams
 WEB3_SERVICES := auth-service order-service kitchen-service payment-service
 AI_SERVICES := ai-arbitrage-service ai-order-service
 INFRASTRUCTURE_SERVICES := security-gateway user-gateway
+LLM_SERVICES := llm-orchestrator llm-orchestrator-simple
 
-ALL_SERVICES := $(CORE_SERVICES) $(WEB3_SERVICES) $(AI_SERVICES) $(INFRASTRUCTURE_SERVICES)
+ALL_SERVICES := $(CORE_SERVICES) $(WEB3_SERVICES) $(AI_SERVICES) $(INFRASTRUCTURE_SERVICES) $(LLM_SERVICES)
 
 .PHONY: help
 help: ## Show this help message
@@ -42,7 +43,7 @@ help: ## Show this help message
 # =============================================================================
 
 .PHONY: build
-build: clean deps build-core build-web3 ## Build all services
+build: clean deps build-core build-web3 build-llm ## Build all services
 
 .PHONY: clean
 clean: ## Clean build artifacts
@@ -85,6 +86,33 @@ build-web3: ## Build Web3 services
 			echo "$(YELLOW)  ⚠️  $$service directory not found$(NC)"; \
 		fi; \
 	done
+
+.PHONY: build-llm
+build-llm: ## Build LLM services
+	@echo "$(CYAN)🤖 Building LLM Services...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@for service in $(LLM_SERVICES); do \
+		echo "$(BLUE)Building $$service...$(NC)"; \
+		if [ -d "cmd/$$service" ]; then \
+			go build $(LDFLAGS) -o $(BUILD_DIR)/$$service ./cmd/$$service && echo "$(GREEN)  ✅ $$service built$(NC)"; \
+		else \
+			echo "$(YELLOW)  ⚠️  $$service directory not found$(NC)"; \
+		fi; \
+	done
+
+.PHONY: build-llm-orchestrator
+build-llm-orchestrator: ## Build LLM Orchestrator specifically
+	@echo "$(CYAN)🤖 Building LLM Orchestrator...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@go build $(LDFLAGS) -o $(BUILD_DIR)/llm-orchestrator ./cmd/llm-orchestrator
+	@echo "$(GREEN)✅ LLM Orchestrator built$(NC)"
+
+.PHONY: build-llm-orchestrator-simple
+build-llm-orchestrator-simple: ## Build Simple LLM Orchestrator
+	@echo "$(CYAN)🤖 Building Simple LLM Orchestrator...$(NC)"
+	@mkdir -p $(BUILD_DIR)
+	@go build $(LDFLAGS) -o $(BUILD_DIR)/llm-orchestrator-simple ./cmd/llm-orchestrator-simple
+	@echo "$(GREEN)✅ Simple LLM Orchestrator built$(NC)"
 
 .PHONY: test
 test: ## Run tests
@@ -167,3 +195,74 @@ install-tools: ## Install development tools
 	@go install golang.org/x/tools/cmd/goimports@latest
 	@go install github.com/swaggo/swag/cmd/swag@latest
 	@echo "$(GREEN)✅ Tools installed$(NC)"
+
+# =============================================================================
+# LLM Orchestrator Targets
+# =============================================================================
+
+.PHONY: test-llm-orchestrator
+test-llm-orchestrator: ## Run LLM orchestrator tests
+	@echo "$(CYAN)🧪 Running LLM orchestrator tests...$(NC)"
+	@go test -v -race ./internal/llm-orchestrator/...
+	@echo "$(GREEN)✅ LLM orchestrator tests complete$(NC)"
+
+.PHONY: docker-build-llm-orchestrator
+docker-build-llm-orchestrator: ## Build LLM Orchestrator Docker image
+	@echo "$(CYAN)🐳 Building LLM Orchestrator Docker image...$(NC)"
+	@docker build -f docker/Dockerfile.llm-orchestrator -t ghcr.io/dimajoyti/go-coffee-llm-orchestrator:$(VERSION) .
+	@echo "$(GREEN)✅ LLM Orchestrator Docker image built$(NC)"
+
+.PHONY: deploy-llm-orchestrator
+deploy-llm-orchestrator: ## Deploy LLM Orchestrator to Kubernetes
+	@echo "$(CYAN)🚀 Deploying LLM Orchestrator...$(NC)"
+	@kubectl apply -f k8s/llm-orchestrator/namespace.yaml
+	@kubectl apply -f k8s/llm-orchestrator/crd.yaml
+	@kubectl apply -f k8s/llm-orchestrator/rbac.yaml
+	@kubectl apply -f k8s/llm-orchestrator/deployment.yaml
+	@echo "$(GREEN)✅ LLM Orchestrator deployed$(NC)"
+
+.PHONY: undeploy-llm-orchestrator
+undeploy-llm-orchestrator: ## Remove LLM Orchestrator from Kubernetes
+	@echo "$(CYAN)🗑️ Removing LLM Orchestrator...$(NC)"
+	@kubectl delete -f k8s/llm-orchestrator/deployment.yaml --ignore-not-found=true
+	@kubectl delete -f k8s/llm-orchestrator/rbac.yaml --ignore-not-found=true
+	@kubectl delete -f k8s/llm-orchestrator/crd.yaml --ignore-not-found=true
+	@kubectl delete -f k8s/llm-orchestrator/namespace.yaml --ignore-not-found=true
+	@echo "$(GREEN)✅ LLM Orchestrator removed$(NC)"
+
+.PHONY: logs-llm-orchestrator
+logs-llm-orchestrator: ## View LLM Orchestrator logs
+	@echo "$(CYAN)📋 Viewing LLM Orchestrator logs...$(NC)"
+	@kubectl logs -f -n llm-orchestrator deployment/llm-orchestrator
+
+.PHONY: status-llm-orchestrator
+status-llm-orchestrator: ## Check LLM Orchestrator status
+	@echo "$(CYAN)📊 Checking LLM Orchestrator status...$(NC)"
+	@kubectl get pods -n llm-orchestrator
+	@kubectl get llmworkloads -A
+
+.PHONY: run-llm-orchestrator
+run-llm-orchestrator: build-llm-orchestrator ## Run LLM Orchestrator locally
+	@echo "$(CYAN)🤖 Starting LLM Orchestrator locally...$(NC)"
+	@./bin/llm-orchestrator --config=config/llm-orchestrator.yaml --zap-log-level=info
+
+# Simple LLM Orchestrator Targets
+.PHONY: build-simple-llm
+build-simple-llm: build-llm-orchestrator-simple ## Build Simple LLM Orchestrator
+
+.PHONY: run-simple-llm
+run-simple-llm: build-llm-orchestrator-simple ## Run Simple LLM Orchestrator locally
+	@echo "$(CYAN)🤖 Starting Simple LLM Orchestrator locally...$(NC)"
+	@./bin/llm-orchestrator-simple --config=config/llm-orchestrator-simple.yaml --port=8080 --log-level=info
+
+.PHONY: docker-build-simple-llm
+docker-build-simple-llm: ## Build Simple LLM Orchestrator Docker image
+	@echo "$(CYAN)🐳 Building Simple LLM Orchestrator Docker image...$(NC)"
+	@docker build -f docker/Dockerfile.llm-orchestrator-simple -t ghcr.io/dimajoyti/go-coffee-llm-orchestrator-simple:$(VERSION) .
+	@echo "$(GREEN)✅ Simple LLM Orchestrator Docker image built$(NC)"
+
+.PHONY: test-simple-llm
+test-simple-llm: ## Test Simple LLM Orchestrator
+	@echo "$(CYAN)🧪 Testing Simple LLM Orchestrator...$(NC)"
+	@go test -v ./cmd/llm-orchestrator-simple/...
+	@echo "$(GREEN)✅ Simple LLM Orchestrator tests complete$(NC)"

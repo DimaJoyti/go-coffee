@@ -1,0 +1,190 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: llm-orchestrator
+  namespace: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+rules:
+# Core Kubernetes resources
+- apiGroups: [""]
+  resources: ["nodes", "pods", "services", "configmaps", "secrets", "persistentvolumes", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+# Apps resources
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Autoscaling resources
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Metrics resources
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+
+# Custom metrics
+- apiGroups: ["custom.metrics.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list"]
+
+# External metrics
+- apiGroups: ["external.metrics.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list"]
+
+# Networking resources
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies", "ingresses"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Storage resources
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "volumeattachments"]
+  verbs: ["get", "list", "watch"]
+
+# Policy resources
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Coordination for leader election
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Custom Resource Definitions
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# LLM Orchestrator CRDs (will be created)
+- apiGroups: ["llm.orchestrator.io"]
+  resources: ["llmworkloads", "llmmodels", "llmdeployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["llm.orchestrator.io"]
+  resources: ["llmworkloads/status", "llmmodels/status", "llmdeployments/status"]
+  verbs: ["get", "update", "patch"]
+
+# Admission controllers
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: llm-orchestrator
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: orchestrator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: llm-orchestrator
+subjects:
+- kind: ServiceAccount
+  name: llm-orchestrator
+  namespace: llm-orchestrator
+
+---
+# Role for workload namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: llm-workload-manager
+  namespace: llm-workloads
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: workload-manager
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: llm-workload-manager
+  namespace: llm-workloads
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: workload-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: llm-workload-manager
+subjects:
+- kind: ServiceAccount
+  name: llm-orchestrator
+  namespace: llm-orchestrator
+
+---
+# Service account for LLM workloads
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: llm-orchestrator
+  namespace: llm-workloads
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: workload
+
+---
+# Role for LLM workloads
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: llm-workload
+  namespace: llm-workloads
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: workload
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: llm-workload
+  namespace: llm-workloads
+  labels:
+    app.kubernetes.io/name: llm-orchestrator
+    app.kubernetes.io/component: workload
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: llm-workload
+subjects:
+- kind: ServiceAccount
+  name: llm-orchestrator
+  namespace: llm-workloads

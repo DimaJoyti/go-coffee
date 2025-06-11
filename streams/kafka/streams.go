@@ -1,47 +1,47 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"kafka_streams/config"
-	"kafka_streams/models"
+	"github.com/DimaJoyti/go-coffee/streams/config"
+	"github.com/DimaJoyti/go-coffee/streams/models"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/IBM/sarama"
 )
 
 // StreamProcessor is responsible for processing Kafka streams
 type StreamProcessor struct {
-	consumer *kafka.Consumer
-	producer *kafka.Producer
+	consumer sarama.ConsumerGroup
+	producer sarama.SyncProducer
 	config   *config.Config
 	running  bool
+	ready    chan bool
 }
 
 // NewStreamProcessor creates a new Kafka stream processor
 func NewStreamProcessor(cfg *config.Config) (*StreamProcessor, error) {
-	// Create Kafka consumer
-	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":        cfg.Kafka.Brokers[0],
-		"group.id":                 cfg.Kafka.ApplicationID,
-		"auto.offset.reset":        cfg.Kafka.AutoOffsetReset,
-		"enable.auto.commit":       true,
-		"auto.commit.interval.ms":  5000,
-		"session.timeout.ms":       30000,
-	})
+	// Configure Sarama
+	config := sarama.NewConfig()
+	config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+	config.Consumer.Offsets.Initial = sarama.OffsetOldest
+	config.Consumer.Return.Errors = true
+	config.Producer.Return.Successes = true
+	config.Producer.RequiredAcks = sarama.WaitForAll
+	config.Producer.Retry.Max = 3
+
+	// Create consumer group
+	consumer, err := sarama.NewConsumerGroup(cfg.Kafka.Brokers, cfg.Kafka.ApplicationID, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create consumer: %w", err)
+		return nil, fmt.Errorf("failed to create consumer group: %w", err)
 	}
 
-	// Create Kafka producer
-	producer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": cfg.Kafka.Brokers[0],
-		"acks":              "all",
-	})
+	// Create producer
+	producer, err := sarama.NewSyncProducer(cfg.Kafka.Brokers, config)
 	if err != nil {
 		consumer.Close()
 		return nil, fmt.Errorf("failed to create producer: %w", err)
@@ -52,7 +52,46 @@ func NewStreamProcessor(cfg *config.Config) (*StreamProcessor, error) {
 		producer: producer,
 		config:   cfg,
 		running:  false,
+		ready:    make(chan bool),
 	}, nil
+}
+
+// ConsumerGroupHandler implements sarama.ConsumerGroupHandler
+type ConsumerGroupHandler struct {
+	processor *StreamProcessor
+}
+
+// Setup is run at the beginning of a new session, before ConsumeClaim
+func (h *ConsumerGroupHandler) Setup(sarama.ConsumerGroupSession) error {
+	close(h.processor.ready)
+	return nil
+}
+
+// Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
+func (h *ConsumerGroupHandler) Cleanup(sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+// ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages()
+func (h *ConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	for {
+		select {
+		case message := <-claim.Messages():
+			if message == nil {
+				return nil
+			}
+
+			// Process the message
+			if err := h.processor.processOrder(message); err != nil {
+				log.Printf("Error processing message: %v", err)
+			} else {
+				session.MarkMessage(message, "")
+			}
+
+		case <-session.Context().Done():
+			return nil
+		}
+	}
 }
 
 // Start starts the stream processor
@@ -61,19 +100,43 @@ func (sp *StreamProcessor) Start() error {
 		return fmt.Errorf("stream processor is already running")
 	}
 
-	// Subscribe to input topic
-	err := sp.consumer.Subscribe(sp.config.Kafka.InputTopic, nil)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to topic: %w", err)
-	}
+	sp.running = true
 
-	// Set up signal handler for graceful shutdown
+	// Set up signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create consumer group handler
+	handler := &ConsumerGroupHandler{processor: sp}
+
+	// Start consuming
+	go func() {
+		for {
+			if err := sp.consumer.Consume(ctx, []string{sp.config.Kafka.InputTopic}, handler); err != nil {
+				log.Printf("Error from consumer: %v", err)
+				return
+			}
+
+			if ctx.Err() != nil {
+				return
+			}
+
+			sp.ready = make(chan bool)
+		}
+	}()
+
+	// Wait for consumer to be ready
+	<-sp.ready
+	log.Println("Stream processor started successfully")
+
+	// Set up signal handling
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start processing
-	sp.running = true
-	go sp.processMessages(sigchan)
+	// Wait for termination signal
+	<-sigchan
+	log.Println("Terminating stream processor...")
+	cancel()
 
 	return nil
 }
@@ -89,47 +152,16 @@ func (sp *StreamProcessor) Stop() {
 	sp.producer.Close()
 }
 
-// processMessages processes messages from the input topic
-func (sp *StreamProcessor) processMessages(sigchan chan os.Signal) {
-	defer func() {
-		sp.running = false
-		sp.consumer.Close()
-		sp.producer.Close()
-	}()
-
-	for sp.running {
-		select {
-		case sig := <-sigchan:
-			log.Printf("Caught signal %v: terminating\n", sig)
-			return
-		default:
-			// Poll for messages
-			msg, err := sp.consumer.ReadMessage(100 * time.Millisecond)
-			if err != nil {
-				// Timeout or error
-				if err.(kafka.Error).Code() != kafka.ErrTimedOut {
-					log.Printf("Error reading message: %v\n", err)
-				}
-				continue
-			}
-
-			// Process the message
-			if err := sp.processOrder(msg); err != nil {
-				log.Printf("Error processing message: %v\n", err)
-			}
-		}
-	}
-}
-
 // processOrder processes a single order message
-func (sp *StreamProcessor) processOrder(msg *kafka.Message) error {
+func (sp *StreamProcessor) processOrder(msg *sarama.ConsumerMessage) error {
 	// Parse the order
 	order, err := models.FromJSON(msg.Value)
 	if err != nil {
 		return fmt.Errorf("error parsing order: %w", err)
 	}
 
-	log.Printf("Processing order: %s for %s\n", order.ID, order.CustomerName)
+	log.Printf("Processing order: %s for %s from topic %s partition %d offset %d\n",
+		order.ID, order.CustomerName, msg.Topic, msg.Partition, msg.Offset)
 
 	// Create a processed order
 	processedOrder := models.NewProcessedOrder(order)
@@ -141,32 +173,19 @@ func (sp *StreamProcessor) processOrder(msg *kafka.Message) error {
 	}
 
 	// Send to output topic
-	err = sp.producer.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &sp.config.Kafka.OutputTopic,
-			Partition: kafka.PartitionAny,
-		},
-		Value: processedOrderJSON,
-		Key:   msg.Key, // Preserve the original key
-	}, nil)
+	producerMsg := &sarama.ProducerMessage{
+		Topic: sp.config.Kafka.OutputTopic,
+		Key:   sarama.ByteEncoder(msg.Key), // Preserve the original key
+		Value: sarama.ByteEncoder(processedOrderJSON),
+	}
+
+	partition, offset, err := sp.producer.SendMessage(producerMsg)
 	if err != nil {
 		return fmt.Errorf("error producing message: %w", err)
 	}
 
-	return nil
-}
+	log.Printf("Delivered processed order to topic %s [%d] at offset %d\n",
+		sp.config.Kafka.OutputTopic, partition, offset)
 
-// DeliveryReportHandler handles delivery reports from the producer
-func (sp *StreamProcessor) DeliveryReportHandler() {
-	for e := range sp.producer.Events() {
-		switch ev := e.(type) {
-		case *kafka.Message:
-			if ev.TopicPartition.Error != nil {
-				log.Printf("Delivery failed: %v\n", ev.TopicPartition.Error)
-			} else {
-				log.Printf("Delivered message to topic %s [%d] at offset %v\n",
-					*ev.TopicPartition.Topic, ev.TopicPartition.Partition, ev.TopicPartition.Offset)
-			}
-		}
-	}
+	return nil
 }

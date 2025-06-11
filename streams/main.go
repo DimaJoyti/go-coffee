@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"kafka_streams/config"
-	"kafka_streams/kafka"
+	"github.com/DimaJoyti/go-coffee/streams/config"
+	"github.com/DimaJoyti/go-coffee/streams/kafka"
 )
 
 func main() {
@@ -36,9 +36,6 @@ func main() {
 	// Set up signal handler for graceful shutdown
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Start delivery report handler
-	go processor.DeliveryReportHandler()
 
 	// Wait for termination signal
 	sig := <-sigchan

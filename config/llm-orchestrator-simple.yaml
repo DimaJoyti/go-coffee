@@ -1,0 +1,177 @@
+# Simple LLM Orchestrator Configuration
+# Lightweight version for development and testing
+
+# Server Configuration
+port: 8080
+logLevel: "info"
+
+# Metrics and Monitoring
+metricsInterval: "30s"
+
+# Resource Management
+maxWorkloads: 100
+defaultCPU: "1000m"
+defaultMemory: "2Gi"
+defaultGPU: 0
+
+# Scheduling Configuration
+scheduling:
+  strategy: "round-robin"  # round-robin, least-loaded, performance-aware
+  enableGPUScheduling: false
+  enableModelAffinity: false
+
+# Performance Tuning
+performance:
+  maxConcurrentRequests: 1000
+  requestTimeout: "30s"
+  healthCheckInterval: "10s"
+
+# Development Settings
+development:
+  enableDebugEndpoints: true
+  simulateMetrics: true
+  autoCreateSampleWorkloads: false
+
+# Logging Configuration
+logging:
+  level: "info"
+  format: "json"
+  enableStackTrace: false
+
+# Sample Workload Definitions
+sampleWorkloads:
+  - name: "llama2-7b"
+    modelName: "llama2"
+    modelType: "text-generation"
+    resources:
+      cpu: "2000m"
+      memory: "8Gi"
+      gpu: 1
+    labels:
+      environment: "development"
+      team: "ai-research"
+  
+  - name: "bert-base"
+    modelName: "bert-base-uncased"
+    modelType: "classification"
+    resources:
+      cpu: "1000m"
+      memory: "4Gi"
+      gpu: 0
+    labels:
+      environment: "development"
+      team: "nlp"
+  
+  - name: "gpt-3.5-turbo"
+    modelName: "gpt-3.5-turbo"
+    modelType: "text-generation"
+    resources:
+      cpu: "4000m"
+      memory: "16Gi"
+      gpu: 2
+    labels:
+      environment: "production"
+      team: "ai-platform"
+
+# Resource Profiles
+resourceProfiles:
+  small:
+    cpu: "500m"
+    memory: "1Gi"
+    gpu: 0
+    description: "Small workloads for testing"
+  
+  medium:
+    cpu: "2000m"
+    memory: "8Gi"
+    gpu: 1
+    description: "Medium workloads for development"
+  
+  large:
+    cpu: "8000m"
+    memory: "32Gi"
+    gpu: 4
+    description: "Large workloads for production"
+
+# Model Configurations
+modelConfigs:
+  llama2:
+    type: "text-generation"
+    framework: "pytorch"
+    quantization: "fp16"
+    contextLength: 4096
+    parameters: "7B"
+  
+  bert-base-uncased:
+    type: "classification"
+    framework: "transformers"
+    quantization: "fp32"
+    contextLength: 512
+    parameters: "110M"
+  
+  gpt-3.5-turbo:
+    type: "text-generation"
+    framework: "openai"
+    quantization: "fp16"
+    contextLength: 16384
+    parameters: "175B"
+
+# Monitoring and Alerting
+monitoring:
+  enabled: true
+  metricsEndpoint: "/metrics"
+  healthEndpoint: "/health"
+  
+  alerts:
+    highCPUUsage:
+      threshold: 0.8
+      duration: "5m"
+    
+    highMemoryUsage:
+      threshold: 0.9
+      duration: "3m"
+    
+    highErrorRate:
+      threshold: 0.05
+      duration: "2m"
+
+# Security Configuration
+security:
+  enableAuthentication: false
+  enableAuthorization: false
+  enableTLS: false
+  allowedOrigins: ["*"]
+  
+  # API Keys (for future use)
+  apiKeys:
+    enabled: false
+    headerName: "X-API-Key"
+
+# Feature Flags
+features:
+  enableAdvancedScheduling: false
+  enableModelCaching: true
+  enableMetricsCollection: true
+  enableAutoScaling: false
+  enableLoadBalancing: false
+
+# Integration Settings
+integrations:
+  prometheus:
+    enabled: false
+    endpoint: "http://localhost:9090"
+  
+  grafana:
+    enabled: false
+    endpoint: "http://localhost:3000"
+  
+  jaeger:
+    enabled: false
+    endpoint: "http://localhost:14268"
+
+# Development and Testing
+testing:
+  enableTestEndpoints: true
+  mockExternalServices: true
+  simulateLatency: false
+  simulateErrors: false

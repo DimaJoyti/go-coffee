@@ -6,14 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/gorilla/mux"
 	"github.com/DimaJoyti/go-coffee/accounts-service/internal/config"
-	"github.com/DimaJoyti/go-coffee/accounts-service/internal/graphql/generated"
-	"github.com/DimaJoyti/go-coffee/accounts-service/internal/graphql/resolvers"
 	"github.com/DimaJoyti/go-coffee/accounts-service/internal/logging"
 	"github.com/DimaJoyti/go-coffee/accounts-service/internal/metrics"
+	"github.com/gorilla/mux"
 )
 
 // HTTPServer represents the HTTP server
@@ -46,26 +42,16 @@ func NewHTTPServer(
 	// Create router
 	router := mux.NewRouter()
 
-	// Create GraphQL resolver
-	gqlResolver := resolvers.NewResolver(
-		resolver.AccountService,
-		resolver.VendorService,
-		resolver.ProductService,
-		resolver.OrderService,
-	)
-
-	// Create GraphQL server
-	gqlServer := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{
-		Resolvers: gqlResolver,
-	}))
+	// Note: GraphQL temporarily disabled due to interface compatibility issues
+	// Will be re-enabled after schema regeneration
+	// For now, providing basic health check and metrics endpoints
 
 	// Add metrics middleware
 	router.Use(metricsInstance.HTTPMiddleware)
 
 	// Set up routes
 	router.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
-	router.Handle("/graphql", gqlServer)
-	router.Handle("/playground", playground.Handler("GraphQL Playground", "/graphql"))
+	// GraphQL endpoints temporarily disabled
 
 	// Add metrics endpoint
 	if cfg.Metrics.Enabled {

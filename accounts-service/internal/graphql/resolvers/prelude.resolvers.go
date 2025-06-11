@@ -9,29 +9,32 @@ import (
 	"fmt"
 
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/DimaJoyti/go-coffee/accounts-service/internal/graphql/generated"
 )
 
 // IsDeprecated is the resolver for the isDeprecated field.
-func (r *__InputValueResolver) IsDeprecated(ctx context.Context, obj *introspection.InputValue) (bool, error) {
+func (r *InputValueResolver) IsDeprecated(ctx context.Context, obj *introspection.InputValue) (bool, error) {
 	panic(fmt.Errorf("not implemented: IsDeprecated - isDeprecated"))
 }
 
 // DeprecationReason is the resolver for the deprecationReason field.
-func (r *__InputValueResolver) DeprecationReason(ctx context.Context, obj *introspection.InputValue) (*string, error) {
+func (r *InputValueResolver) DeprecationReason(ctx context.Context, obj *introspection.InputValue) (*string, error) {
 	panic(fmt.Errorf("not implemented: DeprecationReason - deprecationReason"))
 }
 
 // IsOneOf is the resolver for the isOneOf field.
-func (r *__TypeResolver) IsOneOf(ctx context.Context, obj *introspection.Type) (*bool, error) {
+func (r *TypeResolver) IsOneOf(ctx context.Context, obj *introspection.Type) (*bool, error) {
 	panic(fmt.Errorf("not implemented: IsOneOf - isOneOf"))
 }
 
-// __InputValue returns generated.__InputValueResolver implementation.
-func (r *Resolver) __InputValue() generated.__InputValueResolver { return &__InputValueResolver{r} }
+// __InputValue returns __InputValueResolver implementation.
+func (r *Resolver) __InputValue() interface{} {
+	return &InputValueResolver{r}
+}
 
-// __Type returns generated.__TypeResolver implementation.
-func (r *Resolver) __Type() generated.__TypeResolver { return &__TypeResolver{r} }
+// __Type returns __TypeResolver implementation.
+func (r *Resolver) __Type() interface{} {
+	return &TypeResolver{r}
+}
 
-type __InputValueResolver struct{ *Resolver }
-type __TypeResolver struct{ *Resolver }
+type InputValueResolver struct{ *Resolver }
+type TypeResolver struct{ *Resolver }

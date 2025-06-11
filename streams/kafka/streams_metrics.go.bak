@@ -8,31 +8,32 @@ import (
 	"syscall"
 	"time"
 
-	"kafka_streams/config"
-	"kafka_streams/metrics"
-	"kafka_streams/models"
+	"github.com/DimaJoyti/go-coffee/streams/config"
+	"github.com/DimaJoyti/go-coffee/streams/metrics"
+	"github.com/DimaJoyti/go-coffee/streams/models"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+github.com/IBM/sarama
 )
 
-// StreamProcessor is responsible for processing Kafka streams
-type StreamProcessor struct {
-	consumer *kafka.Consumer
-	producer *kafka.Producer
+// StreamProcessorWithMetrics is responsible for processing Kafka streams with metrics
+type StreamProcessorWithMetrics struct {
+	consumer sarama.ConsumerGroup
+	producer sarama.SyncProducer
 	config   *config.Config
 	running  bool
+	ready    chan bool
 }
 
-// NewStreamProcessor creates a new Kafka stream processor
-func NewStreamProcessor(cfg *config.Config) (*StreamProcessor, error) {
+// NewStreamProcessorWithMetrics creates a new Kafka stream processor with metrics
+func NewStreamProcessorWithMetrics(cfg *config.Config) (*StreamProcessorWithMetrics, error) {
 	// Create Kafka consumer
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":        cfg.Kafka.Brokers[0],
-		"group.id":                 cfg.Kafka.ApplicationID,
-		"auto.offset.reset":        cfg.Kafka.AutoOffsetReset,
-		"enable.auto.commit":       true,
-		"auto.commit.interval.ms":  5000,
-		"session.timeout.ms":       30000,
+		"bootstrap.servers":       cfg.Kafka.Brokers[0],
+		"group.id":                cfg.Kafka.ApplicationID,
+		"auto.offset.reset":       cfg.Kafka.AutoOffsetReset,
+		"enable.auto.commit":      true,
+		"auto.commit.interval.ms": 5000,
+		"session.timeout.ms":      30000,
 	})
 	if err != nil {
 		metrics.StreamsErrorsTotal.WithLabelValues("consumer_creation").Inc()
@@ -50,7 +51,7 @@ func NewStreamProcessor(cfg *config.Config) (*StreamProcessor, error) {
 		return nil, fmt.Errorf("failed to create producer: %w", err)
 	}
 
-	return &StreamProcessor{
+	return &StreamProcessorWithMetrics{
 		consumer: consumer,
 		producer: producer,
 		config:   cfg,
@@ -59,7 +60,7 @@ func NewStreamProcessor(cfg *config.Config) (*StreamProcessor, error) {
 }
 
 // Start starts the stream processor
-func (sp *StreamProcessor) Start() error {
+func (sp *StreamProcessorWithMetrics) Start() error {
 	if sp.running {
 		return fmt.Errorf("stream processor is already running")
 	}
@@ -84,7 +85,7 @@ func (sp *StreamProcessor) Start() error {
 }
 
 // Stop stops the stream processor
-func (sp *StreamProcessor) Stop() {
+func (sp *StreamProcessorWithMetrics) Stop() {
 	if !sp.running {
 		return
 	}
@@ -96,7 +97,7 @@ func (sp *StreamProcessor) Stop() {
 }
 
 // processMessages processes messages from the input topic
-func (sp *StreamProcessor) processMessages(sigchan chan os.Signal) {
+func (sp *StreamProcessorWithMetrics) processMessages(sigchan chan os.Signal) {
 	defer func() {
 		sp.running = false
 		metrics.StreamsRunning.Set(0)
@@ -139,7 +140,7 @@ func (sp *StreamProcessor) processMessages(sigchan chan os.Signal) {
 }
 
 // processOrder processes a single order message
-func (sp *StreamProcessor) processOrder(msg *kafka.Message) error {
+func (sp *StreamProcessorWithMetrics) processOrder(msg *kafka.Message) error {
 	// Parse the order
 	order, err := models.FromJSON(msg.Value)
 	if err != nil {
@@ -178,7 +179,7 @@ func (sp *StreamProcessor) processOrder(msg *kafka.Message) error {
 }
 
 // DeliveryReportHandler handles delivery reports from the producer
-func (sp *StreamProcessor) DeliveryReportHandler() {
+func (sp *StreamProcessorWithMetrics) DeliveryReportHandler() {
 	for e := range sp.producer.Events() {
 		switch ev := e.(type) {
 		case *kafka.Message:
