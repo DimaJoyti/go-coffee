@@ -1,18 +1,37 @@
 #!/bin/bash
 
-# Crypto Market Terminal Startup Script
-# This script helps you get the crypto terminal up and running quickly
+# Go Coffee Crypto Terminal - Enhanced Startup Script
+# Advanced cryptocurrency trading platform with Bright Data integration
+# Version: 2.0.0
+# Usage: ./start.sh [OPTIONS]
+#   -m, --mode MODE     Startup mode (start|docker|dev|test|production)
+#   -e, --env ENV       Environment (development|staging|production)
+#   -w, --watch         Enable hot reload in development
+#   -b, --build-only    Build without starting
+#   -c, --clean         Clean build before starting
+#   -h, --help          Show this help message
 
-set -e
+set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source shared library from main project if available
+if [[ -f "$PROJECT_ROOT/scripts/lib/common.sh" ]]; then
+    source "$PROJECT_ROOT/scripts/lib/common.sh"
+    SHARED_LIB_AVAILABLE=true
+else
+    # Fallback color definitions
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    PURPLE='\033[0;35m'
+    CYAN='\033[0;36m'
+    NC='\033[0m' # No Color
+    SHARED_LIB_AVAILABLE=false
+fi
 
 # ASCII Art Banner
 print_banner() {
@@ -35,26 +54,141 @@ EOF
     echo -e "${NC}"
 }
 
-# Print colored output
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+# Configuration
+STARTUP_MODE="start"
+ENVIRONMENT="development"
+WATCH_MODE=false
+BUILD_ONLY=false
+CLEAN_BUILD=false
+
+# Print colored output (use shared library if available, otherwise fallback)
+if [[ "$SHARED_LIB_AVAILABLE" == "true" ]]; then
+    # Use shared library functions
+    print_terminal_status() { print_status "$1"; }
+    print_terminal_warning() { print_warning "$1"; }
+    print_terminal_error() { print_error "$1"; }
+    print_terminal_step() { print_info "$1"; }
+else
+    # Fallback functions
+    print_terminal_status() {
+        echo -e "${GREEN}[INFO]${NC} $1"
+    }
+
+    print_terminal_warning() {
+        echo -e "${YELLOW}[WARN]${NC} $1"
+    }
+
+    print_terminal_error() {
+        echo -e "${RED}[ERROR]${NC} $1"
+    }
+
+    print_terminal_step() {
+        echo -e "${BLUE}[STEP]${NC} $1"
+    }
+fi
+
+# Legacy function names for compatibility
+print_status() { print_terminal_status "$1"; }
+print_warning() { print_terminal_warning "$1"; }
+print_error() { print_terminal_error "$1"; }
+print_step() { print_terminal_step "$1"; }
+
+# Check if command exists (use shared library if available)
+if [[ "$SHARED_LIB_AVAILABLE" != "true" ]]; then
+    command_exists() {
+        command -v "$1" >/dev/null 2>&1
+    }
+fi
+
+# =============================================================================
+# COMMAND LINE PARSING
+# =============================================================================
+
+parse_terminal_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -m|--mode)
+                STARTUP_MODE="$2"
+                shift 2
+                ;;
+            -e|--env)
+                ENVIRONMENT="$2"
+                shift 2
+                ;;
+            -w|--watch)
+                WATCH_MODE=true
+                shift
+                ;;
+            -b|--build-only)
+                BUILD_ONLY=true
+                shift
+                ;;
+            -c|--clean)
+                CLEAN_BUILD=true
+                shift
+                ;;
+            -h|--help)
+                show_terminal_help
+                exit 0
+                ;;
+            *)
+                # Handle legacy positional arguments
+                if [[ -z "$STARTUP_MODE" || "$STARTUP_MODE" == "start" ]]; then
+                    STARTUP_MODE="$1"
+                else
+                    print_terminal_error "Unknown option: $1"
+                    show_terminal_help
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
 }
 
-print_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
+# Show enhanced help
+show_terminal_help() {
+    if [[ "$SHARED_LIB_AVAILABLE" == "true" ]]; then
+        show_usage "start.sh" \
+            "Enhanced crypto terminal startup script with Bright Data integration" \
+            "  ./start.sh [OPTIONS]
 
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+  Options:
+    -m, --mode MODE     Startup mode (start|docker|dev|test|production)
+    -e, --env ENV       Environment (development|staging|production)
+    -w, --watch         Enable hot reload in development
+    -b, --build-only    Build without starting
+    -c, --clean         Clean build before starting
+    -h, --help          Show this help message
 
-print_step() {
-    echo -e "${BLUE}[STEP]${NC} $1"
-}
-
-# Check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+  Examples:
+    ./start.sh                          # Start normally
+    ./start.sh --mode dev --watch       # Development with hot reload
+    ./start.sh --mode production        # Production mode
+    ./start.sh --build-only --clean     # Clean build only"
+    else
+        echo "Crypto Market Terminal Startup Script v2.0.0"
+        echo ""
+        echo "Usage: $0 [OPTIONS]"
+        echo ""
+        echo "Options:"
+        echo "  -m, --mode MODE     Startup mode (start|docker|dev|test|production)"
+        echo "  -e, --env ENV       Environment (development|staging|production)"
+        echo "  -w, --watch         Enable hot reload in development"
+        echo "  -b, --build-only    Build without starting"
+        echo "  -c, --clean         Clean build before starting"
+        echo "  -h, --help          Show this help message"
+        echo ""
+        echo "Legacy Options:"
+        echo "  start       Start the crypto terminal (default)"
+        echo "  docker      Start with Docker Compose"
+        echo "  stop        Stop all services"
+        echo "  restart     Restart all services"
+        echo "  clean       Clean up containers and volumes"
+        echo "  dev         Start in development mode"
+        echo "  test        Run tests"
+        echo ""
+    fi
 }
 
 # Check prerequisites
@@ -284,18 +418,40 @@ run_tests() {
     fi
 }
 
-# Main function
+# Enhanced main function with new argument parsing
 main() {
+    # Parse arguments first
+    parse_terminal_args "$@"
+
     print_banner
-    
-    case "${1:-start}" in
+
+    if [[ "$SHARED_LIB_AVAILABLE" == "true" ]]; then
+        print_header "💰 Go Coffee Crypto Terminal v2.0.0"
+        print_info "Mode: $STARTUP_MODE"
+        print_info "Environment: $ENVIRONMENT"
+        print_info "Watch mode: $WATCH_MODE"
+        print_info "Build only: $BUILD_ONLY"
+        print_info "Clean build: $CLEAN_BUILD"
+    else
+        echo -e "${BLUE}Starting Crypto Terminal...${NC}"
+        echo "Mode: $STARTUP_MODE | Environment: $ENVIRONMENT"
+    fi
+
+    case "$STARTUP_MODE" in
         "start")
             check_prerequisites
             check_docker
             setup_environment
             install_dependencies
+            if [[ "$CLEAN_BUILD" == "true" ]]; then
+                cleanup_build
+            fi
             start_infrastructure
-            start_application
+            if [[ "$BUILD_ONLY" == "true" ]]; then
+                build_application
+            else
+                start_application
+            fi
             ;;
         "docker")
             check_prerequisites
@@ -309,7 +465,8 @@ main() {
         "restart")
             stop_services
             sleep 2
-            main start
+            STARTUP_MODE="start"
+            main
             ;;
         "clean")
             cleanup
@@ -318,22 +475,107 @@ main() {
             check_prerequisites
             check_docker
             setup_environment
-            start_dev
+            if [[ "$WATCH_MODE" == "true" ]]; then
+                start_dev_with_watch
+            else
+                start_dev
+            fi
             ;;
         "test")
             check_prerequisites
             install_dependencies
             run_tests
             ;;
+        "production")
+            ENVIRONMENT="production"
+            check_prerequisites
+            check_docker
+            setup_environment
+            install_dependencies
+            start_infrastructure
+            start_application_production
+            ;;
         "help"|"-h"|"--help")
-            show_help
+            show_terminal_help
             ;;
         *)
-            print_error "Unknown option: $1"
-            show_help
+            print_error "Unknown mode: $STARTUP_MODE"
+            show_terminal_help
             exit 1
             ;;
     esac
+}
+
+# Additional functions for enhanced features
+cleanup_build() {
+    print_step "Cleaning build artifacts..."
+    rm -rf build/
+    if command_exists make; then
+        make clean 2>/dev/null || true
+    fi
+    print_status "Build artifacts cleaned ✓"
+}
+
+build_application() {
+    print_step "Building crypto terminal..."
+
+    mkdir -p build
+
+    local build_flags=()
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+        build_flags+=("-ldflags" "-s -w")
+    fi
+
+    if go build "${build_flags[@]}" -o build/crypto-terminal ./cmd/terminal; then
+        print_status "Application built successfully ✓"
+    else
+        print_error "Build failed"
+        exit 1
+    fi
+}
+
+start_dev_with_watch() {
+    print_step "Starting in development mode with hot reload..."
+
+    start_infrastructure
+    install_dependencies
+
+    if command_exists make; then
+        make run-dev-watch 2>/dev/null || start_dev
+    else
+        print_warning "Hot reload not available, starting normal dev mode"
+        start_dev
+    fi
+}
+
+start_application_production() {
+    print_step "Starting in production mode..."
+
+    # Build with production optimizations
+    build_application
+
+    # Set production environment variables
+    export ENVIRONMENT=production
+    export LOG_LEVEL=warn
+    export GIN_MODE=release
+
+    print_status "Starting crypto terminal in production mode..."
+    echo ""
+    echo -e "${PURPLE}🚀 Crypto Market Terminal (Production)${NC}"
+    echo ""
+    echo "📊 Dashboard: http://localhost:8090"
+    echo "🔍 Health Check: http://localhost:8090/health"
+    echo "📡 API: http://localhost:8090/api/v1"
+    echo ""
+    echo -e "${YELLOW}Press Ctrl+C to stop the application${NC}"
+    echo ""
+
+    if [[ -f build/crypto-terminal ]]; then
+        ./build/crypto-terminal
+    else
+        print_error "Production binary not found. Run with --build-only first."
+        exit 1
+    fi
 }
 
 # Handle Ctrl+C gracefully

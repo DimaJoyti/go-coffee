@@ -1,79 +1,79 @@
 #!/bin/bash
 
-# Go Coffee Platform - Comprehensive Health Check Script
-# This script performs comprehensive health checks across all platform components
+# Go Coffee - Comprehensive Health Check Script
+# Performs health checks across all microservices and infrastructure components
+# Version: 2.0.0
+# Usage: ./health-check.sh [OPTIONS]
+#   -e, --environment   Environment to check (development|staging|production)
+#   -c, --comprehensive Run comprehensive health checks including performance
+#   -m, --monitoring    Enable continuous monitoring mode
+#   -r, --report        Generate detailed health report
+#   -h, --help          Show this help message
 
 set -euo pipefail
 
-# Configuration
+# Get script directory for relative imports
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-ENVIRONMENT="${ENVIRONMENT:-production}"
-NAMESPACE="${NAMESPACE:-go-coffee}"
-TIMEOUT="${TIMEOUT:-300}"
-COMPREHENSIVE="${COMPREHENSIVE:-false}"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Source shared library
+source "$SCRIPT_DIR/lib/common.sh" 2>/dev/null || {
+    echo "❌ Cannot load shared library. Please run from project root."
+    exit 1
+}
 
-# Counters
+print_header "🏥 Go Coffee Health Check System"
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+ENVIRONMENT="${ENVIRONMENT:-development}"
+COMPREHENSIVE=false
+MONITORING_MODE=false
+GENERATE_REPORT=false
+HEALTH_TIMEOUT=10
+CHECK_INTERVAL=30
+
+# Health check counters
 TOTAL_CHECKS=0
 PASSED_CHECKS=0
 FAILED_CHECKS=0
 WARNING_CHECKS=0
 
-# Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-}
+# Service health endpoints (service:port:health_path)
+declare -A SERVICE_HEALTH_ENDPOINTS=(
+    ["auth-service"]="8091:/health"
+    ["payment-service"]="8093:/health"
+    ["order-service"]="8094:/health"
+    ["kitchen-service"]="8095:/health"
+    ["user-gateway"]="8096:/health"
+    ["security-gateway"]="8097:/health"
+    ["communication-hub"]="8098:/health"
+    ["ai-search"]="8099:/health"
+    ["ai-service"]="8100:/health"
+    ["ai-arbitrage-service"]="8101:/health"
+    ["ai-order-service"]="8102:/health"
+    ["market-data-service"]="8103:/health"
+    ["defi-service"]="8104:/health"
+    ["bright-data-hub-service"]="8105:/health"
+    ["llm-orchestrator"]="8106:/health"
+    ["llm-orchestrator-simple"]="8107:/health"
+    ["redis-mcp-server"]="8108:/health"
+    ["mcp-ai-integration"]="8109:/health"
+    ["task-cli"]="8110:/health"
+    ["api-gateway"]="8080:/health"
+)
 
-log_success() {
-    echo -e "${GREEN}[PASS]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-    ((PASSED_CHECKS++))
-}
+# Infrastructure components
+INFRASTRUCTURE_COMPONENTS=(
+    "redis:6379"
+    "postgres:5432"
+)
 
-log_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-    ((WARNING_CHECKS++))
-}
+# =============================================================================
+# COMMAND LINE PARSING
+# =============================================================================
 
-log_error() {
-    echo -e "${RED}[FAIL]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $1"
-    ((FAILED_CHECKS++))
-}
-
-# Increment total checks counter
-check() {
-    ((TOTAL_CHECKS++))
-}
-
-# Show help
-show_help() {
-    cat << EOF
-Go Coffee Platform - Health Check Script
-
-Usage: $0 [OPTIONS]
-
-Options:
-    -e, --environment   Environment to check (development|staging|production) [default: production]
-    -n, --namespace     Kubernetes namespace [default: go-coffee]
-    -t, --timeout       Timeout in seconds [default: 300]
-    -c, --comprehensive Run comprehensive health checks
-    -h, --help          Show this help message
-
-Examples:
-    $0                                    # Basic health check
-    $0 -e staging -c                     # Comprehensive check for staging
-    $0 -n go-coffee-dev -t 600          # Custom namespace with longer timeout
-
-EOF
-}
-
-# Parse command line arguments
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -81,85 +81,572 @@ parse_args() {
                 ENVIRONMENT="$2"
                 shift 2
                 ;;
-            -n|--namespace)
-                NAMESPACE="$2"
-                shift 2
-                ;;
-            -t|--timeout)
-                TIMEOUT="$2"
-                shift 2
-                ;;
             -c|--comprehensive)
                 COMPREHENSIVE=true
                 shift
                 ;;
+            -m|--monitoring)
+                MONITORING_MODE=true
+                shift
+                ;;
+            -r|--report)
+                GENERATE_REPORT=true
+                shift
+                ;;
             -h|--help)
-                show_help
+                show_usage "health-check.sh" \
+                    "Comprehensive health check system for all Go Coffee microservices" \
+                    "  ./health-check.sh [OPTIONS]
+
+  Options:
+    -e, --environment   Environment to check (development|staging|production)
+    -c, --comprehensive Run comprehensive health checks including performance
+    -m, --monitoring    Enable continuous monitoring mode
+    -r, --report        Generate detailed health report
+    -h, --help          Show this help message
+
+  Examples:
+    ./health-check.sh                    # Basic health check
+    ./health-check.sh --comprehensive    # Detailed health check
+    ./health-check.sh --monitoring       # Continuous monitoring
+    ./health-check.sh -e production -r   # Production check with report"
                 exit 0
                 ;;
             *)
-                log_error "Unknown option: $1"
-                show_help
+                print_error "Unknown option: $1"
+                print_info "Use --help for usage information"
                 exit 1
                 ;;
         esac
     done
 }
 
-# Check Kubernetes cluster connectivity
-check_k8s_connectivity() {
-    log_info "Checking Kubernetes cluster connectivity..."
-    check
-    
-    if kubectl cluster-info &>/dev/null; then
-        log_success "Kubernetes cluster is accessible"
-    else
-        log_error "Cannot connect to Kubernetes cluster"
+# =============================================================================
+# HEALTH CHECK FUNCTIONS
+# =============================================================================
+
+# Increment check counter
+increment_check() {
+    ((TOTAL_CHECKS++))
+}
+
+# Log health check results
+log_health_pass() {
+    increment_check
+    ((PASSED_CHECKS++))
+    print_status "$1"
+}
+
+log_health_warning() {
+    increment_check
+    ((WARNING_CHECKS++))
+    print_warning "$1"
+}
+
+log_health_fail() {
+    increment_check
+    ((FAILED_CHECKS++))
+    print_error "$1"
+}
+
+# Check if service is running and healthy
+check_service_health() {
+    local service_name=$1
+    local endpoint_info=${SERVICE_HEALTH_ENDPOINTS[$service_name]}
+    local port=$(echo "$endpoint_info" | cut -d':' -f1)
+    local health_path=$(echo "$endpoint_info" | cut -d':' -f2)
+    local health_url="http://localhost:$port$health_path"
+
+    print_progress "Checking $service_name health..."
+
+    # Check if port is listening
+    if ! lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+        log_health_fail "$service_name: Port $port not listening"
         return 1
     fi
-    
-    # Check namespace exists
-    check
-    if kubectl get namespace "$NAMESPACE" &>/dev/null; then
-        log_success "Namespace '$NAMESPACE' exists"
+
+    # Check health endpoint
+    local response_code
+    response_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time $HEALTH_TIMEOUT "$health_url" 2>/dev/null || echo "000")
+
+    case $response_code in
+        200)
+            log_health_pass "$service_name: Healthy (HTTP $response_code)"
+            return 0
+            ;;
+        000)
+            log_health_fail "$service_name: Health endpoint unreachable"
+            return 1
+            ;;
+        *)
+            log_health_warning "$service_name: Health endpoint returned HTTP $response_code"
+            return 1
+            ;;
+    esac
+}
+
+# Check all microservices
+check_all_services() {
+    print_header "🔍 Checking Microservices Health"
+
+    local healthy_services=0
+    local total_services=0
+
+    for service_name in "${!SERVICE_HEALTH_ENDPOINTS[@]}"; do
+        ((total_services++))
+        if check_service_health "$service_name"; then
+            ((healthy_services++))
+        fi
+    done
+
+    print_info "Service Health Summary: $healthy_services/$total_services services healthy"
+
+    if [[ $healthy_services -eq $total_services ]]; then
+        log_health_pass "All microservices are healthy"
+    elif [[ $healthy_services -gt $((total_services / 2)) ]]; then
+        log_health_warning "Some microservices are unhealthy ($((total_services - healthy_services)) failed)"
     else
-        log_error "Namespace '$NAMESPACE' not found"
-        return 1
+        log_health_fail "Critical: Majority of microservices are unhealthy"
     fi
 }
 
-# Check pod status
-check_pod_status() {
-    log_info "Checking pod status..."
-    
-    local pods=$(kubectl get pods -n "$NAMESPACE" -o json)
-    local pod_count=$(echo "$pods" | jq '.items | length')
-    
-    if [[ $pod_count -eq 0 ]]; then
-        check
-        log_error "No pods found in namespace '$NAMESPACE'"
-        return 1
-    fi
-    
-    # Check each pod
-    echo "$pods" | jq -r '.items[] | "\(.metadata.name) \(.status.phase)"' | while read -r pod_name pod_phase; do
-        check
-        case "$pod_phase" in
-            "Running")
-                log_success "Pod $pod_name is running"
+# Check infrastructure components
+check_infrastructure() {
+    print_header "🏗️ Checking Infrastructure Components"
+
+    for component in "${INFRASTRUCTURE_COMPONENTS[@]}"; do
+        local service=$(echo "$component" | cut -d':' -f1)
+        local port=$(echo "$component" | cut -d':' -f2)
+
+        print_progress "Checking $service..."
+
+        case $service in
+            "redis")
+                if command_exists redis-cli; then
+                    if redis-cli -p $port ping 2>/dev/null | grep -q "PONG"; then
+                        log_health_pass "Redis: Responding to ping"
+                    else
+                        log_health_fail "Redis: Not responding to ping"
+                    fi
+                else
+                    if nc -z localhost $port 2>/dev/null; then
+                        log_health_pass "Redis: Port $port is accessible"
+                    else
+                        log_health_fail "Redis: Port $port is not accessible"
+                    fi
+                fi
                 ;;
-            "Pending")
-                log_warning "Pod $pod_name is pending"
-                ;;
-            "Failed"|"CrashLoopBackOff")
-                log_error "Pod $pod_name is in failed state: $pod_phase"
+            "postgres")
+                if command_exists psql; then
+                    if PGPASSWORD=postgres psql -h localhost -p $port -U postgres -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+                        log_health_pass "PostgreSQL: Database connection successful"
+                    else
+                        log_health_fail "PostgreSQL: Database connection failed"
+                    fi
+                else
+                    if nc -z localhost $port 2>/dev/null; then
+                        log_health_pass "PostgreSQL: Port $port is accessible"
+                    else
+                        log_health_fail "PostgreSQL: Port $port is not accessible"
+                    fi
+                fi
                 ;;
             *)
-                log_warning "Pod $pod_name is in unknown state: $pod_phase"
+                if nc -z localhost $port 2>/dev/null; then
+                    log_health_pass "$service: Port $port is accessible"
+                else
+                    log_health_fail "$service: Port $port is not accessible"
+                fi
                 ;;
         esac
     done
 }
+
+# Check system resources
+check_system_resources() {
+    if [[ "$COMPREHENSIVE" != "true" ]]; then
+        return 0
+    fi
+
+    print_header "💻 Checking System Resources"
+
+    # Check disk space
+    local disk_usage=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
+    if [[ $disk_usage -lt 80 ]]; then
+        log_health_pass "Disk usage: ${disk_usage}% (healthy)"
+    elif [[ $disk_usage -lt 90 ]]; then
+        log_health_warning "Disk usage: ${disk_usage}% (warning)"
+    else
+        log_health_fail "Disk usage: ${disk_usage}% (critical)"
+    fi
+
+    # Check memory usage
+    local memory_usage=$(free | grep Mem | awk '{printf "%.0f", $3/$2 * 100.0}')
+    if [[ $memory_usage -lt 80 ]]; then
+        log_health_pass "Memory usage: ${memory_usage}% (healthy)"
+    elif [[ $memory_usage -lt 90 ]]; then
+        log_health_warning "Memory usage: ${memory_usage}% (warning)"
+    else
+        log_health_fail "Memory usage: ${memory_usage}% (critical)"
+    fi
+
+    # Check CPU load
+    local cpu_load=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//')
+    local cpu_cores=$(nproc)
+    local load_percentage=$(echo "scale=0; $cpu_load * 100 / $cpu_cores" | bc -l)
+
+    if [[ $load_percentage -lt 80 ]]; then
+        log_health_pass "CPU load: ${load_percentage}% (healthy)"
+    elif [[ $load_percentage -lt 100 ]]; then
+        log_health_warning "CPU load: ${load_percentage}% (warning)"
+    else
+        log_health_fail "CPU load: ${load_percentage}% (critical)"
+    fi
+}
+
+# Check API Gateway integration
+check_api_gateway() {
+    print_header "🌐 Checking API Gateway Integration"
+
+    if [[ -z "${SERVICE_HEALTH_ENDPOINTS[api-gateway]:-}" ]]; then
+        log_health_warning "API Gateway not configured for health checks"
+        return 1
+    fi
+
+    local gateway_port=$(echo "${SERVICE_HEALTH_ENDPOINTS[api-gateway]}" | cut -d':' -f1)
+    local gateway_url="http://localhost:$gateway_port"
+
+    # Check gateway health
+    if check_service_health "api-gateway"; then
+        # Test service discovery
+        print_progress "Testing service discovery..."
+        local status_response
+        status_response=$(curl -s --max-time $HEALTH_TIMEOUT "$gateway_url/api/v1/status" 2>/dev/null || echo "")
+
+        if [[ -n "$status_response" ]]; then
+            log_health_pass "API Gateway: Service discovery working"
+        else
+            log_health_warning "API Gateway: Service discovery endpoint not responding"
+        fi
+
+        # Test routing
+        print_progress "Testing routing..."
+        local routes_response
+        routes_response=$(curl -s --max-time $HEALTH_TIMEOUT "$gateway_url/api/v1/routes" 2>/dev/null || echo "")
+
+        if [[ -n "$routes_response" ]]; then
+            log_health_pass "API Gateway: Routing configuration accessible"
+        else
+            log_health_warning "API Gateway: Routing configuration not accessible"
+        fi
+    else
+        log_health_fail "API Gateway: Not healthy, skipping integration tests"
+    fi
+}
+
+# Check service dependencies
+check_service_dependencies() {
+    if [[ "$COMPREHENSIVE" != "true" ]]; then
+        return 0
+    fi
+
+    print_header "🔗 Checking Service Dependencies"
+
+    # Check if auth service is accessible from other services
+    if check_service_health "auth-service"; then
+        print_progress "Testing auth service integration..."
+
+        # Test auth endpoint
+        local auth_response
+        auth_response=$(curl -s --max-time $HEALTH_TIMEOUT "http://localhost:8091/api/v1/auth/status" 2>/dev/null || echo "")
+
+        if [[ -n "$auth_response" ]]; then
+            log_health_pass "Auth Service: API endpoints accessible"
+        else
+            log_health_warning "Auth Service: API endpoints not responding"
+        fi
+    fi
+
+    # Check database connectivity from services
+    print_progress "Testing database connectivity..."
+    local db_connected_services=0
+    local total_db_services=0
+
+    for service in "auth-service" "order-service" "payment-service"; do
+        if [[ -n "${SERVICE_HEALTH_ENDPOINTS[$service]:-}" ]]; then
+            ((total_db_services++))
+            local port=$(echo "${SERVICE_HEALTH_ENDPOINTS[$service]}" | cut -d':' -f1)
+            local db_check_response
+            db_check_response=$(curl -s --max-time $HEALTH_TIMEOUT "http://localhost:$port/health/db" 2>/dev/null || echo "")
+
+            if [[ -n "$db_check_response" ]]; then
+                ((db_connected_services++))
+            fi
+        fi
+    done
+
+    if [[ $db_connected_services -eq $total_db_services ]]; then
+        log_health_pass "Database connectivity: All services connected"
+    elif [[ $db_connected_services -gt 0 ]]; then
+        log_health_warning "Database connectivity: $db_connected_services/$total_db_services services connected"
+    else
+        log_health_fail "Database connectivity: No services connected"
+    fi
+}
+
+# Generate health report
+generate_health_report() {
+    if [[ "$GENERATE_REPORT" != "true" ]]; then
+        return 0
+    fi
+
+    print_header "📊 Generating Health Report"
+
+    local report_file="health-report-$(date +%Y%m%d-%H%M%S).json"
+    local success_rate=0
+
+    if [[ $TOTAL_CHECKS -gt 0 ]]; then
+        success_rate=$(echo "scale=2; $PASSED_CHECKS * 100 / $TOTAL_CHECKS" | bc -l)
+    fi
+
+    local overall_status="healthy"
+    if [[ $FAILED_CHECKS -gt 0 ]]; then
+        overall_status="unhealthy"
+    elif [[ $WARNING_CHECKS -gt 3 ]]; then
+        overall_status="degraded"
+    elif [[ $WARNING_CHECKS -gt 0 ]]; then
+        overall_status="warning"
+    fi
+
+    cat > "$report_file" <<EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "environment": "$ENVIRONMENT",
+  "overall_status": "$overall_status",
+  "summary": {
+    "total_checks": $TOTAL_CHECKS,
+    "passed": $PASSED_CHECKS,
+    "failed": $FAILED_CHECKS,
+    "warnings": $WARNING_CHECKS,
+    "success_rate": $success_rate
+  },
+  "services": {
+EOF
+
+    # Add service status
+    local first=true
+    for service_name in "${!SERVICE_HEALTH_ENDPOINTS[@]}"; do
+        if [[ "$first" == "true" ]]; then
+            first=false
+        else
+            echo "," >> "$report_file"
+        fi
+
+        local endpoint_info=${SERVICE_HEALTH_ENDPOINTS[$service_name]}
+        local port=$(echo "$endpoint_info" | cut -d':' -f1)
+        local health_path=$(echo "$endpoint_info" | cut -d':' -f2)
+        local health_url="http://localhost:$port$health_path"
+
+        local status="unknown"
+        local response_time="N/A"
+
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            local start_time=$(date +%s%N)
+            local response_code
+            response_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time $HEALTH_TIMEOUT "$health_url" 2>/dev/null || echo "000")
+            local end_time=$(date +%s%N)
+            response_time=$(echo "scale=3; ($end_time - $start_time) / 1000000" | bc -l)
+
+            case $response_code in
+                200) status="healthy" ;;
+                000) status="unreachable" ;;
+                *) status="unhealthy" ;;
+            esac
+        else
+            status="not_running"
+        fi
+
+        echo "    \"$service_name\": {" >> "$report_file"
+        echo "      \"status\": \"$status\"," >> "$report_file"
+        echo "      \"port\": $port," >> "$report_file"
+        echo "      \"response_time_ms\": \"$response_time\"" >> "$report_file"
+        echo -n "    }" >> "$report_file"
+    done
+
+    echo "" >> "$report_file"
+    echo "  }," >> "$report_file"
+    echo "  \"recommendations\": [" >> "$report_file"
+
+    if [[ $FAILED_CHECKS -gt 0 ]]; then
+        echo "    \"Investigate failed services immediately\"," >> "$report_file"
+    fi
+    if [[ $WARNING_CHECKS -gt 3 ]]; then
+        echo "    \"Review services with warnings\"," >> "$report_file"
+    fi
+
+    echo "    \"Monitor resource usage trends\"," >> "$report_file"
+    echo "    \"Ensure backup procedures are working\"" >> "$report_file"
+    echo "  ]" >> "$report_file"
+    echo "}" >> "$report_file"
+
+    print_status "Health report generated: $report_file"
+}
+
+# Continuous monitoring mode
+run_monitoring() {
+    print_header "🔄 Starting Continuous Health Monitoring"
+    print_info "Monitoring interval: ${CHECK_INTERVAL}s"
+    print_info "Press Ctrl+C to stop monitoring"
+
+    local iteration=0
+    while true; do
+        ((iteration++))
+
+        print_header "📊 Health Check Iteration #$iteration ($(date))"
+
+        # Reset counters
+        TOTAL_CHECKS=0
+        PASSED_CHECKS=0
+        FAILED_CHECKS=0
+        WARNING_CHECKS=0
+
+        # Run health checks
+        check_all_services
+        check_infrastructure
+        check_api_gateway
+
+        # Show summary
+        local success_rate=0
+        if [[ $TOTAL_CHECKS -gt 0 ]]; then
+            success_rate=$(echo "scale=1; $PASSED_CHECKS * 100 / $TOTAL_CHECKS" | bc -l)
+        fi
+
+        print_info "Iteration #$iteration Summary: $PASSED_CHECKS/$TOTAL_CHECKS passed (${success_rate}%)"
+
+        if [[ $FAILED_CHECKS -gt 0 ]]; then
+            print_warning "$FAILED_CHECKS critical issues detected"
+        fi
+
+        if [[ $WARNING_CHECKS -gt 0 ]]; then
+            print_info "$WARNING_CHECKS warnings detected"
+        fi
+
+        print_info "Next check in ${CHECK_INTERVAL}s..."
+        sleep $CHECK_INTERVAL
+    done
+}
+
+# =============================================================================
+# MAIN EXECUTION
+# =============================================================================
+
+main() {
+    local start_time=$(date +%s)
+
+    # Parse command line arguments
+    parse_args "$@"
+
+    # Check dependencies
+    local deps=("curl" "bc")
+    if [[ "$COMPREHENSIVE" == "true" ]]; then
+        deps+=("free" "df" "uptime" "nproc")
+    fi
+    check_dependencies "${deps[@]}" || exit 1
+
+    print_info "Environment: $ENVIRONMENT"
+    print_info "Comprehensive mode: $COMPREHENSIVE"
+    print_info "Monitoring mode: $MONITORING_MODE"
+    print_info "Generate report: $GENERATE_REPORT"
+
+    # Run monitoring mode if requested
+    if [[ "$MONITORING_MODE" == "true" ]]; then
+        run_monitoring
+        return 0
+    fi
+
+    # Run health checks
+    print_header "🏥 Starting Health Check Suite"
+
+    check_all_services
+    check_infrastructure
+    check_api_gateway
+    check_system_resources
+    check_service_dependencies
+
+    # Calculate execution time
+    local end_time=$(date +%s)
+    local execution_time=$((end_time - start_time))
+
+    # Generate report if requested
+    generate_health_report
+
+    # Show final summary
+    print_header "📊 Health Check Summary"
+
+    local success_rate=0
+    if [[ $TOTAL_CHECKS -gt 0 ]]; then
+        success_rate=$(echo "scale=1; $PASSED_CHECKS * 100 / $TOTAL_CHECKS" | bc -l)
+    fi
+
+    echo -e "${BOLD}Environment:${NC} $ENVIRONMENT"
+    echo -e "${BOLD}Total Checks:${NC} $TOTAL_CHECKS"
+    echo -e "${GREEN}Passed:${NC} $PASSED_CHECKS"
+    echo -e "${YELLOW}Warnings:${NC} $WARNING_CHECKS"
+    echo -e "${RED}Failed:${NC} $FAILED_CHECKS"
+    echo -e "${BLUE}Success Rate:${NC} ${success_rate}%"
+    echo -e "${BLUE}Execution Time:${NC} ${execution_time}s"
+
+    # Determine overall health status
+    if [[ $FAILED_CHECKS -eq 0 && $WARNING_CHECKS -eq 0 ]]; then
+        print_success "🎉 All systems are healthy!"
+
+        print_header "🚀 System Status"
+        print_status "✅ All microservices are running"
+        print_status "✅ Infrastructure components are healthy"
+        print_status "✅ API Gateway is functioning"
+        print_status "✅ Service dependencies are working"
+
+        if [[ "$COMPREHENSIVE" == "true" ]]; then
+            print_status "✅ System resources are within normal limits"
+        fi
+
+        exit 0
+
+    elif [[ $FAILED_CHECKS -eq 0 ]]; then
+        print_warning "⚠️  System is healthy with $WARNING_CHECKS warnings"
+
+        print_header "🔍 Recommendations"
+        print_info "• Monitor services with warnings"
+        print_info "• Review system logs for potential issues"
+        print_info "• Consider running comprehensive checks"
+
+        exit 1
+
+    else
+        print_error "❌ System has critical issues ($FAILED_CHECKS failures)"
+
+        print_header "🚨 Critical Issues Detected"
+        print_error "• $FAILED_CHECKS critical failures require immediate attention"
+        if [[ $WARNING_CHECKS -gt 0 ]]; then
+            print_warning "• $WARNING_CHECKS additional warnings detected"
+        fi
+
+        print_header "🔧 Immediate Actions Required"
+        print_info "• Check service logs: tail -f logs/SERVICE.log"
+        print_info "• Restart failed services: ./scripts/start-all-services.sh"
+        print_info "• Verify infrastructure: docker ps, systemctl status"
+        print_info "• Check resource availability: df -h, free -h"
+
+        if [[ "$GENERATE_REPORT" == "true" ]]; then
+            print_info "• Review detailed report for specific issues"
+        fi
+
+        exit 2
+    fi
+}
+
+# Run main function with all arguments
+main "$@"
 
 # Check service endpoints
 check_service_endpoints() {
