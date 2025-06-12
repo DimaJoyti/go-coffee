@@ -115,4 +115,7 @@ go.work.sum
 .cursor
 .continue
 .roo
+.vscode
+.claude
+
 web-ui/frontend/.next
