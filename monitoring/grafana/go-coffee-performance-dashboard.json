@@ -1,0 +1,476 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Go Coffee - Advanced Performance Dashboard",
+    "tags": ["go-coffee", "performance", "optimization"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Service Overview",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=\"go-coffee-core\"}",
+            "legendFormat": "{{instance}} - {{job}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "mappings": [
+              {"options": {"0": {"text": "DOWN"}}, "type": "value"},
+              {"options": {"1": {"text": "UP"}}, "type": "value"}
+            ]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Request Rate (RPS)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{job=\"go-coffee-core\"}[5m])) by (service)",
+            "legendFormat": "{{service}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Requests/sec", "min": 0},
+          {"show": false}
+        ],
+        "legend": {"show": true, "values": true, "current": true}
+      },
+      {
+        "id": 3,
+        "title": "Response Time (P95)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"go-coffee-core\"}[5m])) by (le, service))",
+            "legendFormat": "{{service}} P95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"go-coffee-core\"}[5m])) by (le, service))",
+            "legendFormat": "{{service}} P50",
+            "refId": "B"
+          }
+        ],
+        "yAxes": [
+          {"label": "Seconds", "min": 0},
+          {"show": false}
+        ],
+        "thresholds": [
+          {"value": 0.2, "colorMode": "critical", "op": "gt"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{job=\"go-coffee-core\",status=~\"5..\"}[5m])) by (service) / sum(rate(http_requests_total{job=\"go-coffee-core\"}[5m])) by (service) * 100",
+            "legendFormat": "{{service}} Error Rate",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Percentage", "min": 0, "max": 100},
+          {"show": false}
+        ],
+        "thresholds": [
+          {"value": 1, "colorMode": "critical", "op": "gt"},
+          {"value": 0.1, "colorMode": "warning", "op": "gt"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "CPU Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"go-coffee\"}[5m])) by (pod) * 100",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Percentage", "min": 0, "max": 100},
+          {"show": false}
+        ],
+        "thresholds": [
+          {"value": 80, "colorMode": "critical", "op": "gt"},
+          {"value": 70, "colorMode": "warning", "op": "gt"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Memory Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "sum(container_memory_working_set_bytes{namespace=\"go-coffee\"}) by (pod) / sum(container_spec_memory_limit_bytes{namespace=\"go-coffee\"}) by (pod) * 100",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Percentage", "min": 0, "max": 100},
+          {"show": false}
+        ],
+        "thresholds": [
+          {"value": 90, "colorMode": "critical", "op": "gt"},
+          {"value": 80, "colorMode": "warning", "op": "gt"}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Database Performance",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "targets": [
+          {
+            "expr": "sum(rate(database_queries_total{namespace=\"go-coffee\"}[5m])) by (database)",
+            "legendFormat": "{{database}} Queries/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "avg(database_query_duration_seconds{namespace=\"go-coffee\"}) by (database)",
+            "legendFormat": "{{database}} Avg Duration",
+            "refId": "B"
+          }
+        ],
+        "yAxes": [
+          {"label": "Queries/sec", "min": 0},
+          {"label": "Seconds", "min": 0}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Cache Hit Ratio",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 32},
+        "targets": [
+          {
+            "expr": "sum(rate(cache_hits_total{namespace=\"go-coffee\"}[5m])) / sum(rate(cache_requests_total{namespace=\"go-coffee\"}[5m])) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "green", "value": 85}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Active Connections",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 32},
+        "targets": [
+          {
+            "expr": "sum(http_active_connections{namespace=\"go-coffee\"})",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1000},
+                {"color": "red", "value": 5000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Goroutines",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 32},
+        "targets": [
+          {
+            "expr": "sum(go_goroutines{namespace=\"go-coffee\"})",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1000},
+                {"color": "red", "value": 10000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Business Metrics - Coffee Orders",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+        "targets": [
+          {
+            "expr": "sum(rate(coffee_orders_total{namespace=\"go-coffee\"}[5m])) by (shop_id)",
+            "legendFormat": "Shop {{shop_id}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Orders/sec", "min": 0},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Revenue Metrics",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+        "targets": [
+          {
+            "expr": "sum(rate(coffee_revenue_total{namespace=\"go-coffee\"}[5m])) by (currency)",
+            "legendFormat": "{{currency}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Revenue/sec", "min": 0},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Kafka Consumer Lag",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
+        "targets": [
+          {
+            "expr": "sum(kafka_consumer_lag_sum{namespace=\"go-coffee\"}) by (topic, consumer_group)",
+            "legendFormat": "{{topic}} - {{consumer_group}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {"label": "Messages", "min": 0},
+          {"show": false}
+        ],
+        "thresholds": [
+          {"value": 1000, "colorMode": "critical", "op": "gt"},
+          {"value": 100, "colorMode": "warning", "op": "gt"}
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Network I/O",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
+        "targets": [
+          {
+            "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"go-coffee\"}[5m])) by (pod)",
+            "legendFormat": "{{pod}} RX",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"go-coffee\"}[5m])) by (pod)",
+            "legendFormat": "{{pod}} TX",
+            "refId": "B"
+          }
+        ],
+        "yAxes": [
+          {"label": "Bytes/sec", "min": 0},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 15,
+        "title": "SLI/SLO Compliance",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 56},
+        "targets": [
+          {
+            "expr": "avg_over_time(up{job=\"go-coffee-core\"}[30d]) * 100",
+            "format": "table",
+            "legendFormat": "Availability",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, avg_over_time(http_request_duration_seconds_bucket{job=\"go-coffee-core\"}[30d])) * 1000",
+            "format": "table",
+            "legendFormat": "P95 Latency (ms)",
+            "refId": "B"
+          },
+          {
+            "expr": "avg_over_time(rate(http_requests_total{job=\"go-coffee-core\",status=~\"5..\"}[5m])[30d:5m]) / avg_over_time(rate(http_requests_total{job=\"go-coffee-core\"}[5m])[30d:5m]) * 100",
+            "format": "table",
+            "legendFormat": "Error Rate (%)",
+            "refId": "C"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "indexByName": {},
+              "renameByName": {}
+            }
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Availability"},
+              "properties": [
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {"color": "red", "value": 0},
+                      {"color": "yellow", "value": 99},
+                      {"color": "green", "value": 99.9}
+                    ]
+                  }
+                },
+                {"id": "unit", "value": "percent"}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "P95 Latency (ms)"},
+              "properties": [
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {"color": "green", "value": 0},
+                      {"color": "yellow", "value": 200},
+                      {"color": "red", "value": 500}
+                    ]
+                  }
+                },
+                {"id": "unit", "value": "ms"}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Error Rate (%)"},
+              "properties": [
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      {"color": "green", "value": 0},
+                      {"color": "yellow", "value": 0.1},
+                      {"color": "red", "value": 1}
+                    ]
+                  }
+                },
+                {"id": "unit", "value": "percent"}
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "namespace",
+          "type": "query",
+          "query": "label_values(up, namespace)",
+          "current": {"value": "go-coffee", "text": "go-coffee"},
+          "options": [],
+          "refresh": 1
+        },
+        {
+          "name": "service",
+          "type": "query",
+          "query": "label_values(up{namespace=\"$namespace\"}, job)",
+          "current": {"value": "all", "text": "All"},
+          "options": [],
+          "refresh": 1,
+          "multi": true,
+          "includeAll": true
+        },
+        {
+          "name": "pod",
+          "type": "query",
+          "query": "label_values(up{namespace=\"$namespace\", job=~\"$service\"}, instance)",
+          "current": {"value": "all", "text": "All"},
+          "options": [],
+          "refresh": 1,
+          "multi": true,
+          "includeAll": true
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "expr": "changes(kube_deployment_status_observed_generation{namespace=\"go-coffee\"}[5m]) > 0",
+          "titleFormat": "Deployment: {{deployment}}",
+          "textFormat": "New deployment detected",
+          "iconColor": "blue"
+        },
+        {
+          "name": "Alerts",
+          "datasource": "Prometheus",
+          "expr": "ALERTS{namespace=\"go-coffee\", alertstate=\"firing\"}",
+          "titleFormat": "Alert: {{alertname}}",
+          "textFormat": "{{summary}}",
+          "iconColor": "red"
+        }
+      ]
+    },
+    "links": [
+      {
+        "title": "Go Coffee Tracing",
+        "url": "http://jaeger.monitoring.svc.cluster.local:16686",
+        "type": "link",
+        "icon": "external link"
+      },
+      {
+        "title": "Go Coffee Logs",
+        "url": "http://grafana.monitoring.svc.cluster.local:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%22expr%22:%22%7Bnamespace%3D%5C%22go-coffee%5C%22%7D%22%7D%5D",
+        "type": "link",
+        "icon": "external link"
+      }
+    ]
+  }
+}

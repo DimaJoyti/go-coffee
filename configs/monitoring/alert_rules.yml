@@ -1,0 +1,285 @@
+# Prometheus alerting rules for Go Coffee optimization monitoring
+
+groups:
+  - name: go_coffee_performance
+    rules:
+      # High Response Time Alert
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for the last 5 minutes"
+
+      # Very High Response Time Alert
+      - alert: VeryHighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1.0
+        for: 1m
+        labels:
+          severity: critical
+          service: go-coffee
+        annotations:
+          summary: "Very high response time detected"
+          description: "95th percentile response time is {{ $value }}s for the last 5 minutes"
+
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+
+      # Critical Error Rate Alert
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.10
+        for: 1m
+        labels:
+          severity: critical
+          service: go-coffee
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+
+  - name: go_coffee_database
+    rules:
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolHigh
+        expr: database_active_connections / database_max_connections > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: database
+        annotations:
+          summary: "Database connection pool usage is high"
+          description: "Database connection pool is {{ $value | humanizePercentage }} full"
+
+      # Database Connection Pool Critical
+      - alert: DatabaseConnectionPoolCritical
+        expr: database_active_connections / database_max_connections > 0.95
+        for: 1m
+        labels:
+          severity: critical
+          service: go-coffee
+          component: database
+        annotations:
+          summary: "Database connection pool is nearly exhausted"
+          description: "Database connection pool is {{ $value | humanizePercentage }} full"
+
+      # Slow Database Queries
+      - alert: SlowDatabaseQueries
+        expr: rate(database_slow_queries_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: database
+        annotations:
+          summary: "High number of slow database queries"
+          description: "{{ $value }} slow queries per second in the last 5 minutes"
+
+      # Database Connection Errors
+      - alert: DatabaseConnectionErrors
+        expr: rate(database_connection_errors_total[5m]) > 1
+        for: 1m
+        labels:
+          severity: critical
+          service: go-coffee
+          component: database
+        annotations:
+          summary: "Database connection errors detected"
+          description: "{{ $value }} database connection errors per second"
+
+  - name: go_coffee_cache
+    rules:
+      # Low Cache Hit Ratio
+      - alert: LowCacheHitRatio
+        expr: cache_hits_total / (cache_hits_total + cache_misses_total) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: cache
+        annotations:
+          summary: "Cache hit ratio is low"
+          description: "Cache hit ratio is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      # Very Low Cache Hit Ratio
+      - alert: VeryLowCacheHitRatio
+        expr: cache_hits_total / (cache_hits_total + cache_misses_total) < 0.5
+        for: 2m
+        labels:
+          severity: critical
+          service: go-coffee
+          component: cache
+        annotations:
+          summary: "Cache hit ratio is very low"
+          description: "Cache hit ratio is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      # High Cache Latency
+      - alert: HighCacheLatency
+        expr: histogram_quantile(0.95, rate(cache_operation_duration_seconds_bucket[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: cache
+        annotations:
+          summary: "High cache latency detected"
+          description: "95th percentile cache latency is {{ $value }}s"
+
+      # Cache Connection Errors
+      - alert: CacheConnectionErrors
+        expr: rate(cache_errors_total[5m]) > 1
+        for: 1m
+        labels:
+          severity: critical
+          service: go-coffee
+          component: cache
+        annotations:
+          summary: "Cache connection errors detected"
+          description: "{{ $value }} cache errors per second"
+
+  - name: go_coffee_memory
+    rules:
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 / 1024 > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: memory
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}GB"
+
+      # Critical Memory Usage
+      - alert: CriticalMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 / 1024 > 2.0
+        for: 2m
+        labels:
+          severity: critical
+          service: go-coffee
+          component: memory
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value }}GB"
+
+      # High GC Frequency
+      - alert: HighGCFrequency
+        expr: rate(go_gc_duration_seconds_count[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: memory
+        annotations:
+          summary: "High garbage collection frequency"
+          description: "{{ $value }} GC cycles per second"
+
+      # Long GC Pauses
+      - alert: LongGCPauses
+        expr: histogram_quantile(0.95, rate(go_gc_duration_seconds_bucket[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: memory
+        annotations:
+          summary: "Long garbage collection pauses detected"
+          description: "95th percentile GC pause time is {{ $value }}s"
+
+  - name: go_coffee_system
+    rules:
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value | humanizePercentage }}"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up{job="go-coffee-optimized"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: go-coffee
+        annotations:
+          summary: "Go Coffee service is down"
+          description: "Go Coffee optimized service has been down for more than 1 minute"
+
+      # High Number of Goroutines
+      - alert: HighGoroutineCount
+        expr: go_goroutines > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: system
+        annotations:
+          summary: "High number of goroutines"
+          description: "Number of goroutines is {{ $value }}"
+
+      # File Descriptor Usage
+      - alert: HighFileDescriptorUsage
+        expr: process_open_fds / process_max_fds > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: system
+        annotations:
+          summary: "High file descriptor usage"
+          description: "File descriptor usage is {{ $value | humanizePercentage }}"
+
+  - name: go_coffee_business
+    rules:
+      # Low Order Creation Rate
+      - alert: LowOrderCreationRate
+        expr: rate(orders_created_total[10m]) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: business
+        annotations:
+          summary: "Low order creation rate"
+          description: "Order creation rate is {{ $value }} orders per second"
+
+      # High Order Failure Rate
+      - alert: HighOrderFailureRate
+        expr: rate(orders_failed_total[5m]) / rate(orders_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: go-coffee
+          component: business
+        annotations:
+          summary: "High order failure rate"
+          description: "Order failure rate is {{ $value | humanizePercentage }}"
+
+      # Payment Processing Issues
+      - alert: PaymentProcessingIssues
+        expr: rate(payments_failed_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: go-coffee
+          component: business
+        annotations:
+          summary: "Payment processing issues detected"
+          description: "{{ $value }} payment failures per second"

@@ -258,8 +258,8 @@ func getKubernetesResources(ctx context.Context, cfg *config.Config, resourceTyp
 	resources := []KubernetesResource{
 		{Name: "api-gateway-deployment", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 2 * time.Hour, Ready: "2/2"},
 		{Name: "auth-service-deployment", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 1 * time.Hour, Ready: "3/3"},
-		{Name: "llm-orchestrator", Kind: "Deployment", Namespace: "operators", Status: "Running", Age: 24 * time.Hour, Ready: "1/1"},
-		{Name: "coffee-workload-1", Kind: "LLMWorkload", Namespace: "go-coffee", Status: "Running", Age: 30 * time.Minute, Ready: "1/1"},
+		{Name: "enterprise-demo", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 24 * time.Hour, Ready: "1/1"},
+		{Name: "optimization-service", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 30 * time.Minute, Ready: "1/1"},
 		{Name: "redis-cluster", Kind: "StatefulSet", Namespace: "go-coffee", Status: "Running", Age: 48 * time.Hour, Ready: "3/3"},
 	}
 
@@ -362,7 +362,7 @@ func deleteKubernetesResource(ctx context.Context, cfg *config.Config, logger *z
 func listOperators(ctx context.Context, cfg *config.Config) ([]map[string]interface{}, error) {
 	// TODO: Implement list operators
 	operators := []map[string]interface{}{
-		{"name": "llm-orchestrator", "version": "v1.0.0", "status": "Running"},
+		{"name": "enterprise-operator", "version": "v1.0.0", "status": "Running"},
 		{"name": "coffee-operator", "version": "v0.9.0", "status": "Installing"},
 	}
 	return operators, nil

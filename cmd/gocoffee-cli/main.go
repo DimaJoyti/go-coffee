@@ -10,8 +10,8 @@ import (
 	"github.com/DimaJoyti/go-coffee/internal/cli"
 	"github.com/DimaJoyti/go-coffee/internal/cli/config"
 	"github.com/DimaJoyti/go-coffee/internal/cli/telemetry"
-	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -64,7 +64,7 @@ func main() {
 
 func initLogger(level string) (*zap.Logger, error) {
 	var config zap.Config
-	
+
 	switch level {
 	case "debug":
 		config = zap.NewDevelopmentConfig()
@@ -79,17 +79,17 @@ func initLogger(level string) (*zap.Logger, error) {
 	return config.Build()
 }
 
-func parseLogLevel(level string) zap.Level {
+func parseLogLevel(level string) zapcore.Level {
 	switch level {
 	case "debug":
-		return zap.DebugLevel
+		return zapcore.DebugLevel
 	case "info":
-		return zap.InfoLevel
+		return zapcore.InfoLevel
 	case "warn":
-		return zap.WarnLevel
+		return zapcore.WarnLevel
 	case "error":
-		return zap.ErrorLevel
+		return zapcore.ErrorLevel
 	default:
-		return zap.InfoLevel
+		return zapcore.InfoLevel
 	}
 }

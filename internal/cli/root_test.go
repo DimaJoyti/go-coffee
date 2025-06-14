@@ -31,9 +31,9 @@ func TestRootCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := NewRootCommand()
+			cmd := createMockRootCommand()
 			if cmd == nil {
-				t.Error("NewRootCommand() returned nil")
+				t.Error("createMockRootCommand() returned nil")
 				return
 			}
 
@@ -55,7 +55,7 @@ func TestRootCommand(t *testing.T) {
 
 			cmd.SetArgs(tt.args)
 			err := cmd.Execute()
-			
+
 			// For help and version, we expect them to exit cleanly
 			if tt.name == "help flag works" || tt.name == "version flag works" {
 				// These commands should not return an error when displaying help/version
@@ -68,9 +68,9 @@ func TestRootCommand(t *testing.T) {
 }
 
 func TestRootCommandStructure(t *testing.T) {
-	cmd := NewRootCommand()
+	cmd := createMockRootCommand()
 	if cmd == nil {
-		t.Fatal("NewRootCommand() returned nil")
+		t.Fatal("createMockRootCommand() returned nil")
 	}
 
 	// Test that the command has subcommands
@@ -95,9 +95,9 @@ func TestRootCommandStructure(t *testing.T) {
 }
 
 func TestCommandFlags(t *testing.T) {
-	cmd := NewRootCommand()
+	cmd := createMockRootCommand()
 	if cmd == nil {
-		t.Fatal("NewRootCommand() returned nil")
+		t.Fatal("createMockRootCommand() returned nil")
 	}
 
 	// Test that common flags are available
@@ -117,8 +117,8 @@ func TestCommandFlags(t *testing.T) {
 	}
 }
 
-// Mock function to create a basic root command if NewRootCommand doesn't exist
-func NewRootCommand() *cobra.Command {
+// Mock function to create a basic root command for testing purposes
+func createMockRootCommand() *cobra.Command {
 	// This is a fallback implementation for testing
 	// The actual implementation should be in root.go
 	cmd := &cobra.Command{

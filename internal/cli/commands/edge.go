@@ -16,28 +16,28 @@ import (
 
 // EdgeNode represents an edge computing node
 type EdgeNode struct {
-	ID          string
-	Location    string
-	Provider    string
-	Status      string
-	Workloads   int
-	Latency     string
-	Bandwidth   string
-	CPU         string
-	Memory      string
-	LastSeen    time.Time
+	ID        string
+	Location  string
+	Provider  string
+	Status    string
+	Workloads int
+	Latency   string
+	Bandwidth string
+	CPU       string
+	Memory    string
+	LastSeen  time.Time
 }
 
 // EdgeDeployment represents an edge deployment
 type EdgeDeployment struct {
-	Name        string
-	Strategy    string
-	Nodes       int
-	Status      string
-	Replicas    int
-	AvgLatency  string
-	Traffic     string
-	Uptime      string
+	Name       string
+	Strategy   string
+	Nodes      int
+	Status     string
+	Replicas   int
+	AvgLatency string
+	Traffic    string
+	Uptime     string
 }
 
 // NewEdgeCommand creates the edge computing management command
@@ -94,14 +94,14 @@ func newEdgeNodesListCommand(cfg *config.Config, logger *zap.Logger) *cobra.Comm
 		Short: "List edge nodes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			
+
 			s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 			s.Suffix = " Discovering edge nodes..."
 			s.Start()
-			
+
 			nodes, err := listEdgeNodes(ctx, cfg, location, provider, status)
 			s.Stop()
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to list edge nodes: %w", err)
 			}
@@ -136,20 +136,20 @@ func newEdgeNodesAddCommand(cfg *config.Config, logger *zap.Logger) *cobra.Comma
 		Short: "Add edge node",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			
+
 			if len(args) == 0 {
 				return fmt.Errorf("specify node ID")
 			}
-			
+
 			nodeID := args[0]
-			
+
 			s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 			s.Suffix = fmt.Sprintf(" Adding edge node %s...", nodeID)
 			s.Start()
-			
+
 			err := addEdgeNode(ctx, cfg, logger, nodeID, location, provider, capacity)
 			s.Stop()
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to add edge node: %w", err)
 			}
@@ -178,13 +178,13 @@ func newEdgeNodesRemoveCommand(cfg *config.Config, logger *zap.Logger) *cobra.Co
 		Short: "Remove edge node",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			
+
 			if len(args) == 0 {
 				return fmt.Errorf("specify node ID")
 			}
-			
+
 			nodeID := args[0]
-			
+
 			if !force {
 				color.Yellow("WARNING: This will remove the edge node and all its workloads!")
 				fmt.Print("Are you sure? (yes/no): ")
@@ -195,14 +195,14 @@ func newEdgeNodesRemoveCommand(cfg *config.Config, logger *zap.Logger) *cobra.Co
 					return nil
 				}
 			}
-			
+
 			s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 			s.Suffix = fmt.Sprintf(" Removing edge node %s...", nodeID)
 			s.Start()
-			
+
 			err := removeEdgeNode(ctx, cfg, logger, nodeID)
 			s.Stop()
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to remove edge node: %w", err)
 			}
@@ -226,14 +226,14 @@ func newEdgeNodesHealthCommand(cfg *config.Config, logger *zap.Logger) *cobra.Co
 		Short: "Check edge nodes health",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			
+
 			s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 			s.Suffix = " Checking edge nodes health..."
 			s.Start()
-			
+
 			health, err := checkEdgeNodesHealth(ctx, cfg, nodeID)
 			s.Stop()
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to check health: %w", err)
 			}
@@ -259,20 +259,20 @@ func newEdgeDeployCommand(cfg *config.Config, logger *zap.Logger) *cobra.Command
 		Short: "Deploy application to edge",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			
+
 			if len(args) == 0 {
 				return fmt.Errorf("specify application name")
 			}
-			
+
 			app := args[0]
-			
+
 			s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 			s.Suffix = fmt.Sprintf(" Deploying %s to edge...", app)
 			s.Start()
-			
+
 			err := deployToEdge(ctx, cfg, logger, app, strategy, locations, replicas, image)
 			s.Stop()
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to deploy to edge: %w", err)
 			}
@@ -320,20 +320,20 @@ func newEdgeTrafficRouteCommand(cfg *config.Config, logger *zap.Logger) *cobra.C
 		Short: "Configure traffic routing",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			
+
 			if len(args) == 0 {
 				return fmt.Errorf("specify deployment name")
 			}
-			
+
 			deployment := args[0]
-			
+
 			s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 			s.Suffix = " Configuring traffic routing..."
 			s.Start()
-			
+
 			err := configureTrafficRouting(ctx, cfg, logger, deployment, algorithm, weights)
 			s.Stop()
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to configure routing: %w", err)
 			}
@@ -359,14 +359,14 @@ func newEdgeMonitorCommand(cfg *config.Config, logger *zap.Logger) *cobra.Comman
 		Short: "Monitor edge deployments",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			
+
 			s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 			s.Suffix = " Collecting edge metrics..."
 			s.Start()
-			
+
 			data, err := monitorEdgeDeployments(ctx, cfg, deployment, metrics)
 			s.Stop()
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to monitor edge: %w", err)
 			}
@@ -418,7 +418,7 @@ func printEdgeNodesTable(nodes []EdgeNode) error {
 
 	for _, node := range nodes {
 		status := node.Status
-		
+
 		// Color code status
 		switch node.Status {
 		case "healthy":
@@ -464,12 +464,12 @@ func printEdgeNodesYAML(nodes []EdgeNode) error {
 
 func addEdgeNode(ctx context.Context, cfg *config.Config, logger *zap.Logger, nodeID, location, provider, capacity string) error {
 	// TODO: Implement add edge node
-	logger.Info("Adding edge node", 
+	logger.Info("Adding edge node",
 		zap.String("nodeID", nodeID),
 		zap.String("location", location),
 		zap.String("provider", provider),
 		zap.String("capacity", capacity))
-	
+
 	time.Sleep(2 * time.Second)
 	return nil
 }
@@ -477,7 +477,7 @@ func addEdgeNode(ctx context.Context, cfg *config.Config, logger *zap.Logger, no
 func removeEdgeNode(ctx context.Context, cfg *config.Config, logger *zap.Logger, nodeID string) error {
 	// TODO: Implement remove edge node
 	logger.Info("Removing edge node", zap.String("nodeID", nodeID))
-	
+
 	time.Sleep(3 * time.Second)
 	return nil
 }
@@ -485,11 +485,11 @@ func removeEdgeNode(ctx context.Context, cfg *config.Config, logger *zap.Logger,
 func checkEdgeNodesHealth(ctx context.Context, cfg *config.Config, nodeID string) (map[string]interface{}, error) {
 	// Mock implementation
 	health := map[string]interface{}{
-		"total_nodes": 4,
-		"healthy": 3,
-		"degraded": 1,
-		"unhealthy": 0,
-		"avg_latency": "15.75ms",
+		"total_nodes":     4,
+		"healthy":         3,
+		"degraded":        1,
+		"unhealthy":       0,
+		"avg_latency":     "15.75ms",
 		"total_workloads": 17,
 	}
 	return health, nil
@@ -498,9 +498,9 @@ func checkEdgeNodesHealth(ctx context.Context, cfg *config.Config, nodeID string
 func displayEdgeHealth(health map[string]interface{}) error {
 	color.Cyan("Edge Nodes Health Summary:")
 	fmt.Printf("Total Nodes: %v\n", health["total_nodes"])
-	fmt.Printf("Healthy: %s%v%s\n", color.GreenString(""), health["healthy"], color.ResetString(""))
-	fmt.Printf("Degraded: %s%v%s\n", color.YellowString(""), health["degraded"], color.ResetString(""))
-	fmt.Printf("Unhealthy: %s%v%s\n", color.RedString(""), health["unhealthy"], color.ResetString(""))
+	fmt.Printf("Healthy: %s\n", color.GreenString(fmt.Sprintf("%v", health["healthy"])))
+	fmt.Printf("Degraded: %s\n", color.YellowString(fmt.Sprintf("%v", health["degraded"])))
+	fmt.Printf("Unhealthy: %s\n", color.RedString(fmt.Sprintf("%v", health["unhealthy"])))
 	fmt.Printf("Average Latency: %v\n", health["avg_latency"])
 	fmt.Printf("Total Workloads: %v\n", health["total_workloads"])
 	return nil
@@ -508,23 +508,23 @@ func displayEdgeHealth(health map[string]interface{}) error {
 
 func deployToEdge(ctx context.Context, cfg *config.Config, logger *zap.Logger, app, strategy string, locations []string, replicas int, image string) error {
 	// TODO: Implement edge deployment
-	logger.Info("Deploying to edge", 
+	logger.Info("Deploying to edge",
 		zap.String("app", app),
 		zap.String("strategy", strategy),
 		zap.Strings("locations", locations),
 		zap.Int("replicas", replicas),
 		zap.String("image", image))
-	
+
 	time.Sleep(4 * time.Second)
 	return nil
 }
 
 func configureTrafficRouting(ctx context.Context, cfg *config.Config, logger *zap.Logger, deployment, algorithm string, weights map[string]int) error {
 	// TODO: Implement traffic routing
-	logger.Info("Configuring traffic routing", 
+	logger.Info("Configuring traffic routing",
 		zap.String("deployment", deployment),
 		zap.String("algorithm", algorithm))
-	
+
 	time.Sleep(1 * time.Second)
 	return nil
 }
@@ -565,9 +565,9 @@ func monitorEdgeDeployments(ctx context.Context, cfg *config.Config, deployment 
 		"deployments": 3,
 		"total_nodes": 4,
 		"avg_latency": "15.75ms",
-		"throughput": "1.2K req/s",
-		"error_rate": "0.02%",
-		"uptime": "99.95%",
+		"throughput":  "1.2K req/s",
+		"error_rate":  "0.02%",
+		"uptime":      "99.95%",
 	}
 	return data, nil
 }

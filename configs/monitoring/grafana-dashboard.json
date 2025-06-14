@@ -1,0 +1,348 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Go Coffee - Performance Optimization Dashboard",
+    "tags": ["go-coffee", "optimization", "performance"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🚀 Service Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"go-coffee-optimized\"}",
+            "legendFormat": "Service Status"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "mappings": [
+              {"options": {"0": {"text": "DOWN"}}, "type": "value"},
+              {"options": {"1": {"text": "UP"}}, "type": "value"}
+            ]
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "📊 Request Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "⚡ Response Time (P95)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 0.2},
+                {"color": "red", "value": 0.5}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "❌ Error Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+            "legendFormat": "Error Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "📈 HTTP Request Rate Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "Total Requests/sec"
+          },
+          {
+            "expr": "rate(http_requests_total{status=~\"2..\"}[5m])",
+            "legendFormat": "Success Requests/sec"
+          },
+          {
+            "expr": "rate(http_requests_total{status=~\"4..\"}[5m])",
+            "legendFormat": "Client Error Requests/sec"
+          },
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m])",
+            "legendFormat": "Server Error Requests/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+      },
+      {
+        "id": 6,
+        "title": "⏱️ Response Time Percentiles",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P99"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+      },
+      {
+        "id": 7,
+        "title": "🗄️ Database Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "database_active_connections",
+            "legendFormat": "Active Connections"
+          },
+          {
+            "expr": "database_idle_connections",
+            "legendFormat": "Idle Connections"
+          },
+          {
+            "expr": "rate(database_queries_total[5m])",
+            "legendFormat": "Queries/sec"
+          },
+          {
+            "expr": "rate(database_slow_queries_total[5m])",
+            "legendFormat": "Slow Queries/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+      },
+      {
+        "id": 8,
+        "title": "⚡ Cache Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(cache_hits_total[5m])",
+            "legendFormat": "Cache Hits/sec"
+          },
+          {
+            "expr": "rate(cache_misses_total[5m])",
+            "legendFormat": "Cache Misses/sec"
+          },
+          {
+            "expr": "cache_hits_total / (cache_hits_total + cache_misses_total) * 100",
+            "legendFormat": "Hit Ratio %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+      },
+      {
+        "id": 9,
+        "title": "🧠 Memory Usage",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes / 1024 / 1024",
+            "legendFormat": "Resident Memory (MB)"
+          },
+          {
+            "expr": "go_memstats_heap_inuse_bytes / 1024 / 1024",
+            "legendFormat": "Heap In Use (MB)"
+          },
+          {
+            "expr": "go_memstats_heap_alloc_bytes / 1024 / 1024",
+            "legendFormat": "Heap Allocated (MB)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "decbytes",
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
+      },
+      {
+        "id": 10,
+        "title": "🔄 Garbage Collection",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(go_gc_duration_seconds_count[5m])",
+            "legendFormat": "GC Frequency (cycles/sec)"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(go_gc_duration_seconds_bucket[5m]))",
+            "legendFormat": "GC Duration P95 (sec)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20}
+      },
+      {
+        "id": 11,
+        "title": "🔧 System Resources",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+            "legendFormat": "CPU Usage %"
+          },
+          {
+            "expr": "go_goroutines",
+            "legendFormat": "Goroutines"
+          },
+          {
+            "expr": "process_open_fds",
+            "legendFormat": "Open File Descriptors"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28}
+      },
+      {
+        "id": 12,
+        "title": "☕ Business Metrics",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(orders_created_total[5m])",
+            "legendFormat": "Orders Created/sec"
+          },
+          {
+            "expr": "rate(orders_completed_total[5m])",
+            "legendFormat": "Orders Completed/sec"
+          },
+          {
+            "expr": "rate(orders_failed_total[5m])",
+            "legendFormat": "Orders Failed/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "instance",
+          "type": "query",
+          "query": "label_values(up{job=\"go-coffee-optimized\"}, instance)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "expr": "changes(process_start_time_seconds[1m]) > 0",
+          "titleFormat": "Service Restart",
+          "textFormat": "Go Coffee service restarted"
+        }
+      ]
+    }
+  },
+  "overwrite": true
+}

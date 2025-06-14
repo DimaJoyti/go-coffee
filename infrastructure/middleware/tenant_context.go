@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -14,6 +15,13 @@ import (
 type TenantContextMiddleware struct {
 	tenantRepository tenant.TenantRepository
 	validator        *TenantContextValidator
+	jwtExtractor     *TenantJWTExtractor
+}
+
+// TenantContextConfig holds configuration for tenant context middleware
+type TenantContextConfig struct {
+	TenantRepository tenant.TenantRepository
+	JWTExtractor     *TenantJWTExtractor
 }
 
 // NewTenantContextMiddleware creates a new tenant context middleware
@@ -21,6 +29,16 @@ func NewTenantContextMiddleware(tenantRepository tenant.TenantRepository) *Tenan
 	return &TenantContextMiddleware{
 		tenantRepository: tenantRepository,
 		validator:        NewTenantContextValidator(),
+		jwtExtractor:     nil, // Optional JWT extractor
+	}
+}
+
+// NewTenantContextMiddlewareWithConfig creates a new tenant context middleware with configuration
+func NewTenantContextMiddlewareWithConfig(config TenantContextConfig) *TenantContextMiddleware {
+	return &TenantContextMiddleware{
+		tenantRepository: config.TenantRepository,
+		validator:        NewTenantContextValidator(),
+		jwtExtractor:     config.JWTExtractor,
 	}
 }
 
@@ -57,11 +75,12 @@ func (m *TenantContextMiddleware) GinTenantContext() gin.HandlerFunc {
 }
 
 // HTTPTenantContext returns an HTTP middleware that extracts tenant context
+// Deprecated: Use HTTPTenantMiddleware.TenantContext instead for better error handling
 func (m *TenantContextMiddleware) HTTPTenantContext(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tenantCtx, err := m.extractTenantContext(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+			writeJSONErrorResponse(w, http.StatusUnauthorized, "Unauthorized", err.Error())
 			return
 		}
 
@@ -173,6 +192,16 @@ func (m *TenantContextMiddleware) extractFromSubdomain(r *http.Request) string {
 
 // extractFromJWT extracts tenant ID from JWT token
 func (m *TenantContextMiddleware) extractFromJWT(r *http.Request) string {
+	// If JWT extractor is configured, use it
+	if m.jwtExtractor != nil {
+		tenantID, err := m.jwtExtractor.ExtractTenantFromJWT(r)
+		if err != nil {
+			return ""
+		}
+		return tenantID.Value()
+	}
+
+	// Fallback to basic token extraction (for backward compatibility)
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		return ""
@@ -183,11 +212,9 @@ func (m *TenantContextMiddleware) extractFromJWT(r *http.Request) string {
 		return ""
 	}
 
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// In a real implementation, you would decode and validate the JWT
-	// For now, we'll return empty string
-	_ = token
+	// In a real implementation without JWT extractor,
+	// you would decode and validate the JWT here
+	// For now, we'll return empty string to indicate no tenant found
 	return ""
 }
 
@@ -385,4 +412,17 @@ func (m *TenantMetricsMiddleware) CollectMetrics() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// writeJSONErrorResponse writes a JSON error response for HTTP handlers
+func writeJSONErrorResponse(w http.ResponseWriter, statusCode int, error, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	response := map[string]string{
+		"error":   error,
+		"message": message,
+	}
+
+	json.NewEncoder(w).Encode(response)
 }

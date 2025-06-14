@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/DimaJoyti/go-coffee/domain/shared"
+	"github.com/DimaJoyti/go-coffee/infrastructure/persistence"
 )
 
 // ExampleHTTPServer demonstrates how to use the infrastructure components
@@ -26,15 +27,68 @@ func ExampleHTTPServer() {
 	}
 
 	// Add tenant isolation middleware
-	handler = container.GetTenantIsolationMiddleware().ValidateTenantAccessHTTP(handler)
+	// Wrap the existing handler with tenant isolation middleware
+	originalHandler := handler
+	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract tenant context
+		tenantCtx, err := GetTenantContext(r)
+		if err != nil {
+			http.Error(w, "Tenant context required", http.StatusUnauthorized)
+			return
+		}
+		
+		// Extract tenant ID from URL if present (simplified implementation)
+		// In a real app, you would extract the tenant ID from the URL path and verify permissions
+		_ = tenantCtx // Use the tenant context or implement actual tenant validation here
+		
+		// If all checks pass, proceed to the next handler
+		originalHandler.ServeHTTP(w, r)
+	})
 
 	// Add feature requirement middleware for specific routes
 	if container.GetTenantContextMiddleware() != nil {
-		premiumHandler := container.GetTenantContextMiddleware().RequireFeatureHTTP("premium_features")
+		// Convert Gin middleware to HTTP middleware for premium features
+		premiumHandler := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Extract tenant context
+				tenantCtx, err := GetTenantContext(r)
+				if err != nil {
+					http.Error(w, "Tenant context required", http.StatusUnauthorized)
+					return
+				}
+				
+				// Check if tenant has premium features
+				if !tenantCtx.HasFeature("premium_features") {
+					http.Error(w, "Premium features not available", http.StatusForbidden)
+					return
+				}
+				
+				next.ServeHTTP(w, r)
+			})
+		}
 		mux.Handle("/api/premium/", premiumHandler(http.HandlerFunc(handlePremiumEndpoint)))
 
-		enterpriseHandler := container.GetTenantContextMiddleware().RequireSubscriptionHTTP(shared.SubscriptionEnterprise)
+		// Convert Gin middleware to HTTP middleware for enterprise subscription
+		enterpriseHandler := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Extract tenant context
+				tenantCtx, err := GetTenantContext(r)
+				if err != nil {
+					http.Error(w, "Tenant context required", http.StatusUnauthorized)
+					return
+				}
+				
+				// Check if tenant has enterprise subscription
+				if tenantCtx.Subscription() != shared.SubscriptionEnterprise {
+					http.Error(w, "Enterprise subscription required", http.StatusForbidden)
+					return
+				}
+				
+				next.ServeHTTP(w, r)
+			})
+		}
 		mux.Handle("/api/enterprise/", enterpriseHandler(http.HandlerFunc(handleEnterpriseEndpoint)))
+
 	}
 
 	// Add regular endpoints

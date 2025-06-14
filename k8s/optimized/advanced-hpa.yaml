@@ -1,0 +1,496 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: go-coffee-advanced-hpa
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: autoscaling
+    tier: optimization
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: go-coffee-api-gateway
+  minReplicas: 3
+  maxReplicas: 50
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metrics for business-aware scaling
+  - type: Pods
+    pods:
+      metric:
+        name: coffee_orders_per_second
+      target:
+        type: AverageValue
+        averageValue: "10"
+  - type: Pods
+    pods:
+      metric:
+        name: active_connections
+      target:
+        type: AverageValue
+        averageValue: "100"
+  # Queue depth for backpressure handling
+  - type: Object
+    object:
+      metric:
+        name: kafka_consumer_lag
+      describedObject:
+        apiVersion: v1
+        kind: Service
+        name: kafka
+      target:
+        type: Value
+        value: "1000"
+  # Response time SLA metric
+  - type: Pods
+    pods:
+      metric:
+        name: http_request_duration_p95
+      target:
+        type: AverageValue
+        averageValue: "200m"  # 200ms
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 4
+        periodSeconds: 15
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Min
+
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: go-coffee-vpa
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: autoscaling
+    tier: optimization
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: go-coffee-api-gateway
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+    - containerName: api-gateway
+      minAllowed:
+        cpu: 100m
+        memory: 128Mi
+      maxAllowed:
+        cpu: 2000m
+        memory: 4Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+    - containerName: redis-sidecar
+      minAllowed:
+        cpu: 50m
+        memory: 64Mi
+      maxAllowed:
+        cpu: 500m
+        memory: 1Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: go-coffee-pdb
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: availability
+    tier: optimization
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: go-coffee-api-gateway
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: go-coffee-metrics
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: monitoring
+    tier: optimization
+spec:
+  selector:
+    matchLabels:
+      app: go-coffee
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
+    honorLabels: true
+  - port: health
+    interval: 30s
+    path: /health
+    honorLabels: true
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-scaling-config
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: configuration
+    tier: optimization
+data:
+  scaling.yaml: |
+    scaling:
+      # HPA Configuration
+      hpa:
+        enabled: true
+        min_replicas: 3
+        max_replicas: 50
+        target_cpu_utilization: 70
+        target_memory_utilization: 80
+        scale_up_stabilization: 60s
+        scale_down_stabilization: 300s
+        
+      # VPA Configuration
+      vpa:
+        enabled: true
+        update_mode: "Auto"
+        min_cpu: "100m"
+        max_cpu: "2000m"
+        min_memory: "128Mi"
+        max_memory: "4Gi"
+        
+      # Custom Metrics
+      custom_metrics:
+        - name: "coffee_orders_per_second"
+          target: 10
+          type: "pods"
+        - name: "active_connections"
+          target: 100
+          type: "pods"
+        - name: "kafka_consumer_lag"
+          target: 1000
+          type: "object"
+        - name: "http_request_duration_p95"
+          target: "200m"
+          type: "pods"
+          
+      # Business Rules
+      business_rules:
+        peak_hours:
+          start: "07:00"
+          end: "10:00"
+          min_replicas: 10
+          max_replicas: 50
+        lunch_hours:
+          start: "11:30"
+          end: "14:00"
+          min_replicas: 15
+          max_replicas: 50
+        evening_hours:
+          start: "17:00"
+          end: "20:00"
+          min_replicas: 8
+          max_replicas: 30
+        night_hours:
+          start: "22:00"
+          end: "06:00"
+          min_replicas: 3
+          max_replicas: 10
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-coffee-custom-metrics-adapter
+  namespace: go-coffee
+  labels:
+    app: custom-metrics-adapter
+    component: monitoring
+    tier: optimization
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: custom-metrics-adapter
+  template:
+    metadata:
+      labels:
+        app: custom-metrics-adapter
+    spec:
+      serviceAccountName: custom-metrics-adapter
+      containers:
+      - name: custom-metrics-adapter
+        image: k8s.gcr.io/prometheus-adapter/prometheus-adapter:v0.11.0
+        args:
+        - --cert-dir=/var/run/serving-cert
+        - --config=/etc/adapter/config.yaml
+        - --logtostderr=true
+        - --prometheus-url=http://prometheus.monitoring.svc:9090/
+        - --metrics-relist-interval=1m
+        - --v=4
+        - --secure-port=6443
+        ports:
+        - containerPort: 6443
+          name: https
+        volumeMounts:
+        - mountPath: /var/run/serving-cert
+          name: volume-serving-cert
+          readOnly: false
+        - mountPath: /etc/adapter/
+          name: config
+          readOnly: true
+        - mountPath: /tmp
+          name: tmp-vol
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: volume-serving-cert
+        emptyDir: {}
+      - name: config
+        configMap:
+          name: adapter-config
+      - name: tmp-vol
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - custom-metrics-adapter
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: adapter-config
+  namespace: go-coffee
+  labels:
+    app: custom-metrics-adapter
+    component: configuration
+    tier: optimization
+data:
+  config.yaml: |
+    rules:
+    # Coffee business metrics
+    - seriesQuery: 'coffee_orders_total{namespace!="",pod!=""}'
+      seriesFilters: []
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          pod:
+            resource: pod
+      name:
+        matches: "^coffee_orders_total"
+        as: "coffee_orders_per_second"
+      metricsQuery: 'rate(<<.Series>>{<<.LabelMatchers>>}[2m])'
+    
+    # HTTP connection metrics
+    - seriesQuery: 'http_connections_active{namespace!="",pod!=""}'
+      seriesFilters: []
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          pod:
+            resource: pod
+      name:
+        matches: "^http_connections_active"
+        as: "active_connections"
+      metricsQuery: '<<.Series>>{<<.LabelMatchers>>}'
+    
+    # Response time metrics
+    - seriesQuery: 'http_request_duration_seconds{namespace!="",pod!=""}'
+      seriesFilters: []
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          pod:
+            resource: pod
+      name:
+        matches: "^http_request_duration_seconds"
+        as: "http_request_duration_p95"
+      metricsQuery: 'histogram_quantile(0.95, rate(<<.Series>>_bucket{<<.LabelMatchers>>}[2m]))'
+    
+    # Kafka consumer lag
+    - seriesQuery: 'kafka_consumer_lag_sum{namespace!="",service!=""}'
+      seriesFilters: []
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          service:
+            resource: service
+      name:
+        matches: "^kafka_consumer_lag_sum"
+        as: "kafka_consumer_lag"
+      metricsQuery: '<<.Series>>{<<.LabelMatchers>>}'
+    
+    # Memory pressure metrics
+    - seriesQuery: 'container_memory_working_set_bytes{namespace!="",pod!=""}'
+      seriesFilters:
+      - isNot: "^container_memory_working_set_bytes.*_total$"
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          pod:
+            resource: pod
+      name:
+        matches: "^container_memory_working_set_bytes"
+        as: "memory_working_set"
+      metricsQuery: '<<.Series>>{<<.LabelMatchers>>}'
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-metrics-adapter
+  namespace: go-coffee
+  labels:
+    app: custom-metrics-adapter
+    component: monitoring
+    tier: optimization
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: custom-metrics-adapter
+  labels:
+    app: custom-metrics-adapter
+    component: monitoring
+    tier: optimization
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - pods
+  - services
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - custom.metrics.k8s.io
+  resources:
+  - "*"
+  verbs:
+  - "*"
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: custom-metrics-adapter
+  labels:
+    app: custom-metrics-adapter
+    component: monitoring
+    tier: optimization
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: custom-metrics-adapter
+subjects:
+- kind: ServiceAccount
+  name: custom-metrics-adapter
+  namespace: go-coffee
+
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta1.custom.metrics.k8s.io
+  labels:
+    app: custom-metrics-adapter
+    component: monitoring
+    tier: optimization
+spec:
+  service:
+    name: custom-metrics-adapter
+    namespace: go-coffee
+  group: custom.metrics.k8s.io
+  version: v1beta1
+  insecureSkipTLSVerify: true
+  groupPriorityMinimum: 100
+  versionPriority: 100
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: custom-metrics-adapter
+  namespace: go-coffee
+  labels:
+    app: custom-metrics-adapter
+    component: monitoring
+    tier: optimization
+spec:
+  ports:
+  - name: https
+    port: 443
+    targetPort: 6443
+  selector:
+    app: custom-metrics-adapter

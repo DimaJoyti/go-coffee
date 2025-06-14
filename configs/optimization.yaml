@@ -1,0 +1,365 @@
+# Go Coffee Performance Optimization Configuration
+
+# Database Optimization Settings
+database:
+  optimization:
+    enabled: true
+    
+    # Connection Pool Settings
+    connection_pool:
+      max_connections: 50
+      min_connections: 10
+      max_connection_lifetime: "5m"
+      max_connection_idle_time: "2m"
+      health_check_period: "30s"
+      connection_timeout: "10s"
+      
+    # Query Optimization
+    query:
+      default_timeout: "30s"
+      slow_query_threshold: "1s"
+      prepared_statements: true
+      
+    # Read Replica Configuration
+    read_replicas:
+      enabled: true
+      failover: true
+      weight: [1]  # Equal weight for now
+      
+    # Performance Monitoring
+    monitoring:
+      enabled: true
+      metrics_interval: "30s"
+      slow_query_logging: true
+
+# Cache Optimization Settings
+cache:
+  optimization:
+    enabled: true
+    
+    # Redis Cluster Configuration
+    cluster:
+      enabled: false  # Set to true for production clustering
+      nodes:
+        - "redis-1:6379"
+        - "redis-2:6379"
+        - "redis-3:6379"
+      
+    # Connection Settings
+    connection:
+      pool_size: 50
+      min_idle_connections: 10
+      read_timeout: "3s"
+      write_timeout: "3s"
+      dial_timeout: "5s"
+      max_retries: 3
+      retry_delay: "100ms"
+      
+    # Compression Settings
+    compression:
+      enabled: true
+      min_size: 1024  # Compress values larger than 1KB
+      algorithm: "gzip"
+      
+    # Cache Warming
+    warming:
+      enabled: true
+      interval: "5m"
+      batch_size: 100
+      strategies:
+        - name: "menu"
+          enabled: true
+          ttl: "1h"
+        - name: "popular_items"
+          enabled: true
+          ttl: "30m"
+        - name: "user_sessions"
+          enabled: true
+          ttl: "1h"
+          
+    # Performance Settings
+    performance:
+      max_key_size: 1024
+      max_value_size: 10485760  # 10MB
+      default_ttl: "1h"
+      
+    # Monitoring
+    monitoring:
+      enabled: true
+      metrics_interval: "30s"
+      hit_ratio_threshold: 0.8
+
+# Memory Optimization Settings
+memory:
+  optimization:
+    enabled: true
+    
+    # Garbage Collection
+    gc:
+      enabled: true
+      target_percent: 100
+      max_pause_threshold: "10ms"
+      adaptive: true
+      
+    # Object Pooling
+    pooling:
+      enabled: true
+      cleanup_interval: "5m"
+      max_pool_size: 1000
+      idle_timeout: "10m"
+      
+    # Memory Monitoring
+    monitoring:
+      enabled: true
+      interval: "1m"
+      threshold: 0.8  # 80% memory usage threshold
+      leak_detection: true
+      
+    # Profiling
+    profiling:
+      enabled: true
+      pprof_enabled: true
+
+# Concurrency Optimization Settings
+concurrency:
+  optimization:
+    enabled: true
+    
+    # Worker Pools
+    worker_pools:
+      enabled: true
+      
+      # Order Processing Pool
+      order_processing:
+        min_workers: 5
+        max_workers: 50
+        queue_size: 1000
+        worker_timeout: "30s"
+        scale_up_threshold: 0.8
+        scale_down_threshold: 0.2
+        scale_up_cooldown: "1m"
+        scale_down_cooldown: "5m"
+        
+      # Payment Processing Pool
+      payment_processing:
+        min_workers: 3
+        max_workers: 20
+        queue_size: 500
+        worker_timeout: "60s"
+        scale_up_threshold: 0.7
+        scale_down_threshold: 0.3
+        
+      # Notification Pool
+      notification:
+        min_workers: 2
+        max_workers: 10
+        queue_size: 200
+        worker_timeout: "15s"
+        
+    # Rate Limiting
+    rate_limiting:
+      enabled: true
+      default_algorithm: "sliding_window"
+      
+      # API Rate Limits
+      api:
+        default_limit: 1000  # requests per minute
+        burst_size: 100
+        window_size: "1m"
+        
+      # Per-endpoint limits
+      endpoints:
+        "/api/v1/orders":
+          limit: 100
+          window: "1m"
+        "/api/v1/payments":
+          limit: 50
+          window: "1m"
+        "/api/v1/auth/login":
+          limit: 10
+          window: "1m"
+          
+    # Circuit Breaker
+    circuit_breaker:
+      enabled: true
+      
+      # Default settings
+      default:
+        failure_threshold: 5
+        success_threshold: 3
+        timeout_threshold: "30s"
+        open_timeout: "60s"
+        half_open_timeout: "30s"
+        half_open_max_requests: 10
+        half_open_success_ratio: 0.8
+        
+      # Service-specific settings
+      services:
+        payment_service:
+          failure_threshold: 3
+          open_timeout: "30s"
+        external_api:
+          failure_threshold: 10
+          open_timeout: "120s"
+
+# Monitoring and Observability
+monitoring:
+  optimization:
+    enabled: true
+    
+    # OpenTelemetry
+    opentelemetry:
+      enabled: true
+      service_name: "go-coffee"
+      service_version: "1.0.0"
+      environment: "production"
+      
+      # Tracing
+      tracing:
+        enabled: true
+        jaeger_endpoint: "http://jaeger:14268/api/traces"
+        sampling_ratio: 0.1
+        
+      # Metrics
+      metrics:
+        enabled: true
+        prometheus_endpoint: "http://prometheus:9090"
+        metrics_port: 9090
+        
+      # Custom Metrics
+      custom_metrics:
+        - name: "coffee_orders_total"
+          type: "counter"
+          description: "Total number of coffee orders"
+          labels: ["shop_id", "status"]
+        - name: "coffee_order_duration"
+          type: "histogram"
+          description: "Coffee order processing duration"
+          unit: "seconds"
+        - name: "active_users"
+          type: "gauge"
+          description: "Number of active users"
+          
+    # Health Checks
+    health_checks:
+      enabled: true
+      interval: "30s"
+      timeout: "10s"
+      endpoints:
+        - "/health"
+        - "/ready"
+        - "/metrics"
+
+# Performance Testing
+testing:
+  performance:
+    enabled: true
+    
+    # Load Testing
+    load_testing:
+      tool: "k6"
+      scenarios:
+        - name: "smoke_test"
+          duration: "1m"
+          vus: 1
+        - name: "load_test"
+          duration: "10m"
+          vus: 20
+        - name: "stress_test"
+          duration: "15m"
+          vus: 100
+          
+    # Benchmarking
+    benchmarking:
+      enabled: true
+      interval: "daily"
+      baseline_metrics:
+        - "response_time_p95"
+        - "throughput"
+        - "error_rate"
+        - "memory_usage"
+        - "cpu_usage"
+
+# Feature Flags for Gradual Rollout
+feature_flags:
+  optimization_rollout:
+    enabled: true
+    
+    flags:
+      - name: "advanced_database_pooling"
+        enabled: true
+        rollout_percentage: 100
+        
+      - name: "redis_compression"
+        enabled: true
+        rollout_percentage: 100
+        
+      - name: "cache_warming"
+        enabled: true
+        rollout_percentage: 50
+        
+      - name: "dynamic_worker_pools"
+        enabled: true
+        rollout_percentage: 75
+        
+      - name: "advanced_rate_limiting"
+        enabled: true
+        rollout_percentage: 25
+        
+      - name: "circuit_breakers"
+        enabled: true
+        rollout_percentage: 50
+
+# Environment-specific Overrides
+environments:
+  development:
+    database:
+      optimization:
+        connection_pool:
+          max_connections: 10
+          min_connections: 2
+    cache:
+      optimization:
+        warming:
+          enabled: false
+    monitoring:
+      optimization:
+        opentelemetry:
+          tracing:
+            sampling_ratio: 1.0
+            
+  staging:
+    database:
+      optimization:
+        connection_pool:
+          max_connections: 25
+          min_connections: 5
+    cache:
+      optimization:
+        warming:
+          enabled: true
+          interval: "10m"
+    feature_flags:
+      optimization_rollout:
+        flags:
+          - name: "cache_warming"
+            rollout_percentage: 100
+            
+  production:
+    database:
+      optimization:
+        read_replicas:
+          enabled: true
+        monitoring:
+          slow_query_logging: true
+    cache:
+      optimization:
+        cluster:
+          enabled: true
+        warming:
+          enabled: true
+    monitoring:
+      optimization:
+        opentelemetry:
+          tracing:
+            sampling_ratio: 0.01  # 1% sampling in production

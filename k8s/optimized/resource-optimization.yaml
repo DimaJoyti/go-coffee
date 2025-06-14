@@ -1,0 +1,520 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: go-coffee-resource-quota
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: resource-management
+    tier: optimization
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "50"
+    limits.memory: 100Gi
+    
+    # Storage resources
+    requests.storage: 100Gi
+    persistentvolumeclaims: "10"
+    
+    # Object counts
+    pods: "100"
+    services: "20"
+    secrets: "20"
+    configmaps: "20"
+    
+    # Network resources
+    services.loadbalancers: "5"
+    services.nodeports: "10"
+
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: go-coffee-limit-range
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: resource-management
+    tier: optimization
+spec:
+  limits:
+  # Container limits
+  - type: Container
+    default:
+      cpu: "500m"
+      memory: "512Mi"
+      ephemeral-storage: "1Gi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "128Mi"
+      ephemeral-storage: "100Mi"
+    max:
+      cpu: "4"
+      memory: "8Gi"
+      ephemeral-storage: "10Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+      ephemeral-storage: "50Mi"
+  
+  # Pod limits
+  - type: Pod
+    max:
+      cpu: "8"
+      memory: "16Gi"
+      ephemeral-storage: "20Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+      ephemeral-storage: "100Mi"
+  
+  # PVC limits
+  - type: PersistentVolumeClaim
+    max:
+      storage: "50Gi"
+    min:
+      storage: "1Gi"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-resource-profiles
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: resource-management
+    tier: optimization
+data:
+  profiles.yaml: |
+    # Resource profiles for different service types
+    profiles:
+      # High-performance API services
+      api-gateway:
+        requests:
+          cpu: "200m"
+          memory: "256Mi"
+          ephemeral-storage: "200Mi"
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+          ephemeral-storage: "1Gi"
+        jvm_opts: "-Xms256m -Xmx768m -XX:+UseG1GC"
+        
+      # Database services
+      database:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+          ephemeral-storage: "500Mi"
+        limits:
+          cpu: "2000m"
+          memory: "4Gi"
+          ephemeral-storage: "2Gi"
+        
+      # Cache services
+      cache:
+        requests:
+          cpu: "100m"
+          memory: "512Mi"
+          ephemeral-storage: "100Mi"
+        limits:
+          cpu: "500m"
+          memory: "2Gi"
+          ephemeral-storage: "500Mi"
+        
+      # Message queue services
+      messaging:
+        requests:
+          cpu: "300m"
+          memory: "512Mi"
+          ephemeral-storage: "1Gi"
+        limits:
+          cpu: "1000m"
+          memory: "2Gi"
+          ephemeral-storage: "5Gi"
+        
+      # AI/ML services
+      ai-service:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+          ephemeral-storage: "500Mi"
+        limits:
+          cpu: "2000m"
+          memory: "4Gi"
+          ephemeral-storage: "2Gi"
+        
+      # Background workers
+      worker:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+          ephemeral-storage: "100Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+          ephemeral-storage: "500Mi"
+        
+      # Monitoring services
+      monitoring:
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+          ephemeral-storage: "200Mi"
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
+          ephemeral-storage: "1Gi"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: go-coffee-critical
+  labels:
+    app: go-coffee
+    component: scheduling
+    tier: optimization
+value: 1000
+globalDefault: false
+description: "Critical Go Coffee services that must be scheduled first"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: go-coffee-high
+  labels:
+    app: go-coffee
+    component: scheduling
+    tier: optimization
+value: 800
+globalDefault: false
+description: "High priority Go Coffee services"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: go-coffee-normal
+  labels:
+    app: go-coffee
+    component: scheduling
+    tier: optimization
+value: 500
+globalDefault: true
+description: "Normal priority Go Coffee services"
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: go-coffee-low
+  labels:
+    app: go-coffee
+    component: scheduling
+    tier: optimization
+value: 200
+globalDefault: false
+description: "Low priority Go Coffee services"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-node-affinity-rules
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: scheduling
+    tier: optimization
+data:
+  affinity-rules.yaml: |
+    # Node affinity rules for optimal placement
+    node_affinity:
+      # High-performance nodes for API services
+      api_services:
+        required:
+          - key: "node-type"
+            operator: "In"
+            values: ["high-performance", "compute-optimized"]
+        preferred:
+          - weight: 100
+            key: "zone"
+            operator: "In"
+            values: ["us-central1-a", "us-central1-b"]
+      
+      # Memory-optimized nodes for databases
+      database_services:
+        required:
+          - key: "node-type"
+            operator: "In"
+            values: ["memory-optimized"]
+        preferred:
+          - weight: 100
+            key: "ssd"
+            operator: "In"
+            values: ["true"]
+      
+      # GPU nodes for AI services
+      ai_services:
+        required:
+          - key: "accelerator"
+            operator: "In"
+            values: ["nvidia-tesla-t4", "nvidia-tesla-v100"]
+        preferred:
+          - weight: 100
+            key: "gpu-memory"
+            operator: "In"
+            values: ["16GB", "32GB"]
+    
+    # Pod anti-affinity for high availability
+    pod_anti_affinity:
+      api_gateway:
+        required:
+          - labelSelector:
+              matchExpressions:
+              - key: "app"
+                operator: "In"
+                values: ["go-coffee-api-gateway"]
+            topologyKey: "kubernetes.io/hostname"
+        preferred:
+          - weight: 100
+            labelSelector:
+              matchExpressions:
+              - key: "app"
+                operator: "In"
+                values: ["go-coffee-api-gateway"]
+            topologyKey: "topology.kubernetes.io/zone"
+      
+      database:
+        required:
+          - labelSelector:
+              matchExpressions:
+              - key: "app"
+                operator: "In"
+                values: ["postgres", "redis"]
+            topologyKey: "kubernetes.io/hostname"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-performance-tuning
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: performance
+    tier: optimization
+data:
+  tuning.yaml: |
+    # Performance tuning configurations
+    performance:
+      # JVM tuning for Java services
+      jvm:
+        heap_size_ratio: 0.75  # 75% of container memory
+        gc_algorithm: "G1GC"
+        gc_options:
+          - "-XX:+UseG1GC"
+          - "-XX:MaxGCPauseMillis=200"
+          - "-XX:+UnlockExperimentalVMOptions"
+          - "-XX:+UseCGroupMemoryLimitForHeap"
+          - "-XX:+UseContainerSupport"
+        
+      # Go runtime tuning
+      go:
+        gomaxprocs: "auto"  # Use container CPU limits
+        gc_percent: 100
+        memory_limit: "auto"  # Use container memory limits
+        
+      # Node.js tuning
+      nodejs:
+        max_old_space_size: "auto"  # 75% of container memory
+        max_semi_space_size: 128
+        
+      # Database connection pooling
+      database:
+        max_connections_per_pod: 25
+        idle_connections_per_pod: 5
+        connection_lifetime: "5m"
+        
+      # HTTP client tuning
+      http_client:
+        max_idle_connections: 100
+        max_idle_connections_per_host: 10
+        idle_connection_timeout: "90s"
+        request_timeout: "30s"
+        
+      # Cache tuning
+      cache:
+        redis:
+          max_connections: 50
+          idle_connections: 10
+          connection_timeout: "5s"
+          read_timeout: "3s"
+          write_timeout: "3s"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-monitoring-config
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: monitoring
+    tier: optimization
+data:
+  monitoring.yaml: |
+    # Resource monitoring configuration
+    monitoring:
+      # Resource utilization thresholds
+      thresholds:
+        cpu:
+          warning: 70
+          critical: 85
+        memory:
+          warning: 80
+          critical: 90
+        disk:
+          warning: 75
+          critical: 85
+        network:
+          warning: 80
+          critical: 90
+      
+      # SLI/SLO definitions
+      sli_slo:
+        availability:
+          target: 99.9
+          measurement_window: "30d"
+        latency:
+          p50_target: "100ms"
+          p95_target: "200ms"
+          p99_target: "500ms"
+        throughput:
+          target: "1000 rps"
+          measurement_window: "5m"
+        error_rate:
+          target: "0.1%"
+          measurement_window: "5m"
+      
+      # Alert rules
+      alerts:
+        - name: "HighCPUUsage"
+          condition: "cpu_usage > 85"
+          duration: "5m"
+          severity: "warning"
+        - name: "HighMemoryUsage"
+          condition: "memory_usage > 90"
+          duration: "2m"
+          severity: "critical"
+        - name: "PodCrashLooping"
+          condition: "pod_restart_count > 5"
+          duration: "1m"
+          severity: "critical"
+        - name: "HighLatency"
+          condition: "http_request_duration_p95 > 500ms"
+          duration: "2m"
+          severity: "warning"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: go-coffee-resource-optimizer
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: optimization
+    tier: automation
+spec:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: resource-optimizer
+          containers:
+          - name: optimizer
+            image: go-coffee/resource-optimizer:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting resource optimization..."
+              
+              # Analyze resource usage patterns
+              kubectl top pods -n go-coffee --sort-by=cpu
+              kubectl top pods -n go-coffee --sort-by=memory
+              
+              # Check for over/under-provisioned pods
+              kubectl get pods -n go-coffee -o json | \
+                jq '.items[] | select(.status.phase=="Running") | 
+                    {name: .metadata.name, 
+                     requests: .spec.containers[0].resources.requests,
+                     limits: .spec.containers[0].resources.limits}'
+              
+              # Generate optimization recommendations
+              echo "Resource optimization completed"
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "128Mi"
+              limits:
+                cpu: "200m"
+                memory: "256Mi"
+          restartPolicy: OnFailure
+          
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: resource-optimizer
+  namespace: go-coffee
+  labels:
+    app: go-coffee
+    component: optimization
+    tier: automation
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: resource-optimizer
+  labels:
+    app: go-coffee
+    component: optimization
+    tier: automation
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: resource-optimizer
+  labels:
+    app: go-coffee
+    component: optimization
+    tier: automation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: resource-optimizer
+subjects:
+- kind: ServiceAccount
+  name: resource-optimizer
+  namespace: go-coffee
