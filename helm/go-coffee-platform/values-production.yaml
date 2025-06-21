@@ -1,0 +1,426 @@
+# Go Coffee Platform - Production Environment Values
+
+# Global configuration for production
+global:
+  imageRegistry: "gcr.io/go-coffee-prod"
+  imagePullSecrets: []
+  storageClass: "ssd"
+  environment: "production"
+  domain: "gocoffee.dev"
+
+# Core Services Configuration - Production sizing
+services:
+  # API Gateway
+  apiGateway:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+      pullPolicy: IfNotPresent
+    replicaCount: 5
+    service:
+      type: LoadBalancer
+      port: 80
+      targetPort: 8080
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+        nginx.ingress.kubernetes.io/rate-limit: "100"
+        nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      hosts:
+        - host: api.gocoffee.dev
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: api-gateway-prod-tls
+          hosts:
+            - api.gocoffee.dev
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 5
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 60
+
+  # Authentication Service
+  authService:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+    replicaCount: 5
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 400m
+        memory: 512Mi
+
+  # Order Service
+  orderService:
+    enabled: true
+    image:
+      tag: "v1.1.0"
+    replicaCount: 8
+    resources:
+      requests:
+        cpu: 200m
+        memory: 384Mi
+      limits:
+        cpu: 800m
+        memory: 1Gi
+
+  # Kitchen Service
+  kitchenService:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 150m
+        memory: 192Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # AI Services - Full production
+  aiArbitrage:
+    enabled: true
+    image:
+      tag: "v0.9.0"
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+        nvidia.com/gpu: 1
+
+  # Payment Service
+  paymentService:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 200m
+        memory: 384Mi
+      limits:
+        cpu: 800m
+        memory: 1Gi
+
+# Database Configuration - Production sizing
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: "postgresql-credentials"
+    secretKeys:
+      adminPasswordKey: "postgres-password"
+    database: "gocoffee"
+  primary:
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: "ssd"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: "ssd"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+# Cache Configuration - Production sizing
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: "redis-credentials"
+    existingSecretPasswordKey: "redis-password"
+  master:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "ssd"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "ssd"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# Monitoring Configuration - Full production
+monitoring:
+  prometheus:
+    enabled: true
+    server:
+      retention: "90d"
+      persistentVolume:
+        size: 500Gi
+        storageClass: "ssd"
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 4Gi
+        limits:
+          cpu: 4000m
+          memory: 16Gi
+  
+  grafana:
+    enabled: true
+    adminUser: "admin"
+    adminPassword: "production-grafana-password"
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: "ssd"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# Tracing Configuration - Full production
+tracing:
+  jaeger:
+    enabled: true
+    strategy: production
+    collector:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+    query:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+# Logging Configuration - Full production
+logging:
+  elasticsearch:
+    enabled: true
+    replicas: 5
+    minimumMasterNodes: 3
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+    volumeClaimTemplate:
+      resources:
+        requests:
+          storage: 500Gi
+      storageClassName: "ssd"
+  
+  fluentd:
+    enabled: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# Service Mesh Configuration - Full production
+serviceMesh:
+  istio:
+    enabled: true
+    injection:
+      enabled: true
+      namespaces:
+        - go-coffee
+    gateway:
+      enabled: true
+      hosts:
+        - "*.gocoffee.dev"
+
+# Security Configuration - Full production
+security:
+  certManager:
+    enabled: true
+    clusterIssuer:
+      name: letsencrypt-prod
+      email: admin@gocoffee.dev
+      server: https://acme-v02.api.letsencrypt.org/directory
+  
+  networkPolicies:
+    enabled: true
+    defaultDeny: true
+  
+  podSecurityPolicies:
+    enabled: true
+    
+  rbac:
+    enabled: true
+
+# Operators Configuration - Full production
+operators:
+  coffeeOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  
+  aiWorkloadOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 400m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+  
+  multitenantOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  
+  observabilityOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# Backup Configuration - Full production
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: "90d"
+  storage:
+    type: "gcs"
+    bucket: "go-coffee-prod-backups"
+    encryption: true
+
+# Scaling Configuration - Full production
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 100
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+# Resource Quotas - Production limits
+resourceQuotas:
+  enabled: true
+  hard:
+    requests.cpu: "50"
+    requests.memory: "100Gi"
+    limits.cpu: "100"
+    limits.memory: "200Gi"
+    persistentvolumeclaims: "50"
+    services: "100"
+    secrets: "200"
+    configmaps: "200"
+
+# Pod Disruption Budgets - Strict for production
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Production-specific configuration
+production:
+  # Enable all security features
+  security:
+    enabled: true
+    strictMode: true
+  
+  # Enable disaster recovery
+  disasterRecovery:
+    enabled: true
+    crossRegion: true
+  
+  # Enable compliance features
+  compliance:
+    enabled: true
+    auditLogging: true
+  
+  # Enable advanced monitoring
+  monitoring:
+    enabled: true
+    alerting: true
+    sla: true

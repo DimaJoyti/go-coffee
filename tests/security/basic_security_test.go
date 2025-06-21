@@ -34,7 +34,7 @@ func TestBasicSecurityChecks(t *testing.T) {
 			}
 
 			contentStr := string(content)
-			
+
 			// Check for potential hardcoded secrets
 			suspiciousPatterns := []string{
 				"password = \"",
@@ -82,7 +82,7 @@ func TestBasicSecurityChecks(t *testing.T) {
 			}
 
 			contentStr := string(content)
-			
+
 			// Check for potential SQL injection patterns
 			dangerousPatterns := []string{
 				"fmt.Sprintf(\"SELECT",
@@ -130,31 +130,31 @@ func TestBasicSecurityChecks(t *testing.T) {
 			}
 
 			contentStr := string(content)
-			
+
 			// Check for functions that return errors but might not be handled
 			lines := strings.Split(contentStr, "\n")
 			for i, line := range lines {
 				// Look for function calls that likely return errors
-				if strings.Contains(line, ":=") && 
-				   (strings.Contains(line, ".Get(") || 
-				    strings.Contains(line, ".Post(") || 
-				    strings.Contains(line, ".Put(") ||
-				    strings.Contains(line, ".Delete(") ||
-				    strings.Contains(line, ".Execute(") ||
-				    strings.Contains(line, ".Query(")) {
-					
+				if strings.Contains(line, ":=") &&
+					(strings.Contains(line, ".Get(") ||
+						strings.Contains(line, ".Post(") ||
+						strings.Contains(line, ".Put(") ||
+						strings.Contains(line, ".Delete(") ||
+						strings.Contains(line, ".Execute(") ||
+						strings.Contains(line, ".Query(")) {
+
 					// Check if error is handled in the next few lines
 					errorHandled := false
-					for j := i + 1; j < len(lines) && j < i + 5; j++ {
+					for j := i + 1; j < len(lines) && j < i+5; j++ {
 						if strings.Contains(lines[j], "if err != nil") ||
-						   strings.Contains(lines[j], "return") ||
-						   strings.Contains(lines[j], "log.") ||
-						   strings.Contains(lines[j], "panic(") {
+							strings.Contains(lines[j], "return") ||
+							strings.Contains(lines[j], "log.") ||
+							strings.Contains(lines[j], "panic(") {
 							errorHandled = true
 							break
 						}
 					}
-					
+
 					if !errorHandled {
 						t.Logf("Potential unhandled error in %s at line %d: %s", path, i+1, strings.TrimSpace(line))
 					}
@@ -169,49 +169,54 @@ func TestBasicSecurityChecks(t *testing.T) {
 
 	t.Run("NoDebugCode", func(t *testing.T) {
 		// Check for debug code that shouldn't be in production
+		debugPatterns := []string{
+			"GIN_MODE=debug",
+			"LOG_LEVEL=debug",
+			"fmt.Print",
+			"log.Print",
+			"panic(",
+			"//TODO",
+			"//FIXME",
+		}
+
 		err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
 
-			// Only check Go files, skip test files
-			if !strings.HasSuffix(path, ".go") || strings.Contains(path, "_test.go") {
+			// Skip vendor, .git, and test files
+			if strings.Contains(path, "vendor/") ||
+				strings.Contains(path, ".git/") ||
+				strings.Contains(path, "_test.go") ||
+				strings.HasSuffix(path, ".md") {
 				return nil
 			}
 
-			// Skip vendor and .git directories
-			if strings.Contains(path, "vendor/") || strings.Contains(path, ".git/") {
-				return nil
-			}
+			// Only check Go files and config files
+			if strings.HasSuffix(path, ".go") ||
+				strings.HasSuffix(path, ".env") ||
+				strings.HasSuffix(path, ".yml") ||
+				strings.HasSuffix(path, ".yaml") {
 
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
+				content, err := os.ReadFile(path)
+				if err != nil {
+					return err
+				}
 
-			contentStr := string(content)
-			
-			// Check for debug patterns
-			debugPatterns := []string{
-				"fmt.Println(",
-				"log.Println(",
-				"panic(",
-				"TODO:",
-				"FIXME:",
-				"XXX:",
-			}
-
-			for _, pattern := range debugPatterns {
-				if strings.Contains(contentStr, pattern) {
-					t.Logf("Debug code found in %s: %s", path, pattern)
-					// Note: We log instead of fail since some debug code might be intentional
+				for _, pattern := range debugPatterns {
+					if strings.Contains(string(content), pattern) {
+						t.Logf("Warning: Found debug pattern '%s' in %s", pattern, path)
+						// Don't fail the test, just warn for now
+					}
 				}
 			}
 
 			return nil
 		})
 
-		assert.NoError(t, err, "Error walking directory tree")
+		if err != nil {
+			t.Errorf("Error walking directory: %v", err)
+		}
 	})
 
 	t.Run("ConfigurationSecurity", func(t *testing.T) {
@@ -238,7 +243,7 @@ func TestBasicSecurityChecks(t *testing.T) {
 					}
 
 					contentStr := string(content)
-					
+
 					// Check for insecure configurations
 					insecurePatterns := []string{
 						"debug: true",
@@ -273,7 +278,7 @@ func TestEnvironmentVariables(t *testing.T) {
 		requiredEnvVars := []string{
 			// These would be required in production but not in tests
 			// "DATABASE_URL",
-			// "REDIS_URL", 
+			// "REDIS_URL",
 			// "JWT_SECRET",
 		}
 
@@ -302,9 +307,9 @@ func TestEnvironmentVariables(t *testing.T) {
 
 				// Check for patterns that might indicate sensitive data
 				if strings.Contains(strings.ToLower(key), "password") ||
-				   strings.Contains(strings.ToLower(key), "secret") ||
-				   strings.Contains(strings.ToLower(key), "key") {
-					
+					strings.Contains(strings.ToLower(key), "secret") ||
+					strings.Contains(strings.ToLower(key), "key") {
+
 					// Ensure the value is not obviously insecure
 					if value == "password" || value == "secret" || value == "123456" {
 						t.Errorf("Environment variable %s has an insecure value", key)

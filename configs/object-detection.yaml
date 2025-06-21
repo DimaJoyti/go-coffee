@@ -1,0 +1,72 @@
+environment: development
+
+server:
+  port: 8080
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: postgres
+  database: object_detection
+  ssl_mode: disable
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 300
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  database: 0
+  pool_size: 10
+  min_idle_conns: 2
+
+detection:
+  model_path: "./data/models/yolov5s.onnx"
+  model_type: "yolo"
+  confidence_threshold: 0.5
+  nms_threshold: 0.4
+  input_size: 640
+  max_detections: 100
+  processing_timeout: 30s
+  enable_gpu: false
+  batch_size: 1
+
+tracking:
+  enabled: true
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  max_distance: 100.0
+  cleanup_interval: 5m
+  trajectory_max_length: 100
+
+storage:
+  data_retention_days: 30
+  video_storage_path: "./data/videos"
+  model_storage_path: "./data/models"
+  thumbnail_path: "./data/thumbnails"
+  max_video_size_gb: 10
+  enable_video_recording: false
+
+monitoring:
+  enabled: true
+  metrics_port: 9090
+  metrics_path: "/metrics"
+  tracing_enabled: false
+  tracing_endpoint: ""
+  log_level: "info"
+  enable_health_check: true
+
+websocket:
+  enabled: true
+  path: "/ws"
+  max_connections: 100
+  read_buffer_size: 1024
+  write_buffer_size: 1024
+  ping_interval: 30s
+  pong_timeout: 10s

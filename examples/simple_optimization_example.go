@@ -76,7 +76,7 @@ func (s *SimpleOptimizedService) CreateOrder(ctx context.Context, order *SimpleO
 
 // GetOrder retrieves an order using cache-first strategy
 func (s *SimpleOptimizedService) GetOrder(ctx context.Context, orderID string) (*SimpleOrder, error) {
-	s.logger.Debug("Getting order", zap.String("order_id", orderID))
+	s.logger.Info("Getting order", zap.String("order_id", orderID))
 
 	// Try cache first
 	cacheManager := s.optimizationSvc.GetCacheManager()

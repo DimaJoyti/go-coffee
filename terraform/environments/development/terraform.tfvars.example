@@ -1,0 +1,93 @@
+# Development Environment Configuration
+# Copy this file to terraform.tfvars and update the values
+
+# GCP Project Configuration
+project_id = "go-coffee-dev-123456"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+# Notification Configuration
+alert_email = "dev-team@example.com"
+
+# Domain Configuration
+domain_name = "dev.gocoffee.local"
+
+# Resource Sizing (Development)
+node_machine_type = "e2-standard-2"
+min_nodes        = 1
+max_nodes        = 3
+
+# Database Configuration
+postgres_tier      = "db-f1-micro"
+postgres_disk_size = 20
+
+# Redis Configuration
+redis_memory_size = 1
+
+# Feature Flags (Development)
+enable_monitoring              = true
+enable_logging                = true
+enable_deletion_protection     = false
+enable_network_policy         = false
+enable_pod_security_policy    = false
+enable_workload_identity      = false
+enable_binary_authorization   = false
+enable_istio                  = false
+enable_cluster_autoscaling    = true
+enable_vertical_pod_autoscaling = false
+enable_preemptible_nodes      = true
+
+# Retention Policies (Short for development)
+log_retention_days    = 7
+backup_retention_days = 7
+
+# Network Configuration
+network_config = {
+  subnet_cidr   = "10.10.0.0/24"
+  pods_cidr     = "10.11.0.0/16"
+  services_cidr = "10.12.0.0/16"
+  master_cidr   = "172.16.10.0/28"
+}
+
+# Maintenance Window (Development-friendly)
+maintenance_window = {
+  day         = 6  # Saturday
+  hour        = 10 # 10 AM UTC
+  update_track = "rapid"
+}
+
+# Security Configuration (Relaxed for development)
+allowed_ip_ranges = ["0.0.0.0/0"]
+enable_private_nodes = false
+enable_private_endpoint = false
+
+master_authorized_networks = [
+  {
+    cidr_block   = "0.0.0.0/0"
+    display_name = "All networks (development only)"
+  }
+]
+
+# Database Flags (Minimal logging for development)
+database_flags = {
+  "log_statement"              = "none"
+  "log_min_duration_statement" = "-1"
+  "max_connections"           = "50"
+  "shared_buffers"            = "32MB"
+  "effective_cache_size"      = "128MB"
+}
+
+# Redis Configuration (Basic for development)
+redis_config = {
+  "maxmemory-policy" = "allkeys-lru"
+  "timeout"          = "300"
+  "maxclients"       = "1000"
+}
+
+# Resource Labels
+resource_labels = {
+  cost-center = "development"
+  auto-delete = "true"
+  owner       = "dev-team"
+  purpose     = "development"
+}

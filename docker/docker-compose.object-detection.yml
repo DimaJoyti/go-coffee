@@ -1,0 +1,185 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for object detection service
+  object-detection-db:
+    image: postgres:15-alpine
+    container_name: object-detection-db
+    environment:
+      POSTGRES_DB: object_detection
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - object_detection_db_data:/var/lib/postgresql/data
+      - ./sql/object-detection-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - object-detection-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d object_detection"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and real-time data
+  object-detection-redis:
+    image: redis:7-alpine
+    container_name: object-detection-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - object_detection_redis_data:/data
+    networks:
+      - object-detection-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Object Detection Service
+  object-detection-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.object-detection
+    container_name: object-detection-service
+    environment:
+      ENVIRONMENT: development
+      DB_HOST: object-detection-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: object_detection
+      REDIS_HOST: object-detection-redis
+      REDIS_PORT: 6379
+      LOG_LEVEL: debug
+    ports:
+      - "8080:8080"
+      - "9090:9090"  # Metrics port
+    volumes:
+      - ../configs:/app/configs:ro
+      - object_detection_models:/app/data/models
+      - object_detection_videos:/app/data/videos
+      - object_detection_thumbnails:/app/data/thumbnails
+    depends_on:
+      object-detection-db:
+        condition: service_healthy
+      object-detection-redis:
+        condition: service_healthy
+    networks:
+      - object-detection-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: object-detection-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ../monitoring/prometheus-object-detection.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - object-detection-network
+    depends_on:
+      - object-detection-service
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: object-detection-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - object-detection-network
+    depends_on:
+      - prometheus
+
+  # Jaeger for distributed tracing (optional)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: object-detection-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    networks:
+      - object-detection-network
+
+  # MinIO for object storage (optional, for storing video files and models)
+  minio:
+    image: minio/minio:latest
+    container_name: object-detection-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - object-detection-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # RTMP Server for video streaming (optional)
+  rtmp-server:
+    image: tiangolo/nginx-rtmp
+    container_name: object-detection-rtmp
+    ports:
+      - "1935:1935"
+      - "8081:80"
+    volumes:
+      - ../configs/nginx-rtmp.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - object-detection-network
+
+volumes:
+  object_detection_db_data:
+    driver: local
+  object_detection_redis_data:
+    driver: local
+  object_detection_models:
+    driver: local
+  object_detection_videos:
+    driver: local
+  object_detection_thumbnails:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  object-detection-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

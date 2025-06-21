@@ -90,7 +90,7 @@ func (s *OptimizedOrderService) CreateOrder(ctx context.Context, order *Order) e
 
 // GetOrder retrieves an order using cache-first strategy
 func (s *OptimizedOrderService) GetOrder(ctx context.Context, orderID string) (*Order, error) {
-	s.logger.Debug("Getting order", zap.String("order_id", orderID))
+	s.logger.Info("Getting order", zap.String("order_id", orderID))
 
 	// Try cache first
 	cacheManager := s.optimizationSvc.GetCacheManager()

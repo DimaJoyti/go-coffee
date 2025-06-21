@@ -1,18 +1,34 @@
 #!/bin/bash
 
-# Fix logger calls in solana_simple.go
-sed -i 's/c\.logger\.Debug("Getting Solana transaction status", "tx_hash", txHash)/c.logger.Debug("Getting Solana transaction status", zap.String("tx_hash", txHash))/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
+echo "🔧 Fixing logger calls throughout the project..."
 
-sed -i 's/c\.logger\.Debug("Getting Solana account info", "address", address)/c.logger.Debug("Getting Solana account info", zap.String("address", address))/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
+# Find all Go files and fix common logger issues
+find . -name "*.go" -not -path "./vendor/*" -not -path "./.git/*" | while read -r file; do
+    echo "Processing: $file"
+    
+    # Fix Debug calls to use zap.String
+    sed -i 's/\.Debug(\(".*"\), \(".*"\), \([^)]*\))/\.Debug(\1, zap.String(\2, \3))/g' "$file"
+    
+    # Fix Info calls to use zap.String  
+    sed -i 's/\.Info(\(".*"\), \(".*"\), \([^)]*\))/\.Info(\1, zap.String(\2, \3))/g' "$file"
+    
+    # Fix Error calls to use zap.Error
+    sed -i 's/\.Error(\(".*"\), \("error"\), \(err\))/\.Error(\1, zap.Error(\3))/g' "$file"
+    
+    # Fix Warn calls
+    sed -i 's/\.Warn(\(".*"\), \(".*"\), \([^)]*\))/\.Warn(\1, zap.String(\2, \3))/g' "$file"
+    
+    # Add zap import if logger calls are present and zap import is missing
+    if grep -q "zap\." "$file" && ! grep -q "go.uber.org/zap" "$file"; then
+        # Insert zap import after package declaration
+        sed -i '/^package /a\\nimport "go.uber.org/zap"' "$file"
+    fi
+done
 
-sed -i 's/c\.logger\.Debug("Getting Solana token balance",$/c.logger.Debug("Getting Solana token balance",/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
-sed -i 's/"address", address,$/zap.String("address", address),/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
-sed -i 's/"token_mint", tokenMint,$/zap.String("token_mint", tokenMint),/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
+echo "✅ Logger calls fixed!"
 
-sed -i 's/c\.logger\.Debug("Getting Solana token accounts", "owner", owner)/c.logger.Debug("Getting Solana token accounts", zap.String("owner", owner))/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
+# Run gofmt to clean up formatting
+echo "🧹 Running gofmt..."
+find . -name "*.go" -not -path "./vendor/*" -exec gofmt -w {} \;
 
-sed -i 's/c\.logger\.Debug("Getting Solana program accounts", "program_id", programID)/c.logger.Debug("Getting Solana program accounts", zap.String("program_id", programID))/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
-
-sed -i 's/c\.logger\.Debug("Getting confirmed Solana transaction", "signature", signature)/c.logger.Debug("Getting confirmed Solana transaction", zap.String("signature", signature))/g' web3-wallet-backend/pkg/blockchain/solana_simple.go
-
-echo "Logger calls fixed!"
+echo "🎉 All done!"

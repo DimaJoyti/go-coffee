@@ -1,0 +1,289 @@
+# Go Coffee Platform - Development Environment Values
+
+# Global configuration for development
+global:
+  imageRegistry: "gcr.io/go-coffee-dev"
+  imagePullSecrets: []
+  storageClass: "standard"
+  environment: "development"
+  domain: "dev.gocoffee.local"
+
+# Core Services Configuration - Development sizing
+services:
+  # API Gateway
+  apiGateway:
+    enabled: true
+    image:
+      tag: "latest"
+      pullPolicy: Always
+    replicaCount: 1
+    service:
+      type: NodePort
+      port: 80
+      targetPort: 8080
+    ingress:
+      enabled: false  # Disabled for local development
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    autoscaling:
+      enabled: false
+
+  # Authentication Service
+  authService:
+    enabled: true
+    image:
+      tag: "latest"
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  # Order Service
+  orderService:
+    enabled: true
+    image:
+      tag: "latest"
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # Kitchen Service
+  kitchenService:
+    enabled: true
+    image:
+      tag: "latest"
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  # AI Services - Disabled for development
+  aiArbitrage:
+    enabled: false
+
+  # Payment Service
+  paymentService:
+    enabled: true
+    image:
+      tag: "latest"
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# Database Configuration - Development sizing
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "dev-password"
+    database: "gocoffee_dev"
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Cache Configuration - Development sizing
+redis:
+  enabled: true
+  auth:
+    enabled: false  # Disabled for development ease
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# Monitoring Configuration - Minimal for development
+monitoring:
+  prometheus:
+    enabled: true
+    server:
+      retention: "7d"
+      persistentVolume:
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+  
+  grafana:
+    enabled: true
+    adminPassword: "admin"
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# Tracing Configuration - Simplified for development
+tracing:
+  jaeger:
+    enabled: true
+    strategy: allInOne
+    collector:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+    query:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+# Logging Configuration - Minimal for development
+logging:
+  elasticsearch:
+    enabled: false  # Disabled for development
+  
+  fluentd:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# Service Mesh Configuration - Disabled for development
+serviceMesh:
+  istio:
+    enabled: false
+
+# Security Configuration - Relaxed for development
+security:
+  certManager:
+    enabled: false  # Disabled for development
+  
+  networkPolicies:
+    enabled: false  # Disabled for development
+  
+  podSecurityPolicies:
+    enabled: false  # Disabled for development
+    
+  rbac:
+    enabled: false  # Disabled for development
+
+# Operators Configuration - Minimal for development
+operators:
+  coffeeOperator:
+    enabled: true
+    image:
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  
+  aiWorkloadOperator:
+    enabled: false  # Disabled for development
+  
+  multitenantOperator:
+    enabled: false  # Disabled for development
+  
+  observabilityOperator:
+    enabled: true
+    image:
+      tag: "latest"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# Backup Configuration - Disabled for development
+backup:
+  enabled: false
+
+# Scaling Configuration - Disabled for development
+autoscaling:
+  enabled: false
+
+# Resource Quotas - Relaxed for development
+resourceQuotas:
+  enabled: true
+  hard:
+    requests.cpu: "2"
+    requests.memory: "4Gi"
+    limits.cpu: "4"
+    limits.memory: "8Gi"
+    persistentvolumeclaims: "5"
+    services: "10"
+    secrets: "20"
+    configmaps: "20"
+
+# Pod Disruption Budgets - Disabled for development
+podDisruptionBudget:
+  enabled: false
+
+# Development-specific configuration
+development:
+  # Enable debug logging
+  debug: true
+  
+  # Hot reload for development
+  hotReload: true
+  
+  # Expose services via NodePort for easy access
+  exposeServices: true
+  
+  # Skip health checks for faster startup
+  skipHealthChecks: true
+  
+  # Use local storage for faster I/O
+  useLocalStorage: true

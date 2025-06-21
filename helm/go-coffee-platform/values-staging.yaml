@@ -1,0 +1,377 @@
+# Go Coffee Platform - Staging Environment Values
+
+# Global configuration for staging
+global:
+  imageRegistry: "gcr.io/go-coffee-staging"
+  imagePullSecrets: []
+  storageClass: "standard"
+  environment: "staging"
+  domain: "staging.gocoffee.dev"
+
+# Core Services Configuration - Staging sizing
+services:
+  # API Gateway
+  apiGateway:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+      pullPolicy: IfNotPresent
+    replicaCount: 2
+    service:
+      type: LoadBalancer
+      port: 80
+      targetPort: 8080
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-staging"
+      hosts:
+        - host: api.staging.gocoffee.dev
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: api-gateway-staging-tls
+          hosts:
+            - api.staging.gocoffee.dev
+    resources:
+      requests:
+        cpu: 75m
+        memory: 96Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+
+  # Authentication Service
+  authService:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 150m
+        memory: 192Mi
+
+  # Order Service
+  orderService:
+    enabled: true
+    image:
+      tag: "v1.1.0-rc"
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 75m
+        memory: 192Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+
+  # Kitchen Service
+  kitchenService:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 200m
+        memory: 192Mi
+
+  # AI Services - Limited for staging
+  aiArbitrage:
+    enabled: true
+    image:
+      tag: "v0.9.0-rc"
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  # Payment Service
+  paymentService:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 75m
+        memory: 192Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+
+# Database Configuration - Staging sizing
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "staging-secure-password"
+    database: "gocoffee_staging"
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 384Mi
+      limits:
+        cpu: 750m
+        memory: 1Gi
+
+# Cache Configuration - Staging sizing
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "staging-redis-password"
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 75m
+        memory: 192Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+
+# Monitoring Configuration - Moderate for staging
+monitoring:
+  prometheus:
+    enabled: true
+    server:
+      retention: "15d"
+      persistentVolume:
+        size: 50Gi
+      resources:
+        requests:
+          cpu: 300m
+          memory: 768Mi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+  
+  grafana:
+    enabled: true
+    adminPassword: "staging-grafana-password"
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 75m
+        memory: 96Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+
+# Tracing Configuration - Full for staging
+tracing:
+  jaeger:
+    enabled: true
+    strategy: production
+    collector:
+      resources:
+        requests:
+          cpu: 75m
+          memory: 96Mi
+        limits:
+          cpu: 300m
+          memory: 384Mi
+    query:
+      resources:
+        requests:
+          cpu: 75m
+          memory: 96Mi
+        limits:
+          cpu: 300m
+          memory: 384Mi
+
+# Logging Configuration - Moderate for staging
+logging:
+  elasticsearch:
+    enabled: true
+    replicas: 1
+    minimumMasterNodes: 1
+    resources:
+      requests:
+        cpu: 300m
+        memory: 1Gi
+      limits:
+        cpu: 750m
+        memory: 2Gi
+    volumeClaimTemplate:
+      resources:
+        requests:
+          storage: 50Gi
+  
+  fluentd:
+    enabled: true
+    resources:
+      requests:
+        cpu: 75m
+        memory: 96Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+
+# Service Mesh Configuration - Enabled for staging
+serviceMesh:
+  istio:
+    enabled: true
+    injection:
+      enabled: true
+      namespaces:
+        - go-coffee
+    gateway:
+      enabled: true
+      hosts:
+        - "*.staging.gocoffee.dev"
+
+# Security Configuration - Moderate for staging
+security:
+  certManager:
+    enabled: true
+    clusterIssuer:
+      name: letsencrypt-staging
+      email: staging@gocoffee.dev
+      server: https://acme-staging-v02.api.letsencrypt.org/directory
+  
+  networkPolicies:
+    enabled: true
+    defaultDeny: false  # Relaxed for staging
+  
+  podSecurityPolicies:
+    enabled: false  # Disabled for staging
+    
+  rbac:
+    enabled: true
+
+# Operators Configuration - Moderate for staging
+operators:
+  coffeeOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+    resources:
+      requests:
+        cpu: 75m
+        memory: 96Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+  
+  aiWorkloadOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+  
+  multitenantOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+    resources:
+      requests:
+        cpu: 75m
+        memory: 96Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+  
+  observabilityOperator:
+    enabled: true
+    image:
+      tag: "v1.0.0-rc"
+    resources:
+      requests:
+        cpu: 75m
+        memory: 96Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+
+# Backup Configuration - Enabled for staging
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  retention: "14d"
+  storage:
+    type: "gcs"
+    bucket: "go-coffee-staging-backups"
+
+# Scaling Configuration - Enabled for staging
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+# Resource Quotas - Moderate for staging
+resourceQuotas:
+  enabled: true
+  hard:
+    requests.cpu: "5"
+    requests.memory: "10Gi"
+    limits.cpu: "10"
+    limits.memory: "20Gi"
+    persistentvolumeclaims: "8"
+    services: "15"
+    secrets: "30"
+    configmaps: "30"
+
+# Pod Disruption Budgets - Enabled for staging
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Staging-specific configuration
+staging:
+  # Enable performance testing
+  performanceTesting: true
+  
+  # Enable load testing endpoints
+  loadTesting: true
+  
+  # Enable feature flags
+  featureFlags: true
+  
+  # Enable canary deployments
+  canaryDeployments: true

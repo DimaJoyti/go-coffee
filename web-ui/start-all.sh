@@ -123,33 +123,31 @@ show_webui_help() {
 
 # Load environment variables
 load_webui_environment() {
-    print_info "Loading environment configuration..."
-
-    if [[ -f ".env" ]]; then
-        print_status "Loading environment variables from .env"
-        set -a
-        source .env
-        set +a
-    else
-        print_warning ".env file not found, using defaults"
-    fi
-
-    # Set mode-specific environment variables
     if [[ "$DEV_MODE" == "true" ]]; then
-        export NODE_ENV=development
         export LOG_LEVEL=debug
         export GIN_MODE=debug
-    elif [[ "$PRODUCTION_MODE" == "true" ]]; then
-        export NODE_ENV=production
-        export LOG_LEVEL=warn
+    else
+        export LOG_LEVEL=info
         export GIN_MODE=release
     fi
-
-    print_info "Environment: ${NODE_ENV:-development}"
-    print_info "MCP Server Port: $MCP_SERVER_PORT"
-    print_info "Backend Port: $BACKEND_PORT"
-    print_info "Frontend Port: $FRONTEND_PORT"
+    
+    # Set default values if not already set
+    export PORT=${PORT:-8090}
+    export HOST=${HOST:-0.0.0.0}
+    export DB_HOST=${DB_HOST:-localhost}
+    export REDIS_HOST=${REDIS_HOST:-localhost}
+    
+    echo "Environment loaded for mode: ${DEV_MODE:-production}"
 }
+
+# Call the function to load environment
+load_webui_environment
+
+# Start the web UI backend
+echo "Starting Go Coffee Web UI Backend..."
+echo "Mode: ${GIN_MODE}"
+echo "Log Level: ${LOG_LEVEL}"
+echo "Port: ${PORT}"
 
 # =============================================================================
 # SERVICE MANAGEMENT FUNCTIONS
@@ -596,5 +594,7 @@ main() {
     fi
 }
 
+# Run main function with all arguments
+main "$@"
 # Run main function with all arguments
 main "$@"

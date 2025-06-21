@@ -3,7 +3,9 @@ package errors
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -153,20 +155,60 @@ func Wrap(err error, message string) *AppError {
 	}
 }
 
-// getStack повертає стек виклику
+// getStack returns the call stack
 func getStack() string {
 	const depth = 32
 	var pcs [depth]uintptr
 	n := runtime.Callers(3, pcs[:])
 	frames := runtime.CallersFrames(pcs[:n])
 
-	var stack string
+	var stack strings.Builder
 	for {
 		frame, more := frames.Next()
-		stack += fmt.Sprintf("%s:%d %s\n", frame.File, frame.Line, frame.Function)
+		if !strings.Contains(frame.File, "runtime/") && !strings.Contains(frame.File, "errors/errors.go") {
+			stack.WriteString(fmt.Sprintf("%s:%d %s\n",
+				filepath.Base(frame.File), frame.Line, frame.Function))
+		}
 		if !more {
 			break
 		}
 	}
-	return stack
+	return stack.String()
+}
+
+// IsTimeout checks if the error is a timeout error
+func IsTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for timeout interfaces
+	if t, ok := err.(interface{ Timeout() bool }); ok {
+		return t.Timeout()
+	}
+
+	// Check error message for timeout indicators
+	errMsg := strings.ToLower(err.Error())
+	return strings.Contains(errMsg, "timeout") ||
+		strings.Contains(errMsg, "deadline exceeded") ||
+		strings.Contains(errMsg, "context deadline exceeded")
+}
+
+// IsRetryable checks if the error is retryable
+func IsRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Timeout errors are usually retryable
+	if IsTimeout(err) {
+		return true
+	}
+
+	// Check for temporary network errors
+	if t, ok := err.(interface{ Temporary() bool }); ok {
+		return t.Temporary()
+	}
+
+	return false
 }
