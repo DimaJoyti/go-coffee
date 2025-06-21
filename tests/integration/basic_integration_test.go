@@ -245,14 +245,15 @@ func (suite *BasicIntegrationTestSuite) TestTimeOperations() {
 		assert.False(t, now.IsZero())
 
 		// Test time formatting
-		formatted := now.Format("2006-01-02 15:04:05")
+		formatted := now.UTC().Format("2006-01-02 15:04:05")
 		assert.Len(t, formatted, 19) // "YYYY-MM-DD HH:MM:SS"
 
 		// Test time parsing
 		parsed, err := time.Parse("2006-01-02 15:04:05", formatted)
 		require.NoError(t, err)
 		// Use time comparison with truncation to handle precision differences
-		expected := now.Truncate(time.Second)
+		// Since we format and parse without timezone, both should be in UTC
+		expected := now.UTC().Truncate(time.Second)
 		actual := parsed.Truncate(time.Second)
 		assert.True(t, expected.Equal(actual), "Expected %v, got %v", expected, actual)
 	})
