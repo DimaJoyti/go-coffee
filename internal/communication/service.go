@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -34,11 +33,11 @@ func NewService(hub *Hub, router *Router, logger *logger.Logger) *Service {
 
 // SendMessage sends a message through the communication hub
 func (s *Service) SendMessage(ctx context.Context, req *SendMessageRequest) (*SendMessageResponse, error) {
-	s.logger.Info("Sending message",
-		zap.String("type", req.Type),
-		zap.String("source", req.Source),
-		zap.String("target", req.Target),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"type":   req.Type,
+		"source": req.Source,
+		"target": req.Target,
+	}).Info("Sending message")
 
 	// Create domain message
 	payload := make(map[string]interface{})
@@ -53,7 +52,7 @@ func (s *Service) SendMessage(ctx context.Context, req *SendMessageRequest) (*Se
 		payload,
 	)
 	if err != nil {
-		s.logger.Error("Failed to create message", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to create message")
 		return nil, status.Errorf(codes.InvalidArgument, "invalid message: %v", err)
 	}
 
@@ -86,7 +85,7 @@ func (s *Service) SendMessage(ctx context.Context, req *SendMessageRequest) (*Se
 
 	// Send message through hub
 	if err := s.hub.SendMessage(ctx, message); err != nil {
-		s.logger.Error("Failed to send message", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to send message")
 		return nil, status.Errorf(codes.Internal, "failed to send message: %v", err)
 	}
 
@@ -99,11 +98,11 @@ func (s *Service) SendMessage(ctx context.Context, req *SendMessageRequest) (*Se
 
 // PublishEvent publishes an event through the communication hub
 func (s *Service) PublishEvent(ctx context.Context, req *PublishEventRequest) (*PublishEventResponse, error) {
-	s.logger.Info("Publishing event",
-		zap.String("type", req.Type),
-		zap.String("source", req.Source),
-		zap.String("aggregate_id", req.AggregateId),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"type":         req.Type,
+		"source":       req.Source,
+		"aggregate_id": req.AggregateId,
+	}).Info("Publishing event")
 
 	// Create domain event
 	data := make(map[string]interface{})
@@ -119,7 +118,7 @@ func (s *Service) PublishEvent(ctx context.Context, req *PublishEventRequest) (*
 		data,
 	)
 	if err != nil {
-		s.logger.Error("Failed to create event", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to create event")
 		return nil, status.Errorf(codes.InvalidArgument, "invalid event: %v", err)
 	}
 
@@ -143,7 +142,7 @@ func (s *Service) PublishEvent(ctx context.Context, req *PublishEventRequest) (*
 
 	// Publish event through hub
 	if err := s.hub.PublishEvent(ctx, event); err != nil {
-		s.logger.Error("Failed to publish event", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to publish event")
 		return nil, status.Errorf(codes.Internal, "failed to publish event: %v", err)
 	}
 
@@ -156,11 +155,11 @@ func (s *Service) PublishEvent(ctx context.Context, req *PublishEventRequest) (*
 
 // Subscribe creates a subscription for messages or events
 func (s *Service) Subscribe(ctx context.Context, req *SubscribeRequest) (*SubscribeResponse, error) {
-	s.logger.Info("Creating subscription",
-		zap.String("name", req.Name),
-		zap.String("subscriber_id", req.SubscriberId),
-		zap.String("topic", req.Topic),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"name":          req.Name,
+		"subscriber_id": req.SubscriberId,
+		"topic":         req.Topic,
+	}).Info("Creating subscription")
 
 	// Determine subscription type
 	var subType domain.SubscriptionType
@@ -186,7 +185,7 @@ func (s *Service) Subscribe(ctx context.Context, req *SubscribeRequest) (*Subscr
 		subType,
 	)
 	if err != nil {
-		s.logger.Error("Failed to create subscription", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to create subscription")
 		return nil, status.Errorf(codes.InvalidArgument, "invalid subscription: %v", err)
 	}
 
@@ -198,7 +197,7 @@ func (s *Service) Subscribe(ctx context.Context, req *SubscribeRequest) (*Subscr
 			filter.Value,
 		)
 		if err != nil {
-			s.logger.Error("Failed to add filter", zap.Error(err))
+			s.logger.WithField("error", err).Error("Failed to add filter")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid filter: %v", err)
 		}
 	}
@@ -210,14 +209,14 @@ func (s *Service) Subscribe(ctx context.Context, req *SubscribeRequest) (*Subscr
 			headers[k] = v
 		}
 		if err := subscription.SetWebhookEndpoint(req.WebhookUrl, headers); err != nil {
-			s.logger.Error("Failed to set webhook endpoint", zap.Error(err))
+			s.logger.WithField("error", err).Error("Failed to set webhook endpoint")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid webhook: %v", err)
 		}
 	}
 
 	// Register subscription with hub
 	if err := s.hub.RegisterSubscription(ctx, subscription); err != nil {
-		s.logger.Error("Failed to register subscription", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to register subscription")
 		return nil, status.Errorf(codes.Internal, "failed to register subscription: %v", err)
 	}
 
@@ -312,7 +311,7 @@ func (h *Hub) Stop() {
 
 // SendMessage sends a message through the hub
 func (h *Hub) SendMessage(ctx context.Context, message *domain.Message) error {
-	h.logger.Debug("Sending message through hub", zap.String("message_id", message.ID))
+	h.logger.WithField("message_id", message.ID).Debug("Sending message through hub")
 	
 	// Store message in Redis
 	messageData, err := message.ToJSON()
@@ -337,7 +336,7 @@ func (h *Hub) SendMessage(ctx context.Context, message *domain.Message) error {
 
 // PublishEvent publishes an event through the hub
 func (h *Hub) PublishEvent(ctx context.Context, event *domain.Event) error {
-	h.logger.Debug("Publishing event through hub", zap.String("event_id", event.ID))
+	h.logger.WithField("event_id", event.ID).Debug("Publishing event through hub")
 	
 	// Store event in Redis
 	eventData, err := event.ToJSON()
@@ -362,7 +361,7 @@ func (h *Hub) PublishEvent(ctx context.Context, event *domain.Event) error {
 
 // RegisterSubscription registers a subscription
 func (h *Hub) RegisterSubscription(ctx context.Context, subscription *domain.Subscription) error {
-	h.logger.Debug("Registering subscription", zap.String("subscription_id", subscription.ID))
+	h.logger.WithField("subscription_id", subscription.ID).Debug("Registering subscription")
 	
 	// Store subscription in Redis
 	subscriptionData, err := subscription.ToJSON()

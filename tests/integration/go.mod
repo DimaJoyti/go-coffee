@@ -1,4 +1,4 @@
-module github.com/DimaJoyti/go-coffee/tests/integration
+module tests/integration
 
 go 1.23.0
 

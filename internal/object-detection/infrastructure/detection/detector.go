@@ -1,3 +1,6 @@
+//go:build opencv
+// +build opencv
+
 package detection
 
 import (
@@ -69,15 +72,15 @@ func (d *Detector) LoadModel(ctx context.Context, modelPath string) error {
 
 	d.logger.Info("Loading detection model", zap.String("path", modelPath))
 
-	// Check if model file exists
-	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		return fmt.Errorf("model file does not exist: %s", modelPath)
-	}
-
-	// Validate model file extension
+	// Validate model file extension first
 	ext := filepath.Ext(modelPath)
 	if ext != ".onnx" {
 		return fmt.Errorf("unsupported model format: %s (expected .onnx)", ext)
+	}
+
+	// Check if model file exists
+	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
+		return fmt.Errorf("model file does not exist: %s", modelPath)
 	}
 
 	// Initialize ONNX Runtime if not already done

@@ -133,12 +133,12 @@ func (h *Handlers) ListOrders(w http.ResponseWriter, r *http.Request) {
 	page := h.getQueryParamInt(r, "page", 1)
 	pageSize := h.getQueryParamInt(r, "page_size", 10)
 
-	h.logger.Info("Listing orders", map[string]interface{}{
+	h.logger.WithFields(map[string]interface{}{
 		"customer_id": customerID,
 		"status":      status,
 		"page":        page,
 		"page_size":   pageSize,
-	})
+	}).Info("Listing orders")
 
 	// Mock response
 	orders := []map[string]interface{}{
@@ -169,7 +169,7 @@ func (h *Handlers) ListOrders(w http.ResponseWriter, r *http.Request) {
 // UpdateOrderStatus updates the status of an order (Clean HTTP Handler)
 func (h *Handlers) UpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	orderID := h.getPathParam(r, "id")
-	h.logger.Info("Updating order status", map[string]interface{}{"order_id": orderID})
+	h.logger.WithField("order_id", orderID).Info("Updating order status")
 
 	var reqBody struct {
 		NewStatus      string `json:"new_status"`
@@ -201,7 +201,7 @@ func (h *Handlers) UpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
 // CancelOrder cancels an order (Clean HTTP Handler)
 func (h *Handlers) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := h.getPathParam(r, "id")
-	h.logger.Info("Cancelling order", map[string]interface{}{"order_id": orderID})
+	h.logger.WithField("order_id", orderID).Info("Cancelling order")
 
 	var reqBody struct {
 		Reason         string `json:"reason"`
@@ -232,10 +232,10 @@ func (h *Handlers) GetOrderRecommendations(w http.ResponseWriter, r *http.Reques
 	customerID := h.getQueryParam(r, "customer_id")
 	locationID := h.getQueryParam(r, "location_id")
 
-	h.logger.Info("Getting recommendations", map[string]interface{}{
+	h.logger.WithFields(map[string]interface{}{
 		"customer_id": customerID,
 		"location_id": locationID,
-	})
+	}).Info("Getting recommendations")
 
 	// Mock recommendations
 	recommendations := []map[string]interface{}{
@@ -613,10 +613,10 @@ func (h *Handlers) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	userRole := r.Context().Value("user_role")
 	sessionID := r.Context().Value("session_id")
 
-	h.logger.Info("Getting user profile", map[string]interface{}{
+	h.logger.WithFields(map[string]interface{}{
 		"user_id":    userID,
 		"session_id": sessionID,
-	})
+	}).Info("Getting user profile")
 
 	// Mock user profile response
 	response := map[string]interface{}{
@@ -686,10 +686,10 @@ func (h *Handlers) LogoutExample(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.Context().Value("session_id")
 	userID := r.Context().Value("user_id")
 
-	h.logger.Info("User logout", map[string]interface{}{
+	h.logger.WithFields(map[string]interface{}{
 		"user_id":    userID,
 		"session_id": sessionID,
-	})
+	}).Info("User logout")
 
 	// In a real implementation, you would:
 	// 1. Get session manager from container: sessionManager := h.container.GetSessionManager()

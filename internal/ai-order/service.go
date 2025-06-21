@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -34,11 +33,11 @@ func NewService(repo Repository, aiProcessor AIProcessor, logger *logger.Logger)
 
 // CreateOrder creates a new order with AI analysis
 func (s *Service) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (*pb.CreateOrderResponse, error) {
-	s.logger.Info("Creating new order with AI analysis",
-		zap.String("customer_id", req.Customer.Id),
-		zap.String("location_id", req.LocationId),
-		zap.Int("items_count", len(req.Items)),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"customer_id":  req.Customer.Id,
+		"location_id":  req.LocationId,
+		"items_count":  len(req.Items),
+	}).Info("Creating new order with AI analysis")
 
 	// Validate request
 	if err := s.validateCreateOrderRequest(req); err != nil {
@@ -66,7 +65,7 @@ func (s *Service) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (
 	if req.EnableAiOptimization {
 		aiInsights, err := s.aiProcessor.AnalyzeOrder(ctx, order)
 		if err != nil {
-			s.logger.Warn("Failed to get AI insights for order", zap.Error(err))
+			s.logger.WithField("error", err).Warn("Failed to get AI insights for order")
 		} else {
 			order.AiInsights = aiInsights
 			order.Priority = s.determinePriorityFromAI(aiInsights)
@@ -76,25 +75,25 @@ func (s *Service) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (
 
 	// Save order to repository
 	if err := s.repository.CreateOrder(ctx, order); err != nil {
-		s.logger.Error("Failed to create order", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to create order")
 		return nil, status.Errorf(codes.Internal, "failed to create order: %v", err)
 	}
 
 	// Get AI recommendations
 	recommendations, err := s.aiProcessor.GetRecommendations(ctx, req.Customer, req.Items)
 	if err != nil {
-		s.logger.Warn("Failed to get AI recommendations", zap.Error(err))
+		s.logger.WithField("error", err).Warn("Failed to get AI recommendations")
 		recommendations = []string{} // Empty recommendations on error
 	}
 
 	// Calculate estimated wait time
 	estimatedWaitTime := s.calculateEstimatedWaitTime(order)
 
-	s.logger.Info("Order created successfully",
-		zap.String("order_id", orderID),
-		zap.Float64("total_amount", order.TotalAmount),
-		zap.Float64("estimated_wait_time", estimatedWaitTime),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"order_id":             orderID,
+		"total_amount":         order.TotalAmount,
+		"estimated_wait_time":  estimatedWaitTime,
+	}).Info("Order created successfully")
 
 	return &pb.CreateOrderResponse{
 		Order:                    order,
@@ -107,7 +106,7 @@ func (s *Service) CreateOrder(ctx context.Context, req *pb.CreateOrderRequest) (
 
 // GetOrder retrieves an order by ID with optional AI insights
 func (s *Service) GetOrder(ctx context.Context, req *pb.GetOrderRequest) (*pb.GetOrderResponse, error) {
-	s.logger.Info("Getting order", zap.String("order_id", req.OrderId))
+	s.logger.WithField("order_id", req.OrderId).Info("Getting order")
 
 	if req.OrderId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "order_id is required")
@@ -115,7 +114,7 @@ func (s *Service) GetOrder(ctx context.Context, req *pb.GetOrderRequest) (*pb.Ge
 
 	order, err := s.repository.GetOrder(ctx, req.OrderId)
 	if err != nil {
-		s.logger.Error("Failed to get order", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to get order")
 		return nil, status.Errorf(codes.NotFound, "order not found: %v", err)
 	}
 
@@ -123,7 +122,7 @@ func (s *Service) GetOrder(ctx context.Context, req *pb.GetOrderRequest) (*pb.Ge
 	if req.IncludeAiInsights && order.AiInsights == nil {
 		aiInsights, err := s.aiProcessor.AnalyzeOrder(ctx, order)
 		if err != nil {
-			s.logger.Warn("Failed to get fresh AI insights", zap.Error(err))
+			s.logger.WithField("error", err).Warn("Failed to get fresh AI insights")
 		} else {
 			order.AiInsights = aiInsights
 		}
@@ -138,11 +137,11 @@ func (s *Service) GetOrder(ctx context.Context, req *pb.GetOrderRequest) (*pb.Ge
 
 // ListOrders lists orders with AI filtering and analytics
 func (s *Service) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*pb.ListOrdersResponse, error) {
-	s.logger.Info("Listing orders",
-		zap.String("customer_id", req.CustomerId),
-		zap.String("location_id", req.LocationId),
-		zap.String("status", req.Status.String()),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"customer_id": req.CustomerId,
+		"location_id": req.LocationId,
+		"status":      req.Status.String(),
+	}).Info("Listing orders")
 
 	orders, totalCount, err := s.repository.ListOrders(ctx, &ListOrdersFilter{
 		CustomerID: req.CustomerId,
@@ -154,7 +153,7 @@ func (s *Service) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*p
 		PageToken:  req.PageToken,
 	})
 	if err != nil {
-		s.logger.Error("Failed to list orders", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to list orders")
 		return nil, status.Errorf(codes.Internal, "failed to list orders: %v", err)
 	}
 
@@ -163,7 +162,7 @@ func (s *Service) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*p
 	if req.EnableAiFiltering {
 		aiAnalytics, err = s.aiProcessor.GenerateAnalytics(ctx, orders)
 		if err != nil {
-			s.logger.Warn("Failed to generate AI analytics", zap.Error(err))
+			s.logger.WithField("error", err).Warn("Failed to generate AI analytics")
 		}
 	}
 
@@ -179,10 +178,10 @@ func (s *Service) ListOrders(ctx context.Context, req *pb.ListOrdersRequest) (*p
 
 // UpdateOrderStatus updates the status of an order with AI validation
 func (s *Service) UpdateOrderStatus(ctx context.Context, req *pb.UpdateOrderStatusRequest) (*pb.UpdateOrderStatusResponse, error) {
-	s.logger.Info("Updating order status",
-		zap.String("order_id", req.OrderId),
-		zap.String("new_status", req.NewStatus.String()),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"order_id":   req.OrderId,
+		"new_status": req.NewStatus.String(),
+	}).Info("Updating order status")
 
 	if req.OrderId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "order_id is required")
@@ -204,14 +203,14 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, req *pb.UpdateOrderStat
 	order.UpdatedAt = timestamppb.Now()
 
 	if err := s.repository.UpdateOrder(ctx, order); err != nil {
-		s.logger.Error("Failed to update order", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to update order")
 		return nil, status.Errorf(codes.Internal, "failed to update order: %v", err)
 	}
 
 	// Generate AI notifications
 	notifications, err := s.aiProcessor.GenerateStatusNotifications(ctx, order, req.NotifyCustomer)
 	if err != nil {
-		s.logger.Warn("Failed to generate AI notifications", zap.Error(err))
+		s.logger.WithField("error", err).Warn("Failed to generate AI notifications")
 		notifications = []string{}
 	}
 
@@ -225,10 +224,10 @@ func (s *Service) UpdateOrderStatus(ctx context.Context, req *pb.UpdateOrderStat
 
 // CancelOrder cancels an order with AI impact analysis
 func (s *Service) CancelOrder(ctx context.Context, req *pb.CancelOrderRequest) (*pb.CancelOrderResponse, error) {
-	s.logger.Info("Cancelling order",
-		zap.String("order_id", req.OrderId),
-		zap.String("reason", req.Reason),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"order_id": req.OrderId,
+		"reason":   req.Reason,
+	}).Info("Cancelling order")
 
 	if req.OrderId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "order_id is required")
@@ -248,7 +247,7 @@ func (s *Service) CancelOrder(ctx context.Context, req *pb.CancelOrderRequest) (
 	// Generate AI impact analysis
 	impactAnalysis, err := s.aiProcessor.AnalyzeCancellationImpact(ctx, order)
 	if err != nil {
-		s.logger.Warn("Failed to generate impact analysis", zap.Error(err))
+		s.logger.WithField("error", err).Warn("Failed to generate impact analysis")
 		impactAnalysis = &pb.AIImpactAnalysis{
 			RevenueImpact:               order.TotalAmount,
 			CustomerSatisfactionImpact:  -0.5,
@@ -262,7 +261,7 @@ func (s *Service) CancelOrder(ctx context.Context, req *pb.CancelOrderRequest) (
 	order.UpdatedAt = timestamppb.Now()
 
 	if err := s.repository.UpdateOrder(ctx, order); err != nil {
-		s.logger.Error("Failed to cancel order", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to cancel order")
 		return nil, status.Errorf(codes.Internal, "failed to cancel order: %v", err)
 	}
 
@@ -356,10 +355,10 @@ func (s *Service) canCancelOrder(status pb.OrderStatus) bool {
 
 // GetOrderRecommendations gets AI recommendations for order
 func (s *Service) GetOrderRecommendations(ctx context.Context, req *pb.GetOrderRecommendationsRequest) (*pb.GetOrderRecommendationsResponse, error) {
-	s.logger.Info("Getting AI order recommendations",
-		zap.String("customer_id", req.CustomerId),
-		zap.String("location_id", req.LocationId),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"customer_id": req.CustomerId,
+		"location_id": req.LocationId,
+	}).Info("Getting AI order recommendations")
 
 	if req.CustomerId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "customer_id is required")
@@ -367,7 +366,7 @@ func (s *Service) GetOrderRecommendations(ctx context.Context, req *pb.GetOrderR
 
 	recommendations, reasoning, err := s.aiProcessor.GetOrderRecommendations(ctx, req)
 	if err != nil {
-		s.logger.Error("Failed to get AI recommendations", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to get AI recommendations")
 		return nil, status.Errorf(codes.Internal, "failed to get recommendations: %v", err)
 	}
 
@@ -381,10 +380,10 @@ func (s *Service) GetOrderRecommendations(ctx context.Context, req *pb.GetOrderR
 
 // AnalyzeOrderPatterns analyzes order patterns with AI
 func (s *Service) AnalyzeOrderPatterns(ctx context.Context, req *pb.AnalyzeOrderPatternsRequest) (*pb.AnalyzeOrderPatternsResponse, error) {
-	s.logger.Info("Analyzing order patterns",
-		zap.String("location_id", req.LocationId),
-		zap.String("analysis_type", req.AnalysisType),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"location_id":   req.LocationId,
+		"analysis_type": req.AnalysisType,
+	}).Info("Analyzing order patterns")
 
 	if req.LocationId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "location_id is required")
@@ -392,7 +391,7 @@ func (s *Service) AnalyzeOrderPatterns(ctx context.Context, req *pb.AnalyzeOrder
 
 	insights, recommendations, err := s.aiProcessor.AnalyzeOrderPatterns(ctx, req)
 	if err != nil {
-		s.logger.Error("Failed to analyze order patterns", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to analyze order patterns")
 		return nil, status.Errorf(codes.Internal, "failed to analyze patterns: %v", err)
 	}
 
@@ -406,10 +405,10 @@ func (s *Service) AnalyzeOrderPatterns(ctx context.Context, req *pb.AnalyzeOrder
 
 // PredictCompletionTime predicts order completion time
 func (s *Service) PredictCompletionTime(ctx context.Context, req *pb.PredictCompletionTimeRequest) (*pb.PredictCompletionTimeResponse, error) {
-	s.logger.Info("Predicting order completion time",
-		zap.String("order_id", req.OrderId),
-		zap.String("location_id", req.LocationId),
-	)
+	s.logger.WithFields(map[string]interface{}{
+		"order_id":    req.OrderId,
+		"location_id": req.LocationId,
+	}).Info("Predicting order completion time")
 
 	if req.OrderId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "order_id is required")
@@ -417,7 +416,7 @@ func (s *Service) PredictCompletionTime(ctx context.Context, req *pb.PredictComp
 
 	prediction, err := s.aiProcessor.PredictCompletionTime(ctx, req)
 	if err != nil {
-		s.logger.Error("Failed to predict completion time", zap.Error(err))
+		s.logger.WithField("error", err).Error("Failed to predict completion time")
 		return nil, status.Errorf(codes.Internal, "failed to predict completion time: %v", err)
 	}
 

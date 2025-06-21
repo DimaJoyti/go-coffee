@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pb "github.com/DimaJoyti/go-coffee/api/proto/ai_order"
@@ -397,7 +396,7 @@ func (p *RedisAIProcessor) calculatePeakHours(orders []*pb.Order) float64 {
 
 // GetOrderRecommendations gets detailed AI recommendations for orders
 func (p *RedisAIProcessor) GetOrderRecommendations(ctx context.Context, req *pb.GetOrderRecommendationsRequest) ([]*pb.RecommendedItem, string, error) {
-	p.logger.Info("Getting detailed order recommendations", zap.String("customer_id", req.CustomerId))
+	p.logger.WithField("customer_id", req.CustomerId).Info("Getting detailed order recommendations")
 
 	recommendations := []*pb.RecommendedItem{}
 
@@ -460,7 +459,7 @@ func (p *RedisAIProcessor) GetOrderRecommendations(ctx context.Context, req *pb.
 
 // AnalyzeOrderPatterns analyzes patterns in order data
 func (p *RedisAIProcessor) AnalyzeOrderPatterns(ctx context.Context, req *pb.AnalyzeOrderPatternsRequest) ([]*pb.PatternInsight, []string, error) {
-	p.logger.Info("Analyzing order patterns", zap.String("location_id", req.LocationId))
+	p.logger.WithField("location_id", req.LocationId).Info("Analyzing order patterns")
 
 	insights := []*pb.PatternInsight{}
 	recommendations := []string{}
@@ -506,7 +505,7 @@ func (p *RedisAIProcessor) AnalyzeOrderPatterns(ctx context.Context, req *pb.Ana
 
 // PredictCompletionTime predicts when an order will be completed
 func (p *RedisAIProcessor) PredictCompletionTime(ctx context.Context, req *pb.PredictCompletionTimeRequest) (*pb.PredictCompletionTimeResponse, error) {
-	p.logger.Info("Predicting completion time", zap.String("order_id", req.OrderId))
+	p.logger.WithField("order_id", req.OrderId).Info("Predicting completion time")
 
 	// Base prediction logic
 	baseTime := 5.0 // 5 minutes base time

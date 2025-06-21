@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/internal/auth/domain"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
@@ -43,7 +42,7 @@ func (r *RedisUserRepository) CreateUser(ctx context.Context, user *domain.User)
 	// Check if user already exists
 	exists, err := r.client.Exists(ctx, userKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to check user existence", zap.Error(err), zap.String("user_id", user.ID))
+		r.logger.Error("Failed to check user existence: %v", err)
 		return fmt.Errorf("failed to check user existence: %w", err)
 	}
 	if exists > 0 {
@@ -53,7 +52,7 @@ func (r *RedisUserRepository) CreateUser(ctx context.Context, user *domain.User)
 	// Check if email already exists
 	exists, err = r.client.Exists(ctx, emailKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to check email existence", zap.Error(err), zap.String("email", user.Email))
+		r.logger.Error("Failed to check email existence: %v", err)
 		return fmt.Errorf("failed to check email existence: %w", err)
 	}
 	if exists > 0 {
@@ -63,7 +62,7 @@ func (r *RedisUserRepository) CreateUser(ctx context.Context, user *domain.User)
 	// Serialize user data
 	userData, err := json.Marshal(user)
 	if err != nil {
-		r.logger.Error("Failed to marshal user data", zap.Error(err), zap.String("user_id", user.ID))
+		r.logger.Error("Failed to marshal user data: %v", err)
 		return fmt.Errorf("failed to marshal user data: %w", err)
 	}
 
@@ -74,11 +73,11 @@ func (r *RedisUserRepository) CreateUser(ctx context.Context, user *domain.User)
 
 	_, err = pipe.Exec(ctx)
 	if err != nil {
-		r.logger.Error("Failed to create user", zap.Error(err), zap.String("user_id", user.ID))
+		r.logger.Error("Failed to create user: %v", err)
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	r.logger.Info("User created successfully", zap.String("user_id", user.ID), zap.String("email", user.Email))
+	r.logger.Info("User created successfully")
 	return nil
 }
 
@@ -91,13 +90,13 @@ func (r *RedisUserRepository) GetUserByID(ctx context.Context, userID string) (*
 		if err == redis.Nil {
 			return nil, domain.ErrUserNotFound
 		}
-		r.logger.Error("Failed to get user by ID", zap.Error(err), zap.String("user_id", userID))
+		r.logger.Error("Failed to get user by ID: %v", err)
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	var user domain.User
 	if err := json.Unmarshal([]byte(userData), &user); err != nil {
-		r.logger.Error("Failed to unmarshal user data", zap.Error(err), zap.String("user_id", userID))
+		r.logger.Error("Failed to unmarshal user data: %v", err)
 		return nil, fmt.Errorf("failed to unmarshal user data: %w", err)
 	}
 
@@ -114,7 +113,7 @@ func (r *RedisUserRepository) GetUserByEmail(ctx context.Context, email string) 
 		if err == redis.Nil {
 			return nil, domain.ErrUserNotFound
 		}
-		r.logger.Error("Failed to get user ID by email", zap.Error(err), zap.String("email", email))
+		r.logger.Error("Failed to get user ID by email: %v", err)
 		return nil, fmt.Errorf("failed to get user ID by email: %w", err)
 	}
 
@@ -129,7 +128,7 @@ func (r *RedisUserRepository) UpdateUser(ctx context.Context, user *domain.User)
 	// Check if user exists
 	exists, err := r.client.Exists(ctx, userKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to check user existence", zap.Error(err), zap.String("user_id", user.ID))
+		r.logger.Error("Failed to check user existence: %v", err)
 		return fmt.Errorf("failed to check user existence: %w", err)
 	}
 	if exists == 0 {
@@ -142,18 +141,18 @@ func (r *RedisUserRepository) UpdateUser(ctx context.Context, user *domain.User)
 	// Serialize user data
 	userData, err := json.Marshal(user)
 	if err != nil {
-		r.logger.Error("Failed to marshal user data", zap.Error(err), zap.String("user_id", user.ID))
+		r.logger.Error("Failed to marshal user data: %v", err)
 		return fmt.Errorf("failed to marshal user data: %w", err)
 	}
 
 	// Update user data
 	err = r.client.Set(ctx, userKey, userData, 0).Err()
 	if err != nil {
-		r.logger.Error("Failed to update user", zap.Error(err), zap.String("user_id", user.ID))
+		r.logger.Error("Failed to update user: %v", err)
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
-	r.logger.Info("User updated successfully", zap.String("user_id", user.ID))
+	r.logger.Info("User updated successfully")
 	return nil
 }
 
@@ -175,11 +174,11 @@ func (r *RedisUserRepository) DeleteUser(ctx context.Context, userID string) err
 
 	_, err = pipe.Exec(ctx)
 	if err != nil {
-		r.logger.Error("Failed to delete user", zap.Error(err), zap.String("user_id", userID))
+		r.logger.Error("Failed to delete user: %v", err)
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
-	r.logger.Info("User deleted successfully", zap.String("user_id", userID))
+	r.logger.Info("User deleted successfully")
 	return nil
 }
 
@@ -236,13 +235,13 @@ func (r *RedisUserRepository) GetFailedLoginCount(ctx context.Context, email str
 		if err == redis.Nil {
 			return 0, nil
 		}
-		r.logger.Error("Failed to get failed login count", zap.Error(err), zap.String("email", email))
+		r.logger.Error("Failed to get failed login count: %v", err)
 		return 0, fmt.Errorf("failed to get failed login count: %w", err)
 	}
 
 	count, err := strconv.Atoi(countStr)
 	if err != nil {
-		r.logger.Error("Failed to parse failed login count", zap.Error(err), zap.String("email", email))
+		r.logger.Error("Failed to parse failed login count: %v", err)
 		return 0, fmt.Errorf("failed to parse failed login count: %w", err)
 	}
 
@@ -255,7 +254,7 @@ func (r *RedisUserRepository) SetFailedLoginCount(ctx context.Context, email str
 
 	err := r.client.Set(ctx, failedLoginKey, count, expiry).Err()
 	if err != nil {
-		r.logger.Error("Failed to set failed login count", zap.Error(err), zap.String("email", email))
+		r.logger.Error("Failed to set failed login count: %v", err)
 		return fmt.Errorf("failed to set failed login count: %w", err)
 	}
 
@@ -268,7 +267,7 @@ func (r *RedisUserRepository) UserExists(ctx context.Context, email string) (boo
 
 	exists, err := r.client.Exists(ctx, emailKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to check user existence by email", zap.Error(err), zap.String("email", email))
+		r.logger.Error("Failed to check user existence by email: %v", err)
 		return false, fmt.Errorf("failed to check user existence: %w", err)
 	}
 
@@ -281,7 +280,7 @@ func (r *RedisUserRepository) UserExistsByID(ctx context.Context, userID string)
 
 	exists, err := r.client.Exists(ctx, userKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to check user existence by ID", zap.Error(err), zap.String("user_id", userID))
+		r.logger.Error("Failed to check user existence by ID: %v", err)
 		return false, fmt.Errorf("failed to check user existence: %w", err)
 	}
 

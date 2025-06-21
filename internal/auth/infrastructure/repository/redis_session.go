@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/internal/auth/domain"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
@@ -46,7 +45,7 @@ func (r *RedisSessionRepository) CreateSession(ctx context.Context, session *dom
 	// Check if session already exists
 	exists, err := r.client.Exists(ctx, sessionKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to check session existence", zap.Error(err), zap.String("session_id", session.ID))
+		r.logger.Error("Failed to check session existence: %v", err)
 		return fmt.Errorf("failed to check session existence: %w", err)
 	}
 	if exists > 0 {
@@ -56,7 +55,7 @@ func (r *RedisSessionRepository) CreateSession(ctx context.Context, session *dom
 	// Serialize session data
 	sessionData, err := json.Marshal(session)
 	if err != nil {
-		r.logger.Error("Failed to marshal session data", zap.Error(err), zap.String("session_id", session.ID))
+		r.logger.Error("Failed to marshal session data: %v", err)
 		return fmt.Errorf("failed to marshal session data: %w", err)
 	}
 
@@ -84,15 +83,11 @@ func (r *RedisSessionRepository) CreateSession(ctx context.Context, session *dom
 
 	_, err = pipe.Exec(ctx)
 	if err != nil {
-		r.logger.Error("Failed to create session", zap.Error(err), zap.String("session_id", session.ID))
+		r.logger.Error("Failed to create session: %v", err)
 		return fmt.Errorf("failed to create session: %w", err)
 	}
 
-	r.logger.Info("Session created successfully", 
-		zap.String("session_id", session.ID), 
-		zap.String("user_id", session.UserID),
-		zap.Time("expires_at", session.ExpiresAt),
-	)
+	r.logger.Info("Session created successfully")
 	return nil
 }
 
@@ -105,13 +100,13 @@ func (r *RedisSessionRepository) GetSessionByID(ctx context.Context, sessionID s
 		if err == redis.Nil {
 			return nil, domain.ErrSessionNotFound
 		}
-		r.logger.Error("Failed to get session by ID", zap.Error(err), zap.String("session_id", sessionID))
+		r.logger.Error("Failed to get session by ID: %v", err)
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
 	var session domain.Session
 	if err := json.Unmarshal([]byte(sessionData), &session); err != nil {
-		r.logger.Error("Failed to unmarshal session data", zap.Error(err), zap.String("session_id", sessionID))
+		r.logger.Error("Failed to unmarshal session data: %v", err)
 		return nil, fmt.Errorf("failed to unmarshal session data: %w", err)
 	}
 
@@ -128,7 +123,7 @@ func (r *RedisSessionRepository) GetSessionByAccessToken(ctx context.Context, ac
 		if err == redis.Nil {
 			return nil, domain.ErrSessionNotFound
 		}
-		r.logger.Error("Failed to get session ID by access token", zap.Error(err))
+		r.logger.Error("Failed to get session ID by access token: %v", err)
 		return nil, fmt.Errorf("failed to get session ID by access token: %w", err)
 	}
 
@@ -146,7 +141,7 @@ func (r *RedisSessionRepository) GetSessionByRefreshToken(ctx context.Context, r
 		if err == redis.Nil {
 			return nil, domain.ErrSessionNotFound
 		}
-		r.logger.Error("Failed to get session ID by refresh token", zap.Error(err))
+		r.logger.Error("Failed to get session ID by refresh token: %v", err)
 		return nil, fmt.Errorf("failed to get session ID by refresh token: %w", err)
 	}
 
@@ -161,7 +156,7 @@ func (r *RedisSessionRepository) UpdateSession(ctx context.Context, session *dom
 	// Check if session exists
 	exists, err := r.client.Exists(ctx, sessionKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to check session existence", zap.Error(err), zap.String("session_id", session.ID))
+		r.logger.Error("Failed to check session existence: %v", err)
 		return fmt.Errorf("failed to check session existence: %w", err)
 	}
 	if exists == 0 {
@@ -174,7 +169,7 @@ func (r *RedisSessionRepository) UpdateSession(ctx context.Context, session *dom
 	// Serialize session data
 	sessionData, err := json.Marshal(session)
 	if err != nil {
-		r.logger.Error("Failed to marshal session data", zap.Error(err), zap.String("session_id", session.ID))
+		r.logger.Error("Failed to marshal session data: %v", err)
 		return fmt.Errorf("failed to marshal session data: %w", err)
 	}
 
@@ -189,11 +184,11 @@ func (r *RedisSessionRepository) UpdateSession(ctx context.Context, session *dom
 	// Update session data
 	err = r.client.Set(ctx, sessionKey, sessionData, sessionTTL).Err()
 	if err != nil {
-		r.logger.Error("Failed to update session", zap.Error(err), zap.String("session_id", session.ID))
+		r.logger.Error("Failed to update session: %v", err)
 		return fmt.Errorf("failed to update session: %w", err)
 	}
 
-	r.logger.Info("Session updated successfully", zap.String("session_id", session.ID))
+	r.logger.Info("Session updated successfully")
 	return nil
 }
 
@@ -222,11 +217,11 @@ func (r *RedisSessionRepository) DeleteSession(ctx context.Context, sessionID st
 
 	_, err = pipe.Exec(ctx)
 	if err != nil {
-		r.logger.Error("Failed to delete session", zap.Error(err), zap.String("session_id", sessionID))
+		r.logger.Error("Failed to delete session: %v", err)
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 
-	r.logger.Info("Session deleted successfully", zap.String("session_id", sessionID))
+	r.logger.Info("Session deleted successfully")
 	return nil
 }
 
@@ -237,7 +232,7 @@ func (r *RedisSessionRepository) GetUserSessions(ctx context.Context, userID str
 	// Get all session IDs for the user
 	sessionIDs, err := r.client.SMembers(ctx, userSessionsKey).Result()
 	if err != nil {
-		r.logger.Error("Failed to get user session IDs", zap.Error(err), zap.String("user_id", userID))
+		r.logger.Error("Failed to get user session IDs: %v", err)
 		return nil, fmt.Errorf("failed to get user session IDs: %w", err)
 	}
 
@@ -255,7 +250,7 @@ func (r *RedisSessionRepository) GetUserSessions(ctx context.Context, userID str
 				r.client.SRem(ctx, userSessionsKey, sessionID)
 				continue
 			}
-			r.logger.Error("Failed to get session", zap.Error(err), zap.String("session_id", sessionID))
+			r.logger.Error("Failed to get session: %v", err)
 			continue
 		}
 		sessions = append(sessions, session)
@@ -273,13 +268,11 @@ func (r *RedisSessionRepository) DeleteUserSessions(ctx context.Context, userID 
 
 	for _, session := range sessions {
 		if err := r.DeleteSession(ctx, session.ID); err != nil {
-			r.logger.Error("Failed to delete user session", zap.Error(err), 
-				zap.String("user_id", userID), 
-				zap.String("session_id", session.ID))
+			r.logger.Error("Failed to delete user session: %v", err)
 		}
 	}
 
-	r.logger.Info("All user sessions deleted", zap.String("user_id", userID), zap.Int("count", len(sessions)))
+	r.logger.Info("All user sessions deleted")
 	return nil
 }
 
@@ -293,7 +286,7 @@ func (r *RedisSessionRepository) DeleteExpiredSessions(ctx context.Context) erro
 	pattern := fmt.Sprintf(sessionKeyPattern, "*")
 	keys, err := r.client.Keys(ctx, pattern).Result()
 	if err != nil {
-		r.logger.Error("Failed to get session keys for cleanup", zap.Error(err))
+		r.logger.Error("Failed to get session keys for cleanup: %v", err)
 		return fmt.Errorf("failed to get session keys: %w", err)
 	}
 
@@ -309,14 +302,14 @@ func (r *RedisSessionRepository) DeleteExpiredSessions(ctx context.Context) erro
 		if ttl < 0 {
 			sessionID := key[len("auth:sessions:"):]
 			if err := r.DeleteSession(ctx, sessionID); err != nil {
-				r.logger.Error("Failed to delete expired session", zap.Error(err), zap.String("session_id", sessionID))
+				r.logger.Error("Failed to delete expired session: %v", err)
 			} else {
 				expiredCount++
 			}
 		}
 	}
 
-	r.logger.Info("Expired sessions cleanup completed", zap.Int("deleted_count", expiredCount))
+	r.logger.Info("Expired sessions cleanup completed")
 	return nil
 }
 
@@ -341,13 +334,11 @@ func (r *RedisSessionRepository) RevokeUserSessions(ctx context.Context, userID 
 	for _, session := range sessions {
 		session.Revoke()
 		if err := r.UpdateSession(ctx, session); err != nil {
-			r.logger.Error("Failed to revoke user session", zap.Error(err), 
-				zap.String("user_id", userID), 
-				zap.String("session_id", session.ID))
+			r.logger.Error("Failed to revoke user session: %v", err)
 		}
 	}
 
-	r.logger.Info("All user sessions revoked", zap.String("user_id", userID), zap.Int("count", len(sessions)))
+	r.logger.Info("All user sessions revoked")
 	return nil
 }
 

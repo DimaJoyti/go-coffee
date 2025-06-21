@@ -7,8 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-	"go.uber.org/zap"
+	redis "github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pb "github.com/DimaJoyti/go-coffee/api/proto/ai_order"
@@ -51,7 +50,7 @@ func NewRedisOrderRepository(client *redis.Client, logger *logger.Logger) Reposi
 
 // CreateOrder stores a new order in Redis
 func (r *RedisOrderRepository) CreateOrder(ctx context.Context, order *pb.Order) error {
-	r.logger.Info("Creating order in Redis", zap.String("order_id", order.Id))
+	r.logger.WithField("order_id", order.Id).Info("Creating order in Redis")
 
 	// Serialize order to JSON
 	orderData, err := json.Marshal(order)
@@ -76,7 +75,7 @@ func (r *RedisOrderRepository) CreateOrder(ctx context.Context, order *pb.Order)
 	// Add to location orders index
 	if order.LocationId != "" {
 		locationOrdersKey := fmt.Sprintf("ai:location:%s:orders", order.LocationId)
-		pipe.ZAdd(ctx, locationOrdersKey, &redis.Z{
+		pipe.ZAdd(ctx, locationOrdersKey, redis.Z{
 			Score:  float64(order.CreatedAt.Seconds),
 			Member: order.Id,
 		})
@@ -85,14 +84,14 @@ func (r *RedisOrderRepository) CreateOrder(ctx context.Context, order *pb.Order)
 
 	// Add to status index
 	statusOrdersKey := fmt.Sprintf("ai:status:%s:orders", order.Status.String())
-	pipe.ZAdd(ctx, statusOrdersKey, &redis.Z{
+	pipe.ZAdd(ctx, statusOrdersKey, redis.Z{
 		Score:  float64(order.CreatedAt.Seconds),
 		Member: order.Id,
 	})
 	pipe.Expire(ctx, statusOrdersKey, 7*24*time.Hour) // TTL: 7 days
 
 	// Add to global orders index
-	pipe.ZAdd(ctx, "ai:orders:all", &redis.Z{
+	pipe.ZAdd(ctx, "ai:orders:all", redis.Z{
 		Score:  float64(order.CreatedAt.Seconds),
 		Member: order.Id,
 	})
@@ -103,13 +102,13 @@ func (r *RedisOrderRepository) CreateOrder(ctx context.Context, order *pb.Order)
 		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
 	}
 
-	r.logger.Info("Order created successfully in Redis", zap.String("order_id", order.Id))
+	r.logger.WithField("order_id", order.Id).Info("Order created successfully in Redis")
 	return nil
 }
 
 // GetOrder retrieves an order from Redis by ID
 func (r *RedisOrderRepository) GetOrder(ctx context.Context, orderID string) (*pb.Order, error) {
-	r.logger.Info("Getting order from Redis", zap.String("order_id", orderID))
+	r.logger.WithField("order_id", orderID).Info("Getting order from Redis")
 
 	orderKey := fmt.Sprintf("ai:order:%s", orderID)
 	orderData, err := r.client.Get(ctx, orderKey).Result()
@@ -130,7 +129,7 @@ func (r *RedisOrderRepository) GetOrder(ctx context.Context, orderID string) (*p
 
 // UpdateOrder updates an existing order in Redis
 func (r *RedisOrderRepository) UpdateOrder(ctx context.Context, order *pb.Order) error {
-	r.logger.Info("Updating order in Redis", zap.String("order_id", order.Id))
+	r.logger.WithField("order_id", order.Id).Info("Updating order in Redis")
 
 	// Check if order exists
 	orderKey := fmt.Sprintf("ai:order:%s", order.Id)
@@ -157,7 +156,7 @@ func (r *RedisOrderRepository) UpdateOrder(ctx context.Context, order *pb.Order)
 	// Update status index (remove from old status, add to new status)
 	// Note: In a production system, you'd want to track the previous status
 	statusOrdersKey := fmt.Sprintf("ai:status:%s:orders", order.Status.String())
-	pipe.ZAdd(ctx, statusOrdersKey, &redis.Z{
+	pipe.ZAdd(ctx, statusOrdersKey, redis.Z{
 		Score:  float64(order.UpdatedAt.Seconds),
 		Member: order.Id,
 	})
@@ -168,17 +167,17 @@ func (r *RedisOrderRepository) UpdateOrder(ctx context.Context, order *pb.Order)
 		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
 	}
 
-	r.logger.Info("Order updated successfully in Redis", zap.String("order_id", order.Id))
+	r.logger.WithField("order_id", order.Id).Info("Order updated successfully in Redis")
 	return nil
 }
 
 // ListOrders retrieves orders based on filter criteria
 func (r *RedisOrderRepository) ListOrders(ctx context.Context, filter *ListOrdersFilter) ([]*pb.Order, int32, error) {
-	r.logger.Info("Listing orders from Redis",
-		zap.String("customer_id", filter.CustomerID),
-		zap.String("location_id", filter.LocationID),
-		zap.String("status", filter.Status.String()),
-	)
+	r.logger.WithFields(map[string]interface{}{
+		"customer_id": filter.CustomerID,
+		"location_id": filter.LocationID,
+		"status":      filter.Status.String(),
+	}).Info("Listing orders from Redis")
 
 	var orderIDs []string
 	var err error
@@ -230,7 +229,10 @@ func (r *RedisOrderRepository) ListOrders(ctx context.Context, filter *ListOrder
 	for _, orderID := range paginatedOrderIDs {
 		order, err := r.GetOrder(ctx, orderID)
 		if err != nil {
-			r.logger.Warn("Failed to get order", zap.String("order_id", orderID), zap.Error(err))
+			r.logger.WithFields(map[string]interface{}{
+				"order_id": orderID,
+				"error":    err,
+			}).Warn("Failed to get order")
 			continue
 		}
 		orders = append(orders, order)
@@ -241,7 +243,7 @@ func (r *RedisOrderRepository) ListOrders(ctx context.Context, filter *ListOrder
 
 // DeleteOrder removes an order from Redis
 func (r *RedisOrderRepository) DeleteOrder(ctx context.Context, orderID string) error {
-	r.logger.Info("Deleting order from Redis", zap.String("order_id", orderID))
+	r.logger.WithField("order_id", orderID).Info("Deleting order from Redis")
 
 	// Get order first to clean up indexes
 	order, err := r.GetOrder(ctx, orderID)
@@ -281,7 +283,7 @@ func (r *RedisOrderRepository) DeleteOrder(ctx context.Context, orderID string) 
 		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
 	}
 
-	r.logger.Info("Order deleted successfully from Redis", zap.String("order_id", orderID))
+	r.logger.WithField("order_id", orderID).Info("Order deleted successfully from Redis")
 	return nil
 }
 

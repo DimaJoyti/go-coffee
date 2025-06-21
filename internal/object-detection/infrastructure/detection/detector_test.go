@@ -1,3 +1,6 @@
+//go:build opencv
+// +build opencv
+
 package detection
 
 import (
@@ -202,7 +205,7 @@ func TestDetection_CalculateIOU(t *testing.T) {
 			name: "partial overlap",
 			det1: Detection{X: 10, Y: 10, Width: 20, Height: 20},
 			det2: Detection{X: 15, Y: 15, Width: 20, Height: 20},
-			expected: 0.25, // Approximate
+			expected: 0.39, // Corrected expected value
 		},
 	}
 
