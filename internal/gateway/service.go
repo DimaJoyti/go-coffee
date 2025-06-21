@@ -16,9 +16,9 @@ import (
 
 // Service handles API gateway operations
 type Service struct {
-	config  *config.Config
-	logger  *logger.Logger
-	client  *http.Client
+	config   *config.Config
+	logger   *logger.Logger
+	client   *http.Client
 	services map[string]string
 }
 
@@ -62,7 +62,11 @@ func (s *Service) ProxyRequest(ctx context.Context, serviceName, path string, me
 	// Construct the full URL
 	url := baseURL + path
 
-	s.logger.Info("Proxying request", "service", serviceName, "method", method, "url", url)
+	s.logger.WithFields(map[string]interface{}{
+		"service": serviceName,
+		"method":  method,
+		"url":     url,
+	}).Info("Proxying request")
 
 	// Create request
 	var bodyReader io.Reader
@@ -87,11 +91,18 @@ func (s *Service) ProxyRequest(ctx context.Context, serviceName, path string, me
 	// Make request
 	resp, err := s.client.Do(req)
 	if err != nil {
-		s.logger.Error("Failed to proxy request", "error", err, "service", serviceName, "url", url)
+		s.logger.WithFields(map[string]interface{}{
+			"error":   err,
+			"service": serviceName,
+			"url":     url,
+		}).Error("Failed to proxy request")
 		return nil, fmt.Errorf("failed to proxy request: %w", err)
 	}
 
-	s.logger.Info("Request proxied successfully", "service", serviceName, "status", resp.StatusCode)
+	s.logger.WithFields(map[string]interface{}{
+		"service": serviceName,
+		"status":  resp.StatusCode,
+	}).Info("Request proxied successfully")
 	return resp, nil
 }
 
@@ -103,7 +114,7 @@ func (s *Service) CheckServiceHealth(ctx context.Context, serviceName string) (b
 	}
 
 	url := baseURL + "/health"
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return false, err
@@ -121,21 +132,21 @@ func (s *Service) CheckServiceHealth(ctx context.Context, serviceName string) (b
 // GetServiceStatus returns the status of all services
 func (s *Service) GetServiceStatus(ctx context.Context) map[string]interface{} {
 	status := make(map[string]interface{})
-	
+
 	for serviceName := range s.services {
 		healthy, err := s.CheckServiceHealth(ctx, serviceName)
 		serviceStatus := map[string]interface{}{
 			"healthy": healthy,
 			"url":     s.services[serviceName],
 		}
-		
+
 		if err != nil {
 			serviceStatus["error"] = err.Error()
 		}
-		
+
 		status[serviceName] = serviceStatus
 	}
-	
+
 	return status
 }
 
@@ -143,7 +154,7 @@ func (s *Service) GetServiceStatus(ctx context.Context) map[string]interface{} {
 func (s *Service) RouteRequest(path string) (string, string, error) {
 	// Remove leading slash
 	path = strings.TrimPrefix(path, "/")
-	
+
 	// Split path into segments
 	segments := strings.Split(path, "/")
 	if len(segments) < 3 {
@@ -156,7 +167,7 @@ func (s *Service) RouteRequest(path string) (string, string, error) {
 	}
 
 	serviceName := segments[2]
-	
+
 	// Map service names to internal service names
 	switch serviceName {
 	case "auth":
@@ -183,7 +194,7 @@ func (lb *LoadBalancer) GetServiceInstance(serviceName string) (string, error) {
 	if !exists || len(instances) == 0 {
 		return "", fmt.Errorf("no instances available for service %s", serviceName)
 	}
-	
+
 	// Simple round-robin (in production, use more sophisticated algorithms)
 	return instances[0], nil
 }
@@ -194,22 +205,22 @@ func (lb *LoadBalancer) GetServiceInstance(serviceName string) (string, error) {
 func (s *Service) LoggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
-		s.logger.Info("Incoming request", 
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
-			"user_agent", r.UserAgent(),
-		)
-		
+
+		s.logger.WithFields(map[string]interface{}{
+			"method":      r.Method,
+			"path":        r.URL.Path,
+			"remote_addr": r.RemoteAddr,
+			"user_agent":  r.UserAgent(),
+		}).Info("Incoming request")
+
 		next(w, r)
-		
+
 		duration := time.Since(start)
-		s.logger.Info("Request completed", 
-			"method", r.Method,
-			"path", r.URL.Path,
-			"duration", duration.String(),
-		)
+		s.logger.WithFields(map[string]interface{}{
+			"method":   r.Method,
+			"path":     r.URL.Path,
+			"duration": duration.String(),
+		}).Info("Request completed")
 	}
 }
 
@@ -220,12 +231,12 @@ func (s *Service) CORSMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID")
-		
+
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		
+
 		next(w, r)
 	}
 }
@@ -238,21 +249,21 @@ func (s *Service) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		
+
 		// Extract and validate JWT token
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			http.Error(w, "Authorization header required", http.StatusUnauthorized)
 			return
 		}
-		
+
 		// In a real implementation, validate the JWT token here
 		// For now, just check if it starts with "Bearer "
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			http.Error(w, "Invalid authorization header format", http.StatusUnauthorized)
 			return
 		}
-		
+
 		next(w, r)
 	}
 }
@@ -276,7 +287,7 @@ func generateRequestID() string {
 func writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}

@@ -116,10 +116,17 @@ func (m *TenantContextMiddleware) extractTenantContext(r *http.Request) (*shared
 	}
 
 	// Create tenant context
+	var plan shared.SubscriptionPlan
+	if tenant.Subscription() != nil {
+		plan = tenant.Subscription().Plan()
+	} else {
+		plan = shared.SubscriptionBasic // Default plan
+	}
+
 	tenantCtx := shared.NewTenantContext(
 		tenantID,
 		tenant.Name(),
-		tenant.Subscription().Plan(),
+		plan,
 	)
 
 	// Set features based on subscription

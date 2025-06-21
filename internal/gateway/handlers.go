@@ -77,7 +77,7 @@ func proxyHandler(service *Service) http.HandlerFunc {
 
 		// Copy response body
 		if _, err := io.Copy(w, resp.Body); err != nil {
-			service.logger.Error("Failed to copy response body", "error", err)
+			service.logger.Error("Failed to copy response body: %v", err)
 		}
 	}
 }
@@ -91,10 +91,10 @@ func getGatewayStatusHandler(service *Service) http.HandlerFunc {
 		}
 
 		status := map[string]interface{}{
-			"gateway": "go-coffee-api-gateway",
-			"version": "1.0.0",
-			"status":  "healthy",
-			"uptime":  "running", // In production, calculate actual uptime
+			"gateway":  "go-coffee-api-gateway",
+			"version":  "1.0.0",
+			"status":   "healthy",
+			"uptime":   "running", // In production, calculate actual uptime
 			"services": len(service.services),
 		}
 
@@ -191,7 +191,7 @@ func docsHandler(service *Service) http.HandlerFunc {
 		if strings.Contains(r.Header.Get("Accept"), "text/html") {
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
-			
+
 			html := generateHTMLDocs(docs)
 			w.Write([]byte(html))
 			return

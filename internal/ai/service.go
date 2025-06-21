@@ -15,14 +15,14 @@ import (
 type Service struct {
 	config *config.Config
 	logger *logger.Logger
-	
+
 	// AI modules
-	recommender    *RecommendationEngine
-	arbitrage      *ArbitrageEngine
-	forecaster     *DemandForecaster
-	optimizer      *PriceOptimizer
-	analyzer       *BehaviorAnalyzer
-	inventory      *InventoryManager
+	recommender *RecommendationEngine
+	arbitrage   *ArbitrageEngine
+	forecaster  *DemandForecaster
+	optimizer   *PriceOptimizer
+	analyzer    *BehaviorAnalyzer
+	inventory   *InventoryManager
 }
 
 // NewService creates a new AI service
@@ -54,10 +54,10 @@ func NewRecommendationEngine(log *logger.Logger) *RecommendationEngine {
 
 // GetRecommendations returns personalized coffee recommendations
 func (s *Service) GetRecommendations(ctx context.Context, userID string, preferences *models.UserPreferences) (*models.RecommendationResponse, error) {
-	s.logger.Info("Generating recommendations", "user_id", userID)
+	s.logger.WithFields(map[string]interface{}{"user_id": userID}).Info("Generating recommendations")
 
 	recommendations := s.recommender.generateRecommendations(userID, preferences)
-	
+
 	response := &models.RecommendationResponse{
 		UserID:          userID,
 		Recommendations: recommendations,
@@ -66,30 +66,33 @@ func (s *Service) GetRecommendations(ctx context.Context, userID string, prefere
 		Algorithm:       "collaborative_filtering_v2",
 	}
 
-	s.logger.Info("Recommendations generated", "user_id", userID, "count", len(recommendations))
+	s.logger.WithFields(map[string]interface{}{
+		"user_id": userID,
+		"count":   len(recommendations),
+	}).Info("Recommendations generated")
 	return response, nil
 }
 
 func (re *RecommendationEngine) generateRecommendations(userID string, prefs *models.UserPreferences) []models.CoffeeRecommendation {
 	// Simulate AI recommendation algorithm
 	coffeeTypes := []string{"Espresso", "Americano", "Latte", "Cappuccino", "Mocha", "Macchiato"}
-	
+
 	var recommendations []models.CoffeeRecommendation
-	
+
 	for i, coffee := range coffeeTypes[:3] { // Top 3 recommendations
 		score := 0.9 - float64(i)*0.1 // Decreasing confidence
-		
+
 		recommendation := models.CoffeeRecommendation{
-			CoffeeType:   coffee,
-			Confidence:   score,
-			Reason:       fmt.Sprintf("Based on your preference for %s", getPreferenceReason(prefs)),
-			Price:        generatePrice(coffee),
+			CoffeeType:     coffee,
+			Confidence:     score,
+			Reason:         fmt.Sprintf("Based on your preference for %s", getPreferenceReason(prefs)),
+			Price:          generatePrice(coffee),
 			Customizations: generateCustomizations(coffee, prefs),
 		}
-		
+
 		recommendations = append(recommendations, recommendation)
 	}
-	
+
 	return recommendations
 }
 
@@ -104,10 +107,10 @@ func NewArbitrageEngine(log *logger.Logger) *ArbitrageEngine {
 
 // DetectArbitrageOpportunities finds price differences across markets
 func (s *Service) DetectArbitrageOpportunities(ctx context.Context, markets []string) (*models.ArbitrageResponse, error) {
-	s.logger.Info("Detecting arbitrage opportunities", "markets", len(markets))
+	s.logger.WithFields(map[string]interface{}{"markets": len(markets)}).Info("Detecting arbitrage opportunities")
 
 	opportunities := s.arbitrage.detectOpportunities(markets)
-	
+
 	response := &models.ArbitrageResponse{
 		Opportunities: opportunities,
 		AnalyzedAt:    time.Now(),
@@ -115,16 +118,16 @@ func (s *Service) DetectArbitrageOpportunities(ctx context.Context, markets []st
 		TotalProfit:   calculateTotalProfit(opportunities),
 	}
 
-	s.logger.Info("Arbitrage analysis complete", "opportunities", len(opportunities))
+	s.logger.WithFields(map[string]interface{}{"opportunities": len(opportunities)}).Info("Arbitrage analysis complete")
 	return response, nil
 }
 
 func (ae *ArbitrageEngine) detectOpportunities(markets []string) []models.ArbitrageOpportunity {
 	var opportunities []models.ArbitrageOpportunity
-	
+
 	// Simulate arbitrage detection
 	cryptos := []string{"BTC", "ETH", "LTC", "BCH"}
-	
+
 	for _, crypto := range cryptos {
 		if rand.Float64() > 0.7 { // 30% chance of opportunity
 			opportunity := models.ArbitrageOpportunity{
@@ -140,7 +143,7 @@ func (ae *ArbitrageEngine) detectOpportunities(markets []string) []models.Arbitr
 			opportunities = append(opportunities, opportunity)
 		}
 	}
-	
+
 	return opportunities
 }
 
@@ -155,11 +158,11 @@ func NewDemandForecaster(log *logger.Logger) *DemandForecaster {
 
 // ForecastDemand predicts future coffee demand
 func (s *Service) ForecastDemand(ctx context.Context, timeframe string) (*models.DemandForecast, error) {
-	s.logger.Info("Forecasting demand", "timeframe", timeframe)
+	s.logger.WithFields(map[string]interface{}{"timeframe": timeframe}).Info("Forecasting demand")
 
 	forecast := s.forecaster.generateForecast(timeframe)
-	
-	s.logger.Info("Demand forecast generated", "timeframe", timeframe)
+
+	s.logger.WithFields(map[string]interface{}{"timeframe": timeframe}).Info("Demand forecast generated")
 	return forecast, nil
 }
 
@@ -169,14 +172,14 @@ func (df *DemandForecaster) generateForecast(timeframe string) *models.DemandFor
 	if timeframe == "week" {
 		hours = 168
 	}
-	
+
 	var predictions []models.DemandPrediction
-	
+
 	for i := 0; i < hours; i++ {
 		// Simulate demand patterns (higher in morning/afternoon)
 		basedemand := 50.0
 		timeMultiplier := 1.0
-		
+
 		hour := i % 24
 		if hour >= 7 && hour <= 9 { // Morning rush
 			timeMultiplier = 2.0
@@ -185,18 +188,18 @@ func (df *DemandForecaster) generateForecast(timeframe string) *models.DemandFor
 		} else if hour >= 15 && hour <= 17 { // Afternoon
 			timeMultiplier = 1.3
 		}
-		
+
 		demand := basedemand * timeMultiplier * (0.8 + rand.Float64()*0.4)
-		
+
 		prediction := models.DemandPrediction{
-			Timestamp: time.Now().Add(time.Duration(i) * time.Hour),
-			Demand:    demand,
+			Timestamp:  time.Now().Add(time.Duration(i) * time.Hour),
+			Demand:     demand,
 			Confidence: 0.75 + rand.Float64()*0.2,
 		}
-		
+
 		predictions = append(predictions, prediction)
 	}
-	
+
 	return &models.DemandForecast{
 		Timeframe:   timeframe,
 		Predictions: predictions,
@@ -217,21 +220,21 @@ func NewPriceOptimizer(log *logger.Logger) *PriceOptimizer {
 
 // OptimizePricing suggests optimal pricing
 func (s *Service) OptimizePricing(ctx context.Context, products []string) (*models.PricingOptimization, error) {
-	s.logger.Info("Optimizing pricing", "products", len(products))
+	s.logger.WithFields(map[string]interface{}{"products": len(products)}).Info("Optimizing pricing")
 
 	optimization := s.optimizer.optimizePrices(products)
-	
-	s.logger.Info("Pricing optimization complete", "products", len(products))
+
+	s.logger.WithFields(map[string]interface{}{"products": len(products)}).Info("Pricing optimization complete")
 	return optimization, nil
 }
 
 func (po *PriceOptimizer) optimizePrices(products []string) *models.PricingOptimization {
 	var suggestions []models.PriceSuggestion
-	
+
 	for _, product := range products {
 		currentPrice := generatePrice(product)
 		optimizedPrice := currentPrice * (0.95 + rand.Float64()*0.1) // ±5% adjustment
-		
+
 		suggestion := models.PriceSuggestion{
 			Product:         product,
 			CurrentPrice:    currentPrice,
@@ -240,10 +243,10 @@ func (po *PriceOptimizer) optimizePrices(products []string) *models.PricingOptim
 			Confidence:      0.8 + rand.Float64()*0.15,
 			Reason:          generatePricingReason(currentPrice, optimizedPrice),
 		}
-		
+
 		suggestions = append(suggestions, suggestion)
 	}
-	
+
 	return &models.PricingOptimization{
 		Suggestions: suggestions,
 		GeneratedAt: time.Now(),
@@ -263,18 +266,18 @@ func NewBehaviorAnalyzer(log *logger.Logger) *BehaviorAnalyzer {
 
 // AnalyzeBehavior analyzes customer behavior patterns
 func (s *Service) AnalyzeBehavior(ctx context.Context, customerID string) (*models.BehaviorAnalysis, error) {
-	s.logger.Info("Analyzing customer behavior", "customer_id", customerID)
+	s.logger.WithFields(map[string]interface{}{"customer_id": customerID}).Info("Analyzing customer behavior")
 
 	analysis := s.analyzer.analyzeBehavior(customerID)
-	
-	s.logger.Info("Behavior analysis complete", "customer_id", customerID)
+
+	s.logger.WithFields(map[string]interface{}{"customer_id": customerID}).Info("Behavior analysis complete")
 	return analysis, nil
 }
 
 func (ba *BehaviorAnalyzer) analyzeBehavior(customerID string) *models.BehaviorAnalysis {
 	// Simulate behavior analysis
 	patterns := []string{"morning_regular", "afternoon_occasional", "weekend_social"}
-	
+
 	return &models.BehaviorAnalysis{
 		CustomerID:      customerID,
 		Patterns:        patterns,
@@ -301,7 +304,7 @@ func (s *Service) OptimizeInventory(ctx context.Context) (*models.InventoryOptim
 	s.logger.Info("Optimizing inventory")
 
 	optimization := s.inventory.optimizeInventory()
-	
+
 	s.logger.Info("Inventory optimization complete")
 	return optimization, nil
 }
@@ -309,19 +312,19 @@ func (s *Service) OptimizeInventory(ctx context.Context) (*models.InventoryOptim
 func (im *InventoryManager) optimizeInventory() *models.InventoryOptimization {
 	items := []string{"Coffee Beans", "Milk", "Sugar", "Cups", "Lids"}
 	var suggestions []models.InventorySuggestion
-	
+
 	for _, item := range items {
 		suggestion := models.InventorySuggestion{
-			Item:            item,
-			CurrentStock:    rand.Intn(100) + 50,
+			Item:             item,
+			CurrentStock:     rand.Intn(100) + 50,
 			RecommendedStock: rand.Intn(150) + 100,
-			ReorderPoint:    rand.Intn(30) + 20,
-			Reason:          fmt.Sprintf("Based on demand forecast for %s", item),
-			Priority:        rand.Intn(3) + 1, // 1-3 priority
+			ReorderPoint:     rand.Intn(30) + 20,
+			Reason:           fmt.Sprintf("Based on demand forecast for %s", item),
+			Priority:         rand.Intn(3) + 1, // 1-3 priority
 		}
 		suggestions = append(suggestions, suggestion)
 	}
-	
+
 	return &models.InventoryOptimization{
 		Suggestions: suggestions,
 		GeneratedAt: time.Now(),
@@ -348,7 +351,7 @@ func generatePrice(coffee string) float64 {
 		"Mocha":      1.4,
 		"Macchiato":  1.35,
 	}
-	
+
 	if mult, exists := multipliers[coffee]; exists {
 		return basePrice * mult
 	}
@@ -367,7 +370,7 @@ func generateCryptoPrice(crypto string) float64 {
 		"LTC": 150,
 		"BCH": 400,
 	}
-	
+
 	if price, exists := basePrices[crypto]; exists {
 		return price * (0.95 + rand.Float64()*0.1) // ±5% variation
 	}

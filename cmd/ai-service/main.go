@@ -18,10 +18,10 @@ import (
 func main() {
 	// Load environment variables
 	config.AutoLoadEnvFiles()
-	
+
 	// Initialize logger
 	logger := logger.New("ai-service")
-	
+
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -61,7 +61,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("AI service started", "port", cfg.Server.AISearchPort)
+	logger.Info("AI service started on port %d", cfg.Server.AISearchPort)
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)

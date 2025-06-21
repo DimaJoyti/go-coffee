@@ -98,7 +98,7 @@ func validateServerConfig(cfg *ServerConfig) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
 	}
 
 	return nil
@@ -149,7 +149,7 @@ func validateRedisConfig(cfg *RedisConfig) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
 	}
 
 	return nil
@@ -217,7 +217,7 @@ func validateSecurityConfig(cfg *SecurityConfig) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
 	}
 
 	return nil
@@ -244,7 +244,7 @@ func validateRateLimitingConfig(cfg *RateLimitingConfig) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
 	}
 
 	return nil
@@ -274,7 +274,7 @@ func validateLoggingConfig(cfg *LoggingConfig) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
 	}
 
 	return nil
@@ -307,7 +307,7 @@ func validateMonitoringConfig(cfg *MonitoringConfig) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
 	}
 
 	return nil
@@ -335,7 +335,7 @@ func validateTLSConfig(cfg *TLSConfig) error {
 	}
 
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
 	}
 
 	return nil

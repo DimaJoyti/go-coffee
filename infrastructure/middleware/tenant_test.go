@@ -218,7 +218,11 @@ func TestTenantContextMiddleware_ExtractFromPath(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		req := httptest.NewRequest("GET", test.path, nil)
+		path := test.path
+		if path == "" {
+			path = "/"
+		}
+		req := httptest.NewRequest("GET", path, nil)
 
 		result := middleware.extractFromPath(req)
 		if result != test.expected {

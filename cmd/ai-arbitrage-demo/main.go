@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	arbitrageServiceAddr = "localhost:50054"
+	arbitrageServiceAddr  = "localhost:50054"
 	marketDataServiceAddr = "localhost:50055"
 )
 
@@ -136,10 +136,10 @@ func runArbitrageOpportunityDemo(ctx context.Context, client pb.ArbitrageService
 
 	// Get available opportunities
 	getReq := &pb.GetOpportunitiesRequest{
-		AssetSymbol:      "COFFEE",
-		MinProfitMargin:  2.0,
-		MaxRiskScore:     0.8,
-		Limit:            5,
+		AssetSymbol:     "COFFEE",
+		MinProfitMargin: 2.0,
+		MaxRiskScore:    0.8,
+		Limit:           5,
 	}
 
 	getResp, err := client.GetOpportunities(ctx, getReq)
@@ -248,7 +248,7 @@ func runTradeExecutionDemo(ctx context.Context, client pb.ArbitrageServiceClient
 		fmt.Printf("  Buy Price: $%.2f\n", trade.BuyPrice)
 		fmt.Printf("  Sell Price: $%.2f\n", trade.SellPrice)
 		fmt.Printf("  Profit: $%.2f\n", trade.Profit)
-		fmt.Printf("  Status: %s\n", trade.Status)
+		fmt.Printf("  Status: %v\n", trade.Status)
 		fmt.Printf("  Transaction ID: %s\n", executeResp.TransactionId)
 	} else {
 		fmt.Printf("❌ Trade execution failed: %s\n", executeResp.Message)
@@ -280,7 +280,7 @@ func runMarketAnalysisDemo(ctx context.Context, client pb.ArbitrageServiceClient
 		fmt.Printf("  Predicted Price: $%.2f\n", analysis.PredictedPrice)
 		fmt.Printf("  Volatility: %.2f%%\n", analysis.Volatility*100)
 		fmt.Printf("  Sentiment Score: %.2f\n", analysis.SentimentScore)
-		
+
 		if len(analysis.RiskFactors) > 0 {
 			fmt.Printf("  Risk Factors:\n")
 			for i, factor := range analysis.RiskFactors {
@@ -290,14 +290,14 @@ func runMarketAnalysisDemo(ctx context.Context, client pb.ArbitrageServiceClient
 				fmt.Printf("    • %s\n", factor)
 			}
 		}
-		
+
 		if len(analysis.SupportLevels) > 0 {
 			fmt.Printf("  Support Levels:\n")
 			for _, level := range analysis.SupportLevels {
 				fmt.Printf("    • $%.2f (strength: %.2f)\n", level.Price, level.Strength)
 			}
 		}
-		
+
 		if len(analysis.ResistanceLevels) > 0 {
 			fmt.Printf("  Resistance Levels:\n")
 			for _, level := range analysis.ResistanceLevels {

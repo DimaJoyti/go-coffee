@@ -94,7 +94,7 @@ func (h *Handlers) CreateOrder(w http.ResponseWriter, r *http.Request) {
 // GetOrder retrieves an order by ID (Clean HTTP Handler)
 func (h *Handlers) GetOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := h.getPathParam(r, "id")
-	h.logger.Info("Getting order", map[string]interface{}{"order_id": orderID})
+	h.logger.WithFields(map[string]interface{}{"order_id": orderID}).Info("Getting order")
 
 	// Mock response
 	response := map[string]interface{}{
@@ -563,7 +563,7 @@ func (h *Handlers) respondWithJSON(w http.ResponseWriter, statusCode int, data i
 
 // respondWithError sends an error response
 func (h *Handlers) respondWithError(w http.ResponseWriter, statusCode int, message string, err error) {
-	h.logger.WithError(err).WithField("status_code", statusCode).Error(message)
+	h.logger.WithError(err).WithField("status_code", statusCode).Error("%s", message)
 
 	response := map[string]interface{}{
 		"error":     message,

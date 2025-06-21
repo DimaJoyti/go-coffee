@@ -55,7 +55,7 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("🌐 Starting Redis MCP Server on port " + serverPort)
+		logger.Info("🌐 Starting Redis MCP Server on port %s", serverPort)
 		if err := mcpServer.Start(serverPort); err != nil {
 			log.Fatalf("Failed to start Redis MCP server: %v", err)
 		}
@@ -76,7 +76,7 @@ func main() {
 
 	// Close Redis connection
 	if err := redisClient.Close(); err != nil {
-		logger.Error("Error closing Redis connection", map[string]interface{}{"error": err})
+		logger.WithFields(map[string]interface{}{"error": err}).Error("Error closing Redis connection")
 	}
 
 	logger.Info("✅ Redis MCP Server stopped gracefully")
@@ -241,9 +241,9 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 
 	// Sample analytics data
 	analytics := map[string]float64{
-		"revenue_today":     1250.75,
-		"orders_today":      85,
-		"avg_order_value":   14.71,
+		"revenue_today":         1250.75,
+		"orders_today":          85,
+		"avg_order_value":       14.71,
 		"customer_satisfaction": 4.6,
 	}
 

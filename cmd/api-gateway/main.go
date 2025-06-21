@@ -18,10 +18,10 @@ import (
 func main() {
 	// Load environment variables
 	config.AutoLoadEnvFiles()
-	
+
 	// Initialize logger
 	logger := logger.New("api-gateway")
-	
+
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -61,7 +61,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("API Gateway started", "port", cfg.Server.APIGatewayPort)
+	logger.Info("API Gateway started on port %d", cfg.Server.APIGatewayPort)
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)

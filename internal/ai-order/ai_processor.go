@@ -41,7 +41,7 @@ func NewAIProcessor(logger *logger.Logger) AIProcessor {
 
 // AnalyzeOrder performs AI analysis on an order
 func (p *RedisAIProcessor) AnalyzeOrder(ctx context.Context, order *pb.Order) (*pb.AIOrderInsights, error) {
-	p.logger.Info("Analyzing order with AI", zap.String("order_id", order.Id))
+	p.logger.WithFields(map[string]interface{}{"order_id": order.Id}).Info("Analyzing order with AI")
 
 	// Calculate complexity score based on items and customizations
 	complexityScore := p.calculateComplexityScore(order.Items)
@@ -79,7 +79,7 @@ func (p *RedisAIProcessor) AnalyzeOrder(ctx context.Context, order *pb.Order) (*
 
 // GetRecommendations gets AI-powered recommendations for customer
 func (p *RedisAIProcessor) GetRecommendations(ctx context.Context, customer *pb.Customer, items []*pb.OrderItem) ([]string, error) {
-	p.logger.Info("Getting AI recommendations", zap.String("customer_id", customer.Id))
+	p.logger.WithFields(map[string]interface{}{"customer_id": customer.Id}).Info("Getting AI recommendations")
 
 	recommendations := []string{}
 
@@ -156,7 +156,7 @@ func (p *RedisAIProcessor) GenerateStatusNotifications(ctx context.Context, orde
 	if notifyCustomer {
 		switch order.Status {
 		case pb.OrderStatus_ORDER_STATUS_CONFIRMED:
-			notifications = append(notifications, fmt.Sprintf("Order %s confirmed. Estimated completion: %s", 
+			notifications = append(notifications, fmt.Sprintf("Order %s confirmed. Estimated completion: %s",
 				order.Id, order.EstimatedCompletion.AsTime().Format("15:04")))
 		case pb.OrderStatus_ORDER_STATUS_PREPARING:
 			notifications = append(notifications, fmt.Sprintf("Your order %s is being prepared", order.Id))
@@ -184,7 +184,7 @@ func (p *RedisAIProcessor) GenerateStatusNotifications(ctx context.Context, orde
 
 // AnalyzeCancellationImpact analyzes the impact of order cancellation
 func (p *RedisAIProcessor) AnalyzeCancellationImpact(ctx context.Context, order *pb.Order) (*pb.AIImpactAnalysis, error) {
-	p.logger.Info("Analyzing cancellation impact", zap.String("order_id", order.Id))
+	p.logger.WithFields(map[string]interface{}{"order_id": order.Id}).Info("Analyzing cancellation impact")
 
 	// Calculate revenue impact
 	revenueImpact := order.TotalAmount
@@ -213,10 +213,10 @@ func (p *RedisAIProcessor) AnalyzeCancellationImpact(ctx context.Context, order 
 	}
 
 	return &pb.AIImpactAnalysis{
-		RevenueImpact:               revenueImpact,
-		CustomerSatisfactionImpact:  satisfactionImpact,
-		MitigationSuggestions:       mitigationSuggestions,
-		KitchenEfficiencyImpact:     kitchenImpact,
+		RevenueImpact:              revenueImpact,
+		CustomerSatisfactionImpact: satisfactionImpact,
+		MitigationSuggestions:      mitigationSuggestions,
+		KitchenEfficiencyImpact:    kitchenImpact,
 	}, nil
 }
 
@@ -262,11 +262,11 @@ func (p *RedisAIProcessor) GenerateAnalytics(ctx context.Context, orders []*pb.O
 	}
 
 	return &pb.AIAnalytics{
-		AverageOrderValue:      avgOrderValue,
-		TotalRevenue:           totalRevenue,
-		PopularItems:           popularItems,
+		AverageOrderValue:       avgOrderValue,
+		TotalRevenue:            totalRevenue,
+		PopularItems:            popularItems,
 		CustomerSatisfactionAvg: avgSatisfaction,
-		PeakHourAnalysis:       p.calculatePeakHours(orders),
+		PeakHourAnalysis:        p.calculatePeakHours(orders),
 	}, nil
 }
 
@@ -292,15 +292,15 @@ func (p *RedisAIProcessor) estimatePreparationTime(items []*pb.OrderItem) float6
 
 func (p *RedisAIProcessor) generateRecommendations(order *pb.Order) []string {
 	recommendations := []string{}
-	
+
 	if len(order.Items) == 1 {
 		recommendations = append(recommendations, "Add a pastry for a complete experience")
 	}
-	
+
 	if order.TotalAmount < 10.0 {
 		recommendations = append(recommendations, "Upgrade to larger size for better value")
 	}
-	
+
 	return recommendations
 }
 
@@ -326,31 +326,31 @@ func (p *RedisAIProcessor) analyzePeakTime() string {
 func (p *RedisAIProcessor) predictCustomerSatisfaction(order *pb.Order) float64 {
 	// Base satisfaction score
 	satisfaction := 8.0
-	
+
 	// Adjust based on order complexity
 	if len(order.Items) > 3 {
 		satisfaction -= 0.5
 	}
-	
+
 	// Adjust based on total amount
 	if order.TotalAmount > 25.0 {
 		satisfaction += 0.5
 	}
-	
+
 	return satisfaction
 }
 
 func (p *RedisAIProcessor) generateOptimizationSuggestions(order *pb.Order) []string {
 	suggestions := []string{}
-	
+
 	if len(order.Items) > 2 {
 		suggestions = append(suggestions, "Consider bundling items for efficiency")
 	}
-	
+
 	if order.TotalAmount < 8.0 {
 		suggestions = append(suggestions, "Suggest upselling opportunities")
 	}
-	
+
 	return suggestions
 }
 
@@ -421,16 +421,16 @@ func (p *RedisAIProcessor) GetOrderRecommendations(ctx context.Context, req *pb.
 			ProductId:         "latte-001",
 			ProductName:       "Morning Latte",
 			ConfidenceScore:   0.9,
-			Reason:           "Popular morning choice with energizing caffeine",
-			Price:            4.50,
+			Reason:            "Popular morning choice with energizing caffeine",
+			Price:             4.50,
 			EstimatedPrepTime: 3.0,
 		})
 		recommendations = append(recommendations, &pb.RecommendedItem{
 			ProductId:         "croissant-001",
 			ProductName:       "Fresh Croissant",
 			ConfidenceScore:   0.8,
-			Reason:           "Perfect breakfast pairing",
-			Price:            3.25,
+			Reason:            "Perfect breakfast pairing",
+			Price:             3.25,
 			EstimatedPrepTime: 1.0,
 		})
 	case "afternoon":
@@ -438,8 +438,8 @@ func (p *RedisAIProcessor) GetOrderRecommendations(ctx context.Context, req *pb.
 			ProductId:         "americano-001",
 			ProductName:       "Americano",
 			ConfidenceScore:   0.85,
-			Reason:           "Afternoon pick-me-up without overwhelming caffeine",
-			Price:            3.75,
+			Reason:            "Afternoon pick-me-up without overwhelming caffeine",
+			Price:             3.75,
 			EstimatedPrepTime: 2.5,
 		})
 	case "evening":
@@ -447,8 +447,8 @@ func (p *RedisAIProcessor) GetOrderRecommendations(ctx context.Context, req *pb.
 			ProductId:         "decaf-latte-001",
 			ProductName:       "Decaf Latte",
 			ConfidenceScore:   0.75,
-			Reason:           "Evening-friendly option without caffeine",
-			Price:            4.25,
+			Reason:            "Evening-friendly option without caffeine",
+			Price:             4.25,
 			EstimatedPrepTime: 3.0,
 		})
 	}
@@ -467,30 +467,30 @@ func (p *RedisAIProcessor) AnalyzeOrderPatterns(ctx context.Context, req *pb.Ana
 
 	// Generate sample pattern insights
 	insights = append(insights, &pb.PatternInsight{
-		PatternType:    "temporal",
-		Description:    "Peak ordering hours identified between 8-10 AM and 2-4 PM",
-		Confidence:     0.92,
-		AffectedItems:  []string{"latte", "cappuccino", "americano"},
-		TimePeriod:     "daily",
-		ImpactScore:    8.5,
+		PatternType:   "temporal",
+		Description:   "Peak ordering hours identified between 8-10 AM and 2-4 PM",
+		Confidence:    0.92,
+		AffectedItems: []string{"latte", "cappuccino", "americano"},
+		TimePeriod:    "daily",
+		ImpactScore:   8.5,
 	})
 
 	insights = append(insights, &pb.PatternInsight{
-		PatternType:    "seasonal",
-		Description:    "Cold brew orders increase by 40% during summer months",
-		Confidence:     0.87,
-		AffectedItems:  []string{"cold_brew", "iced_latte", "frappuccino"},
-		TimePeriod:     "seasonal",
-		ImpactScore:    7.2,
+		PatternType:   "seasonal",
+		Description:   "Cold brew orders increase by 40% during summer months",
+		Confidence:    0.87,
+		AffectedItems: []string{"cold_brew", "iced_latte", "frappuccino"},
+		TimePeriod:    "seasonal",
+		ImpactScore:   7.2,
 	})
 
 	insights = append(insights, &pb.PatternInsight{
-		PatternType:    "customer_behavior",
-		Description:    "Customers ordering pastries have 65% likelihood of ordering hot beverages",
-		Confidence:     0.78,
-		AffectedItems:  []string{"croissant", "muffin", "latte", "cappuccino"},
-		TimePeriod:     "ongoing",
-		ImpactScore:    6.8,
+		PatternType:   "customer_behavior",
+		Description:   "Customers ordering pastries have 65% likelihood of ordering hot beverages",
+		Confidence:    0.78,
+		AffectedItems: []string{"croissant", "muffin", "latte", "cappuccino"},
+		TimePeriod:    "ongoing",
+		ImpactScore:   6.8,
 	})
 
 	// Generate recommendations based on patterns
@@ -515,7 +515,7 @@ func (p *RedisAIProcessor) PredictCompletionTime(ctx context.Context, req *pb.Pr
 	queueImpact := float64(req.CurrentQueueSize) * 1.5
 
 	// Add some randomness for realistic prediction
-	randomFactor := rand.Float64() * 2.0 - 1.0 // -1 to +1 minutes
+	randomFactor := rand.Float64()*2.0 - 1.0 // -1 to +1 minutes
 
 	estimatedMinutes := baseTime + queueImpact + randomFactor
 	if estimatedMinutes < 2.0 {
@@ -541,11 +541,11 @@ func (p *RedisAIProcessor) PredictCompletionTime(ctx context.Context, req *pb.Pr
 	estimatedCompletionTime := timestamppb.New(time.Now().Add(time.Duration(estimatedMinutes) * time.Minute))
 
 	return &pb.PredictCompletionTimeResponse{
-		EstimatedMinutes:         estimatedMinutes,
-		ConfidenceLevel:          confidence,
-		Factors:                  factors,
-		EstimatedCompletionTime:  estimatedCompletionTime,
-		Success:                  true,
-		Message:                  "Completion time predicted successfully",
+		EstimatedMinutes:        estimatedMinutes,
+		ConfidenceLevel:         confidence,
+		Factors:                 factors,
+		EstimatedCompletionTime: estimatedCompletionTime,
+		Success:                 true,
+		Message:                 "Completion time predicted successfully",
 	}, nil
 }
