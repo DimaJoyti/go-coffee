@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/internal/auth/domain"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
@@ -16,11 +15,11 @@ import (
 
 // JWTConfig represents JWT configuration
 type JWTConfig struct {
-	Secret           string        `yaml:"secret"`
-	AccessTokenTTL   time.Duration `yaml:"access_token_ttl"`
-	RefreshTokenTTL  time.Duration `yaml:"refresh_token_ttl"`
-	Issuer           string        `yaml:"issuer"`
-	Audience         string        `yaml:"audience"`
+	Secret          string        `yaml:"secret"`
+	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"`
+	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"`
+	Issuer          string        `yaml:"issuer"`
+	Audience        string        `yaml:"audience"`
 }
 
 // JWTService implements JWT token operations
@@ -98,16 +97,11 @@ func (j *JWTService) generateToken(ctx context.Context, user *domain.User, sessi
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims)
 	tokenString, err := token.SignedString([]byte(j.config.Secret))
 	if err != nil {
-		j.logger.Error("Failed to sign JWT token", zap.Error(err))
+		j.logger.Error("Failed to sign JWT token: %v", err)
 		return "", nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
-	j.logger.Debug("Generated JWT token",
-		zap.String("user_id", user.ID),
-		zap.String("session_id", sessionID),
-		zap.String("type", string(tokenType)),
-		zap.Time("expires_at", expiresAt),
-	)
+	j.logger.Debug("Generated JWT token for user_id=%s session_id=%s type=%s expires_at=%v", user.ID, sessionID, string(tokenType), expiresAt)
 
 	return tokenString, claims, nil
 }
@@ -167,7 +161,7 @@ func (j *JWTService) parseAndValidateToken(ctx context.Context, tokenString stri
 	})
 
 	if err != nil {
-		j.logger.Error("Failed to parse JWT token", zap.Error(err))
+		j.logger.Error("Failed to parse JWT token: %v", err)
 		return nil, domain.ErrTokenMalformed
 	}
 
@@ -187,14 +181,14 @@ func (j *JWTService) parseAndValidateToken(ctx context.Context, tokenString stri
 	// Convert to domain claims
 	claims, err := j.mapClaimsToDomain(jwtClaims)
 	if err != nil {
-		j.logger.Error("Failed to convert JWT claims", zap.Error(err))
+		j.logger.Error("Failed to convert JWT claims: %v", err)
 		return nil, err
 	}
 
 	// Validate claims
 	if validate {
 		if err := claims.IsValidClaims(); err != nil {
-			j.logger.Error("Invalid token claims", zap.Error(err))
+			j.logger.Error("Invalid token claims: %v", err)
 			return nil, err
 		}
 	}

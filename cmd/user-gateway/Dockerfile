@@ -1,5 +1,5 @@
 # Multi-stage build for User Gateway Service
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -10,11 +10,17 @@ WORKDIR /app
 # Copy go mod files
 COPY go.mod go.sum ./
 
+# Copy pkg directory (needed for local replace directive)
+COPY pkg ./pkg
+
 # Download dependencies
 RUN go mod download
 
 # Copy source code
 COPY . .
+
+# Tidy up dependencies
+RUN go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \

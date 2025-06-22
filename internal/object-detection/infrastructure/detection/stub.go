@@ -50,6 +50,9 @@ type InferenceResponse struct {
 	FrameHeight  int
 }
 
+// DetectionCallback is called when objects are detected
+type DetectionCallback func(response *InferenceResponse)
+
 // ModelManager stub
 type ModelManager struct{}
 

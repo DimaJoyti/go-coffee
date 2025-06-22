@@ -6,7 +6,6 @@ import (
 	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
-	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/internal/auth/application"
 	"github.com/DimaJoyti/go-coffee/pkg/logger"
@@ -20,8 +19,8 @@ type PasswordService struct {
 
 // PasswordConfig represents password service configuration
 type PasswordConfig struct {
-	BcryptCost       int                           `yaml:"bcrypt_cost"`
-	PasswordPolicy   *application.PasswordPolicy  `yaml:"password_policy"`
+	BcryptCost     int                         `yaml:"bcrypt_cost"`
+	PasswordPolicy *application.PasswordPolicy `yaml:"password_policy"`
 }
 
 // NewPasswordService creates a new password service
@@ -59,7 +58,7 @@ func (p *PasswordService) HashPassword(password string) (string, error) {
 	// Hash password
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), p.config.BcryptCost)
 	if err != nil {
-		p.logger.Error("Failed to hash password", zap.Error(err))
+		p.logger.Error("Failed to hash password: %v", err)
 		return "", errors.New("failed to hash password")
 	}
 
@@ -75,7 +74,7 @@ func (p *PasswordService) VerifyPassword(hashedPassword, password string) error 
 			p.logger.Debug("Password verification failed: password mismatch")
 			return errors.New("invalid password")
 		}
-		p.logger.Error("Password verification failed", zap.Error(err))
+		p.logger.Error("Password verification failed: %v", err)
 		return errors.New("password verification failed")
 	}
 
