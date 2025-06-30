@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/ai"
 )
 

@@ -3,7 +3,7 @@ package smartcontract
 import (
 	"context"
 
-	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/proto/contract"
+	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/contract"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"google.golang.org/grpc/codes"
@@ -58,7 +58,7 @@ func (h *GRPCHandler) DeployContract(ctx context.Context, req *pb.DeployContract
 			UserId:    resp.Contract.UserID,
 			Name:      resp.Contract.Name,
 			Address:   resp.Contract.Address,
-			Chain:     resp.Contract.Chain,
+			Chain:     string(resp.Contract.Chain),
 			Abi:       resp.Contract.ABI,
 			Bytecode:  resp.Contract.Bytecode,
 			CreatedAt: timestamppb.New(resp.Contract.CreatedAt),
@@ -72,7 +72,7 @@ func (h *GRPCHandler) DeployContract(ctx context.Context, req *pb.DeployContract
 			Value:    resp.Transaction.Value,
 			Gas:      resp.Transaction.Gas,
 			GasPrice: resp.Transaction.GasPrice,
-			Status:   resp.Transaction.Status,
+			Status:   string(resp.Transaction.Status),
 		},
 	}, nil
 }
@@ -103,7 +103,7 @@ func (h *GRPCHandler) ImportContract(ctx context.Context, req *pb.ImportContract
 			UserId:    resp.Contract.UserID,
 			Name:      resp.Contract.Name,
 			Address:   resp.Contract.Address,
-			Chain:     resp.Contract.Chain,
+			Chain:     string(resp.Contract.Chain),
 			Abi:       resp.Contract.ABI,
 			Bytecode:  resp.Contract.Bytecode,
 			CreatedAt: timestamppb.New(resp.Contract.CreatedAt),
@@ -133,7 +133,7 @@ func (h *GRPCHandler) GetContract(ctx context.Context, req *pb.GetContractReques
 			UserId:    resp.Contract.UserID,
 			Name:      resp.Contract.Name,
 			Address:   resp.Contract.Address,
-			Chain:     resp.Contract.Chain,
+			Chain:     string(resp.Contract.Chain),
 			Abi:       resp.Contract.ABI,
 			Bytecode:  resp.Contract.Bytecode,
 			CreatedAt: timestamppb.New(resp.Contract.CreatedAt),
@@ -164,7 +164,7 @@ func (h *GRPCHandler) GetContractByAddress(ctx context.Context, req *pb.GetContr
 			UserId:    resp.Contract.UserID,
 			Name:      resp.Contract.Name,
 			Address:   resp.Contract.Address,
-			Chain:     resp.Contract.Chain,
+			Chain:     string(resp.Contract.Chain),
 			Abi:       resp.Contract.ABI,
 			Bytecode:  resp.Contract.Bytecode,
 			CreatedAt: timestamppb.New(resp.Contract.CreatedAt),
@@ -199,7 +199,7 @@ func (h *GRPCHandler) ListContracts(ctx context.Context, req *pb.ListContractsRe
 			UserId:    contract.UserID,
 			Name:      contract.Name,
 			Address:   contract.Address,
-			Chain:     contract.Chain,
+			Chain:     string(contract.Chain),
 			Abi:       contract.ABI,
 			Bytecode:  contract.Bytecode,
 			CreatedAt: timestamppb.New(contract.CreatedAt),

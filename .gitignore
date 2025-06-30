@@ -119,4 +119,5 @@ go.work.sum
 .claude
 
 web-ui/frontend/.next
+GEMINI.md
 CLAUDE.md

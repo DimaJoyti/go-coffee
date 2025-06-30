@@ -25,7 +25,7 @@ type Bot struct {
 	cache  redis.Client
 
 	// Services
-	aiService     *ai.Service
+	aiService     ai.Service
 	walletService *wallet.Service
 	defiService   *defi.Service
 
@@ -66,7 +66,7 @@ func NewBot(
 	cfg config.TelegramConfig,
 	logger *logger.Logger,
 	cache redis.Client,
-	aiService *ai.Service,
+	aiService ai.Service,
 	walletService *wallet.Service,
 	defiService *defi.Service,
 ) (*Bot, error) {

@@ -3,7 +3,7 @@ package security
 import (
 	"context"
 
-	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/proto/security"
+	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/security"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"google.golang.org/grpc/codes"

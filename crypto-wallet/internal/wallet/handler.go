@@ -3,7 +3,7 @@ package wallet
 import (
 	"context"
 
-	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/proto/wallet"
+	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/wallet"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"google.golang.org/grpc/codes"

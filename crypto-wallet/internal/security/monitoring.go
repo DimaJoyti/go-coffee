@@ -355,6 +355,7 @@ Please investigate immediately.
 	// In a real implementation, you would send the email here
 	eah.logger.Info("Email alert would be sent",
 		zap.String("subject", subject),
+		zap.String("body", body),
 		zap.Strings("recipients", eah.recipients),
 	)
 

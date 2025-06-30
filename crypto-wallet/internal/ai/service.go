@@ -16,6 +16,8 @@ type Service interface {
 	AnalyzeSpending(ctx context.Context, userID string) (string, error)
 	GetMarketInsights(ctx context.Context) (string, error)
 	GenerateResponse(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error)
+	ProcessCoffeeOrder(ctx context.Context, req *CoffeeOrderRequest) (*CoffeeOrderResponse, error)
+	ProcessPaymentQuery(ctx context.Context, req *PaymentQueryRequest) (*PaymentQueryResponse, error)
 	Close() error
 }
 
@@ -123,6 +125,61 @@ func (s *SimpleService) GenerateResponse(ctx context.Context, req *GenerateReque
 		Confidence:  0.85, // Default confidence for simple AI
 		Metadata:    convertMetadata(response.Metadata),
 		GeneratedAt: response.Timestamp,
+	}, nil
+}
+
+// ProcessCoffeeOrder processes a coffee order request
+func (s *SimpleService) ProcessCoffeeOrder(ctx context.Context, req *CoffeeOrderRequest) (*CoffeeOrderResponse, error) {
+	// Convert to simple AI request
+	simpleReq := &SimpleAIRequest{
+		Message: req.Message,
+		Context: map[string]interface{}{
+			"user_id":    req.UserID,
+			"chat_id":    req.ChatID,
+			"message_id": req.MessageID,
+			"type":       "coffee_order",
+		},
+	}
+
+	response, err := s.simpleAI.ProcessMessage(ctx, simpleReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process coffee order: %w", err)
+	}
+
+	return &CoffeeOrderResponse{
+		AIResponse:  response.Response,
+		Provider:    "simple_ai",
+		ProcessedAt: response.Timestamp,
+		Confidence:  0.85,
+	}, nil
+}
+
+// ProcessPaymentQuery processes a payment query request
+func (s *SimpleService) ProcessPaymentQuery(ctx context.Context, req *PaymentQueryRequest) (*PaymentQueryResponse, error) {
+	// Convert to simple AI request
+	simpleReq := &SimpleAIRequest{
+		Message: req.Message,
+		Context: map[string]interface{}{
+			"user_id":           req.UserID,
+			"chat_id":           req.ChatID,
+			"message_id":        req.MessageID,
+			"wallet_balance":    req.WalletBalance,
+			"available_tokens":  req.AvailableTokens,
+			"current_prices":    req.CurrentPrices,
+			"type":              "payment_query",
+		},
+	}
+
+	response, err := s.simpleAI.ProcessMessage(ctx, simpleReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process payment query: %w", err)
+	}
+
+	return &PaymentQueryResponse{
+		AIResponse:  response.Response,
+		Provider:    "simple_ai",
+		ProcessedAt: response.Timestamp,
+		Confidence:  0.85,
 	}, nil
 }
 

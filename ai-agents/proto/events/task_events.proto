@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package events;
+
+option go_package = "go-coffee-ai-agents/proto/events";
+
+import "google/protobuf/timestamp.proto";
+
+// TaskCreatedEvent represents a task creation event
+message TaskCreatedEvent {
+  string task_id = 1;
+  string title = 2;
+  string description = 3;
+  TaskStatus status = 4;
+  TaskPriority priority = 5;
+  string assignee = 6;
+  google.protobuf.Timestamp due_date = 7;
+  repeated string tags = 8;
+  string project_id = 9;
+  string list_id = 10;
+  string folder_id = 11;
+  string space_id = 12;
+  string created_by = 13;
+  google.protobuf.Timestamp created_at = 14;
+  map<string, string> custom_fields = 15;
+  string event_type = 16;
+  string version = 17;
+  string correlation_id = 18;
+  string trace_id = 19;
+}
+
+// TaskUpdatedEvent represents a task update event
+message TaskUpdatedEvent {
+  string task_id = 1;
+  string title = 2;
+  string description = 3;
+  TaskStatus status = 4;
+  TaskPriority priority = 5;
+  string assignee = 6;
+  google.protobuf.Timestamp due_date = 7;
+  repeated string tags = 8;
+  string updated_by = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  map<string, string> changes = 11;
+  string event_type = 12;
+  string version = 13;
+  string correlation_id = 14;
+  string trace_id = 15;
+}
+
+// TaskStatusChangedEvent represents a task status change event
+message TaskStatusChangedEvent {
+  string task_id = 1;
+  string title = 2;
+  TaskStatus old_status = 3;
+  TaskStatus new_status = 4;
+  string changed_by = 5;
+  google.protobuf.Timestamp changed_at = 6;
+  string reason = 7;
+  string event_type = 8;
+  string version = 9;
+  string correlation_id = 10;
+  string trace_id = 11;
+}
+
+// TaskAssignedEvent represents a task assignment event
+message TaskAssignedEvent {
+  string task_id = 1;
+  string title = 2;
+  string old_assignee = 3;
+  string new_assignee = 4;
+  string assigned_by = 5;
+  google.protobuf.Timestamp assigned_at = 6;
+  string reason = 7;
+  string event_type = 8;
+  string version = 9;
+  string correlation_id = 10;
+  string trace_id = 11;
+}
+
+// TaskCompletedEvent represents a task completion event
+message TaskCompletedEvent {
+  string task_id = 1;
+  string title = 2;
+  string completed_by = 3;
+  google.protobuf.Timestamp completed_at = 4;
+  string completion_notes = 5;
+  repeated TaskAttachment attachments = 6;
+  string event_type = 7;
+  string version = 8;
+  string correlation_id = 9;
+  string trace_id = 10;
+}
+
+// TaskCommentAddedEvent represents a comment added to a task
+message TaskCommentAddedEvent {
+  string task_id = 1;
+  string comment_id = 2;
+  string comment_text = 3;
+  string author = 4;
+  google.protobuf.Timestamp created_at = 5;
+  repeated TaskAttachment attachments = 6;
+  string event_type = 7;
+  string version = 8;
+  string correlation_id = 9;
+  string trace_id = 10;
+}
+
+// Supporting message types
+
+// TaskAttachment represents a file attachment
+message TaskAttachment {
+  string attachment_id = 1;
+  string filename = 2;
+  string url = 3;
+  string mime_type = 4;
+  int64 size_bytes = 5;
+  google.protobuf.Timestamp uploaded_at = 6;
+  string uploaded_by = 7;
+}
+
+// Enums
+
+// TaskStatus represents the status of a task
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_OPEN = 1;
+  TASK_STATUS_IN_PROGRESS = 2;
+  TASK_STATUS_REVIEW = 3;
+  TASK_STATUS_CLOSED = 4;
+  TASK_STATUS_CANCELLED = 5;
+}
+
+// TaskPriority represents the priority of a task
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_LOW = 1;
+  TASK_PRIORITY_NORMAL = 2;
+  TASK_PRIORITY_HIGH = 3;
+  TASK_PRIORITY_URGENT = 4;
+}

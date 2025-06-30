@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+package events;
+
+option go_package = "go-coffee-ai-agents/proto/events";
+
+import "google/protobuf/timestamp.proto";
+
+// SocialMediaPostCreatedEvent represents a social media post creation
+message SocialMediaPostCreatedEvent {
+  string post_id = 1;
+  SocialMediaPlatform platform = 2;
+  string content = 3;
+  repeated string media_urls = 4;
+  repeated string hashtags = 5;
+  repeated string mentions = 6;
+  string created_by = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp scheduled_for = 9;
+  PostStatus status = 10;
+  string campaign_id = 11;
+  map<string, string> metadata = 12;
+  string event_type = 13;
+  string version = 14;
+  string correlation_id = 15;
+  string trace_id = 16;
+}
+
+// SocialMediaPostPublishedEvent represents a published social media post
+message SocialMediaPostPublishedEvent {
+  string post_id = 1;
+  SocialMediaPlatform platform = 2;
+  string platform_post_id = 3;
+  string content = 4;
+  repeated string media_urls = 5;
+  string post_url = 6;
+  google.protobuf.Timestamp published_at = 7;
+  SocialMediaMetrics initial_metrics = 8;
+  string event_type = 9;
+  string version = 10;
+  string correlation_id = 11;
+  string trace_id = 12;
+}
+
+// SocialMediaEngagementEvent represents engagement on a social media post
+message SocialMediaEngagementEvent {
+  string post_id = 1;
+  string platform_post_id = 2;
+  SocialMediaPlatform platform = 3;
+  EngagementType engagement_type = 4;
+  string user_id = 5;
+  string username = 6;
+  string comment_text = 7;
+  google.protobuf.Timestamp occurred_at = 8;
+  SocialMediaMetrics updated_metrics = 9;
+  string event_type = 10;
+  string version = 11;
+  string correlation_id = 12;
+  string trace_id = 13;
+}
+
+// ContentGenerationRequestEvent represents a request for content generation
+message ContentGenerationRequestEvent {
+  string request_id = 1;
+  SocialMediaPlatform platform = 2;
+  ContentType content_type = 3;
+  string topic = 4;
+  string tone = 5;
+  repeated string keywords = 6;
+  repeated string hashtags = 7;
+  int32 character_limit = 8;
+  bool include_media = 9;
+  string requested_by = 10;
+  google.protobuf.Timestamp requested_at = 11;
+  map<string, string> constraints = 12;
+  string event_type = 13;
+  string version = 14;
+  string correlation_id = 15;
+  string trace_id = 16;
+}
+
+// ContentGeneratedEvent represents generated content
+message ContentGeneratedEvent {
+  string request_id = 1;
+  string content_id = 2;
+  SocialMediaPlatform platform = 3;
+  ContentType content_type = 4;
+  string generated_content = 5;
+  repeated string suggested_hashtags = 6;
+  repeated string suggested_mentions = 7;
+  repeated string media_suggestions = 8;
+  ContentQuality quality_score = 9;
+  string generated_by = 10;
+  google.protobuf.Timestamp generated_at = 11;
+  string event_type = 12;
+  string version = 13;
+  string correlation_id = 14;
+  string trace_id = 15;
+}
+
+// InfluencerMentionEvent represents a mention by an influencer
+message InfluencerMentionEvent {
+  string mention_id = 1;
+  SocialMediaPlatform platform = 2;
+  string influencer_id = 3;
+  string influencer_username = 4;
+  int32 follower_count = 5;
+  string post_id = 6;
+  string post_url = 7;
+  string mention_text = 8;
+  MentionSentiment sentiment = 9;
+  google.protobuf.Timestamp mentioned_at = 10;
+  SocialMediaMetrics post_metrics = 11;
+  string event_type = 12;
+  string version = 13;
+  string correlation_id = 14;
+  string trace_id = 15;
+}
+
+// SocialMediaAnalyticsEvent represents analytics data
+message SocialMediaAnalyticsEvent {
+  string analytics_id = 1;
+  SocialMediaPlatform platform = 2;
+  string post_id = 3;
+  google.protobuf.Timestamp period_start = 4;
+  google.protobuf.Timestamp period_end = 5;
+  SocialMediaMetrics metrics = 6;
+  repeated DemographicData demographics = 7;
+  repeated string top_hashtags = 8;
+  repeated string top_mentions = 9;
+  double engagement_rate = 10;
+  double reach_rate = 11;
+  string event_type = 12;
+  string version = 13;
+  string correlation_id = 14;
+  string trace_id = 15;
+}
+
+// Supporting message types
+
+// SocialMediaMetrics represents metrics for a social media post
+message SocialMediaMetrics {
+  int64 views = 1;
+  int64 likes = 2;
+  int64 shares = 3;
+  int64 comments = 4;
+  int64 saves = 5;
+  int64 clicks = 6;
+  int64 reach = 7;
+  int64 impressions = 8;
+  double engagement_rate = 9;
+  google.protobuf.Timestamp last_updated = 10;
+}
+
+// DemographicData represents demographic information
+message DemographicData {
+  string category = 1;
+  string value = 2;
+  int64 count = 3;
+  double percentage = 4;
+}
+
+// ContentQuality represents the quality assessment of generated content
+message ContentQuality {
+  double overall_score = 1;
+  double relevance_score = 2;
+  double engagement_potential = 3;
+  double brand_alignment = 4;
+  repeated string improvement_suggestions = 5;
+}
+
+// Enums
+
+// SocialMediaPlatform represents different social media platforms
+enum SocialMediaPlatform {
+  SOCIAL_MEDIA_PLATFORM_UNSPECIFIED = 0;
+  SOCIAL_MEDIA_PLATFORM_TWITTER = 1;
+  SOCIAL_MEDIA_PLATFORM_INSTAGRAM = 2;
+  SOCIAL_MEDIA_PLATFORM_FACEBOOK = 3;
+  SOCIAL_MEDIA_PLATFORM_LINKEDIN = 4;
+  SOCIAL_MEDIA_PLATFORM_TIKTOK = 5;
+  SOCIAL_MEDIA_PLATFORM_YOUTUBE = 6;
+  SOCIAL_MEDIA_PLATFORM_PINTEREST = 7;
+}
+
+// PostStatus represents the status of a social media post
+enum PostStatus {
+  POST_STATUS_UNSPECIFIED = 0;
+  POST_STATUS_DRAFT = 1;
+  POST_STATUS_SCHEDULED = 2;
+  POST_STATUS_PUBLISHED = 3;
+  POST_STATUS_FAILED = 4;
+  POST_STATUS_DELETED = 5;
+}
+
+// EngagementType represents different types of social media engagement
+enum EngagementType {
+  ENGAGEMENT_TYPE_UNSPECIFIED = 0;
+  ENGAGEMENT_TYPE_LIKE = 1;
+  ENGAGEMENT_TYPE_SHARE = 2;
+  ENGAGEMENT_TYPE_COMMENT = 3;
+  ENGAGEMENT_TYPE_SAVE = 4;
+  ENGAGEMENT_TYPE_CLICK = 5;
+  ENGAGEMENT_TYPE_FOLLOW = 6;
+  ENGAGEMENT_TYPE_MENTION = 7;
+}
+
+// ContentType represents different types of content
+enum ContentType {
+  CONTENT_TYPE_UNSPECIFIED = 0;
+  CONTENT_TYPE_TEXT = 1;
+  CONTENT_TYPE_IMAGE = 2;
+  CONTENT_TYPE_VIDEO = 3;
+  CONTENT_TYPE_CAROUSEL = 4;
+  CONTENT_TYPE_STORY = 5;
+  CONTENT_TYPE_REEL = 6;
+  CONTENT_TYPE_LIVE = 7;
+}
+
+// MentionSentiment represents the sentiment of a mention
+enum MentionSentiment {
+  MENTION_SENTIMENT_UNSPECIFIED = 0;
+  MENTION_SENTIMENT_POSITIVE = 1;
+  MENTION_SENTIMENT_NEUTRAL = 2;
+  MENTION_SENTIMENT_NEGATIVE = 3;
+}

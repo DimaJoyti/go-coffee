@@ -1,0 +1,218 @@
+syntax = "proto3";
+
+package events;
+
+option go_package = "go-coffee-ai-agents/proto/events";
+
+import "google/protobuf/timestamp.proto";
+
+// BeverageCreatedEvent represents a beverage creation event
+message BeverageCreatedEvent {
+  string beverage_id = 1;
+  string name = 2;
+  string description = 3;
+  string theme = 4;
+  repeated Ingredient ingredients = 5;
+  string created_by = 6;
+  google.protobuf.Timestamp created_at = 7;
+  double estimated_cost = 8;
+  BeverageMetadata metadata = 9;
+  string event_type = 10;
+  string version = 11;
+  string correlation_id = 12;
+  string trace_id = 13;
+}
+
+// BeverageUpdatedEvent represents a beverage update event
+message BeverageUpdatedEvent {
+  string beverage_id = 1;
+  string name = 2;
+  string description = 3;
+  BeverageStatus status = 4;
+  string updated_by = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  map<string, string> changes = 7;
+  string event_type = 8;
+  string version = 9;
+  string correlation_id = 10;
+  string trace_id = 11;
+}
+
+// BeverageStatusChangedEvent represents a beverage status change event
+message BeverageStatusChangedEvent {
+  string beverage_id = 1;
+  string name = 2;
+  BeverageStatus old_status = 3;
+  BeverageStatus new_status = 4;
+  string changed_by = 5;
+  google.protobuf.Timestamp changed_at = 6;
+  string reason = 7;
+  string event_type = 8;
+  string version = 9;
+  string correlation_id = 10;
+  string trace_id = 11;
+}
+
+// RecipeRequestEvent represents a recipe creation request
+message RecipeRequestEvent {
+  string request_id = 1;
+  repeated string ingredients = 2;
+  string theme = 3;
+  string requested_by = 4;
+  google.protobuf.Timestamp requested_at = 5;
+  bool use_ai = 6;
+  BeverageConstraints constraints = 7;
+  string event_type = 8;
+  string version = 9;
+  string correlation_id = 10;
+  string trace_id = 11;
+}
+
+// IngredientDiscoveredEvent represents an ingredient discovery event
+message IngredientDiscoveredEvent {
+  string ingredient_id = 1;
+  string name = 2;
+  string source = 3;
+  string description = 4;
+  string category = 5;
+  string availability = 6;
+  double cost = 7;
+  NutritionalInfo nutritional = 8;
+  string discovered_by = 9;
+  google.protobuf.Timestamp discovered_at = 10;
+  map<string, string> properties = 11;
+  string event_type = 12;
+  string version = 13;
+  string correlation_id = 14;
+  string trace_id = 15;
+}
+
+// TaskCreatedEvent represents a task creation event
+message TaskCreatedEvent {
+  string task_id = 1;
+  string title = 2;
+  string description = 3;
+  TaskPriority priority = 4;
+  string assignee = 5;
+  repeated string tags = 6;
+  string beverage_id = 7;
+  google.protobuf.Timestamp created_at = 8;
+  map<string, string> custom_fields = 9;
+  string event_type = 10;
+  string version = 11;
+  string correlation_id = 12;
+  string trace_id = 13;
+}
+
+// FeedbackReceivedEvent represents feedback on a beverage
+message FeedbackReceivedEvent {
+  string feedback_id = 1;
+  string beverage_id = 2;
+  string customer_id = 3;
+  int32 rating = 4;
+  string comments = 5;
+  string sentiment = 6;
+  repeated string categories = 7;
+  google.protobuf.Timestamp received_at = 8;
+  string source = 9;
+  map<string, string> metadata = 10;
+  string event_type = 11;
+  string version = 12;
+  string correlation_id = 13;
+  string trace_id = 14;
+}
+
+// InventoryUpdateEvent represents an inventory update
+message InventoryUpdateEvent {
+  string inventory_id = 1;
+  string ingredient_id = 2;
+  string ingredient_name = 3;
+  string location = 4;
+  double quantity = 5;
+  string unit = 6;
+  double previous_quantity = 7;
+  InventoryChangeType change_type = 8;
+  string updated_by = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  string reason = 11;
+  map<string, string> metadata = 12;
+  string event_type = 13;
+  string version = 14;
+  string correlation_id = 15;
+  string trace_id = 16;
+}
+
+// Supporting message types
+
+// Ingredient represents an ingredient in a beverage
+message Ingredient {
+  string name = 1;
+  double quantity = 2;
+  string unit = 3;
+  string source = 4;
+  double cost = 5;
+  NutritionalInfo nutritional = 6;
+}
+
+// NutritionalInfo contains nutritional information
+message NutritionalInfo {
+  int32 calories = 1;
+  double protein = 2;
+  double carbs = 3;
+  double fat = 4;
+  double sugar = 5;
+  double caffeine = 6;
+  repeated string allergens = 7;
+}
+
+// BeverageMetadata contains additional beverage information
+message BeverageMetadata {
+  double estimated_cost = 1;
+  int32 preparation_time = 2;
+  string difficulty = 3;
+  repeated string tags = 4;
+  repeated string target_audience = 5;
+  repeated string seasonal_availability = 6;
+}
+
+// BeverageConstraints represents constraints for beverage creation
+message BeverageConstraints {
+  optional double max_cost = 1;
+  optional int32 max_calories = 2;
+  optional int32 max_prep_time = 3;
+  repeated string required_tags = 4;
+  repeated string forbidden_tags = 5;
+  repeated string allergen_free = 6;
+}
+
+// Enums
+
+// BeverageStatus represents the status of a beverage
+enum BeverageStatus {
+  BEVERAGE_STATUS_UNSPECIFIED = 0;
+  BEVERAGE_STATUS_DRAFT = 1;
+  BEVERAGE_STATUS_PENDING = 2;
+  BEVERAGE_STATUS_APPROVED = 3;
+  BEVERAGE_STATUS_REJECTED = 4;
+  BEVERAGE_STATUS_TESTING = 5;
+  BEVERAGE_STATUS_PRODUCTION = 6;
+}
+
+// TaskPriority represents the priority of a task
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_LOW = 1;
+  TASK_PRIORITY_NORMAL = 2;
+  TASK_PRIORITY_HIGH = 3;
+  TASK_PRIORITY_URGENT = 4;
+}
+
+// InventoryChangeType represents the type of inventory change
+enum InventoryChangeType {
+  INVENTORY_CHANGE_TYPE_UNSPECIFIED = 0;
+  INVENTORY_CHANGE_TYPE_ADDITION = 1;
+  INVENTORY_CHANGE_TYPE_CONSUMPTION = 2;
+  INVENTORY_CHANGE_TYPE_ADJUSTMENT = 3;
+  INVENTORY_CHANGE_TYPE_WASTE = 4;
+  INVENTORY_CHANGE_TYPE_TRANSFER = 5;
+}

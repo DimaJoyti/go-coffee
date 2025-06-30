@@ -1,0 +1,285 @@
+version: '3.8'
+
+services:
+  # Orchestration Engine
+  orchestration-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Server Configuration
+      - PORT=8080
+      - HOST=0.0.0.0
+      - LOG_LEVEL=info
+      - ENVIRONMENT=development
+      
+      # Database Configuration
+      - DATABASE_URL=postgres://orchestration:password@postgres:5432/orchestration?sslmode=disable
+      - DB_MAX_OPEN_CONNECTIONS=25
+      - DB_MAX_IDLE_CONNECTIONS=5
+      
+      # Cache Configuration
+      - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DATABASE=0
+      
+      # Messaging Configuration
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CLIENT_ID=orchestration-engine
+      - KAFKA_GROUP_ID=orchestration-group
+      
+      # Agent Endpoints
+      - SOCIAL_MEDIA_AGENT_URL=http://social-media-agent:8081
+      - FEEDBACK_ANALYST_AGENT_URL=http://feedback-analyst-agent:8082
+      - BEVERAGE_INVENTOR_AGENT_URL=http://beverage-inventor-agent:8083
+      - INVENTORY_AGENT_URL=http://inventory-agent:8084
+      - NOTIFIER_AGENT_URL=http://notifier-agent:8085
+      
+      # Analytics Configuration
+      - ANALYTICS_ENABLE_REAL_TIME_METRICS=true
+      - ANALYTICS_METRICS_INTERVAL=10s
+      - ANALYTICS_ENABLE_ALERTS=true
+      
+      # Security Configuration
+      - SECURITY_ENABLE_AUTHENTICATION=false
+      - SECURITY_ENABLE_AUTHORIZATION=false
+      - JWT_SECRET=your-secret-key-change-in-production
+      
+      # Feature Flags
+      - FEATURE_ENABLE_WEBSOCKET=true
+      - FEATURE_ENABLE_WORKFLOW_TEMPLATES=true
+      - FEATURE_ENABLE_ADVANCED_ANALYTICS=true
+      - FEATURE_ENABLE_SCHEDULED_WORKFLOWS=true
+      
+      # Monitoring Configuration
+      - MONITORING_ENABLE_METRICS=true
+      - MONITORING_ENABLE_TRACING=false
+      
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=orchestration
+      - POSTGRES_USER=orchestration
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orchestration -d orchestration"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./configs/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Apache Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    depends_on:
+      - zookeeper
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Zookeeper (required for Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Mock Agent Services (for development/testing)
+  social-media-agent:
+    image: nginx:alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - ./mock-agents/social-media:/usr/share/nginx/html
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+  feedback-analyst-agent:
+    image: nginx:alpine
+    ports:
+      - "8082:80"
+    volumes:
+      - ./mock-agents/feedback-analyst:/usr/share/nginx/html
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+  beverage-inventor-agent:
+    image: nginx:alpine
+    ports:
+      - "8083:80"
+    volumes:
+      - ./mock-agents/beverage-inventor:/usr/share/nginx/html
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+  inventory-agent:
+    image: nginx:alpine
+    ports:
+      - "8084:80"
+    volumes:
+      - ./mock-agents/inventory:/usr/share/nginx/html
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+  notifier-agent:
+    image: nginx:alpine
+    ports:
+      - "8085:80"
+    volumes:
+      - ./mock-agents/notifier:/usr/share/nginx/html
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - orchestration-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  kafka_data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  orchestration-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

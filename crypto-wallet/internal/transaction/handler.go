@@ -3,7 +3,7 @@ package transaction
 import (
 	"context"
 
-	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/proto/transaction"
+	pb "github.com/DimaJoyti/go-coffee/crypto-wallet/api/transaction"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 	"google.golang.org/grpc/codes"
@@ -141,7 +141,7 @@ func (h *GRPCHandler) GetTransactionStatus(ctx context.Context, req *pb.GetTrans
 
 	// Convert response
 	return &pb.GetTransactionStatusResponse{
-		Status:       resp.Transaction.Status,
+		Status:       string(resp.Transaction.Status),
 		Confirmations: resp.Transaction.Confirmations,
 		BlockNumber:  resp.Transaction.BlockNumber,
 	}, nil
@@ -218,9 +218,9 @@ func (h *GRPCHandler) GetTransactionReceipt(ctx context.Context, req *pb.GetTran
 			Data:        log.Data,
 			BlockNumber: log.BlockNumber,
 			TxHash:      log.TxHash,
-			TxIndex:     log.TxIndex,
+			TxIndex:     uint32(log.TxIndex),
 			BlockHash:   log.BlockHash,
-			Index:       log.Index,
+			Index:       uint32(log.Index),
 			Removed:     log.Removed,
 		}
 	}
@@ -236,7 +236,7 @@ func (h *GRPCHandler) GetTransactionReceipt(ctx context.Context, req *pb.GetTran
 		Status:            resp.Status,
 		To:                resp.To,
 		TransactionHash:   resp.TransactionHash,
-		TransactionIndex:  resp.TransactionIndex,
+		TransactionIndex:  uint32(resp.TransactionIndex),
 		Logs:              logs,
 	}, nil
 }
@@ -255,8 +255,8 @@ func convertTransactionToProto(tx *models.Transaction) *pb.Transaction {
 		GasPrice:     tx.GasPrice,
 		Nonce:        tx.Nonce,
 		Data:         tx.Data,
-		Chain:        tx.Chain,
-		Status:       tx.Status,
+		Chain:        string(tx.Chain),
+		Status:       string(tx.Status),
 		BlockNumber:  tx.BlockNumber,
 		BlockHash:    tx.BlockHash,
 		Confirmations: tx.Confirmations,

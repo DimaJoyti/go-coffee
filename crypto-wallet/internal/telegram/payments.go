@@ -3,14 +3,10 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-
-	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/ai"
-	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
 )
 
 // PaymentRequest represents a payment request

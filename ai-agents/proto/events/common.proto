@@ -1,0 +1,220 @@
+syntax = "proto3";
+
+package events;
+
+option go_package = "go-coffee-ai-agents/proto/events";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+// EventEnvelope wraps all events with common metadata
+message EventEnvelope {
+  string event_id = 1;
+  string event_type = 2;
+  string version = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string source = 5;
+  string correlation_id = 6;
+  string trace_id = 7;
+  string span_id = 8;
+  map<string, string> metadata = 9;
+  google.protobuf.Any payload = 10;
+}
+
+// EventMetadata contains common event metadata
+message EventMetadata {
+  string event_id = 1;
+  string event_type = 2;
+  string version = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string source = 5;
+  string correlation_id = 6;
+  string trace_id = 7;
+  string span_id = 8;
+  map<string, string> labels = 9;
+}
+
+// ErrorEvent represents an error that occurred in the system
+message ErrorEvent {
+  string error_id = 1;
+  string error_code = 2;
+  string error_message = 3;
+  string error_type = 4;
+  ErrorSeverity severity = 5;
+  string source = 6;
+  string stack_trace = 7;
+  map<string, string> context = 8;
+  google.protobuf.Timestamp occurred_at = 9;
+  string event_type = 10;
+  string version = 11;
+  string correlation_id = 12;
+  string trace_id = 13;
+}
+
+// HealthCheckEvent represents a health check result
+message HealthCheckEvent {
+  string service_name = 1;
+  string instance_id = 2;
+  HealthStatus status = 3;
+  string version = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  repeated HealthCheckDetail checks = 6;
+  map<string, string> metadata = 7;
+  string event_type = 8;
+  string correlation_id = 9;
+  string trace_id = 10;
+}
+
+// MetricEvent represents a metric measurement
+message MetricEvent {
+  string metric_name = 1;
+  MetricType metric_type = 2;
+  double value = 3;
+  string unit = 4;
+  map<string, string> labels = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  string source = 7;
+  string event_type = 8;
+  string version = 9;
+  string correlation_id = 10;
+  string trace_id = 11;
+}
+
+// AuditEvent represents an audit log entry
+message AuditEvent {
+  string audit_id = 1;
+  string action = 2;
+  string resource_type = 3;
+  string resource_id = 4;
+  string user_id = 5;
+  string user_email = 6;
+  string ip_address = 7;
+  string user_agent = 8;
+  map<string, string> before_state = 9;
+  map<string, string> after_state = 10;
+  google.protobuf.Timestamp timestamp = 11;
+  string event_type = 12;
+  string version = 13;
+  string correlation_id = 14;
+  string trace_id = 15;
+}
+
+// ConfigurationChangedEvent represents a configuration change
+message ConfigurationChangedEvent {
+  string config_key = 1;
+  string old_value = 2;
+  string new_value = 3;
+  string changed_by = 4;
+  string reason = 5;
+  google.protobuf.Timestamp changed_at = 6;
+  string environment = 7;
+  string service = 8;
+  string event_type = 9;
+  string version = 10;
+  string correlation_id = 11;
+  string trace_id = 12;
+}
+
+// ServiceStartedEvent represents a service startup
+message ServiceStartedEvent {
+  string service_name = 1;
+  string instance_id = 2;
+  string version = 3;
+  string build_info = 4;
+  map<string, string> configuration = 5;
+  google.protobuf.Timestamp started_at = 6;
+  string event_type = 7;
+  string correlation_id = 8;
+  string trace_id = 9;
+}
+
+// ServiceStoppedEvent represents a service shutdown
+message ServiceStoppedEvent {
+  string service_name = 1;
+  string instance_id = 2;
+  string version = 3;
+  string reason = 4;
+  int64 uptime_seconds = 5;
+  google.protobuf.Timestamp stopped_at = 6;
+  string event_type = 7;
+  string correlation_id = 8;
+  string trace_id = 9;
+}
+
+// Supporting message types
+
+// HealthCheckDetail represents a single health check
+message HealthCheckDetail {
+  string name = 1;
+  HealthStatus status = 2;
+  string message = 3;
+  int64 response_time_ms = 4;
+  google.protobuf.Timestamp last_checked = 5;
+  map<string, string> details = 6;
+}
+
+// Location represents a geographical location
+message Location {
+  string id = 1;
+  string name = 2;
+  string address = 3;
+  string city = 4;
+  string state = 5;
+  string country = 6;
+  string postal_code = 7;
+  double latitude = 8;
+  double longitude = 9;
+  string timezone = 10;
+}
+
+// User represents a user in the system
+message User {
+  string user_id = 1;
+  string username = 2;
+  string email = 3;
+  string first_name = 4;
+  string last_name = 5;
+  repeated string roles = 6;
+  map<string, string> attributes = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp last_login = 9;
+}
+
+// Pagination represents pagination information
+message Pagination {
+  int32 page = 1;
+  int32 page_size = 2;
+  int64 total_count = 3;
+  int32 total_pages = 4;
+  bool has_next = 5;
+  bool has_previous = 6;
+}
+
+// Enums
+
+// ErrorSeverity represents the severity of an error
+enum ErrorSeverity {
+  ERROR_SEVERITY_UNSPECIFIED = 0;
+  ERROR_SEVERITY_LOW = 1;
+  ERROR_SEVERITY_MEDIUM = 2;
+  ERROR_SEVERITY_HIGH = 3;
+  ERROR_SEVERITY_CRITICAL = 4;
+}
+
+// HealthStatus represents the health status of a service or component
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_DEGRADED = 2;
+  HEALTH_STATUS_UNHEALTHY = 3;
+  HEALTH_STATUS_UNKNOWN = 4;
+}
+
+// MetricType represents the type of metric
+enum MetricType {
+  METRIC_TYPE_UNSPECIFIED = 0;
+  METRIC_TYPE_COUNTER = 1;
+  METRIC_TYPE_GAUGE = 2;
+  METRIC_TYPE_HISTOGRAM = 3;
+  METRIC_TYPE_SUMMARY = 4;
+}

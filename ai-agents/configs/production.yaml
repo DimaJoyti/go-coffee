@@ -1,0 +1,327 @@
+# Production Environment Configuration
+environment: production
+
+service:
+  name: beverage-inventor-agent
+  version: 1.0.0
+  description: AI-powered beverage invention agent
+  port: 8080
+  host: 0.0.0.0
+  base_path: /api/v1
+  debug: false
+
+server:
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+  shutdown_timeout: 30s
+  max_header_bytes: 1048576  # 1MB
+  enable_cors: true
+  cors_origins:
+    - https://gocoffee.com
+    - https://app.gocoffee.com
+  enable_metrics: true
+  metrics_path: /metrics
+  health_path: /health
+
+database:
+  driver: postgres
+  host: ${DB_HOST}
+  port: ${DB_PORT:-5432}
+  database: ${DB_NAME}
+  username: ${DB_USERNAME}
+  password: ${DB_PASSWORD}
+  ssl_mode: require
+  max_open_conns: 50
+  max_idle_conns: 10
+  conn_max_lifetime: 5m
+  conn_max_idle_time: 5m
+  migrations_path: ./migrations
+  enable_logging: false
+
+kafka:
+  brokers:
+    - ${KAFKA_BROKER_1}
+    - ${KAFKA_BROKER_2}
+    - ${KAFKA_BROKER_3}
+  client_id: beverage-inventor-prod
+  group_id: beverage-inventor-group-prod
+  enable_sasl: true
+  sasl_mechanism: ${KAFKA_SASL_MECHANISM:-PLAIN}
+  sasl_username: ${KAFKA_USERNAME}
+  sasl_password: ${KAFKA_PASSWORD}
+  enable_tls: true
+  tls_skip_verify: false
+  connect_timeout: 10s
+  read_timeout: 10s
+  write_timeout: 10s
+  batch_size: 1000
+  batch_timeout: 100ms
+  retry_max: 5
+  retry_backoff: 100ms
+  topics:
+    beverage_created: beverage.created
+    beverage_updated: beverage.updated
+    task_created: task.created
+    task_updated: task.updated
+    notification_sent: notification.sent
+    ai_request_completed: ai.request.completed
+    system_event: system.event
+
+ai:
+  default_provider: gemini
+  providers:
+    gemini:
+      enabled: true
+      api_key: ${GEMINI_API_KEY}
+      base_url: https://generativelanguage.googleapis.com/v1beta
+      model: gemini-pro
+      max_tokens: 2048
+      temperature: 0.7
+      timeout: 45s
+    openai:
+      enabled: false
+      api_key: ${OPENAI_API_KEY}
+      base_url: https://api.openai.com/v1
+      model: gpt-3.5-turbo
+      max_tokens: 2048
+      temperature: 0.7
+      timeout: 30s
+  rate_limits:
+    requests_per_minute: 30
+    tokens_per_minute: 2000
+    burst_size: 5
+    cooldown_period: 2m
+  timeouts:
+    analyze_ingredients: 20s
+    generate_description: 30s
+    suggest_improvements: 35s
+    generate_recipe: 45s
+
+external:
+  clickup:
+    enabled: true
+    api_key: ${CLICKUP_API_KEY}
+    base_url: https://api.clickup.com/api/v2
+    team_id: ${CLICKUP_TEAM_ID}
+    space_id: ${CLICKUP_SPACE_ID}
+    folder_id: ${CLICKUP_FOLDER_ID}
+    list_id: ${CLICKUP_LIST_ID}
+    timeout: 15s
+    retry_count: 3
+    rate_limit: 100
+  
+  slack:
+    enabled: true
+    bot_token: ${SLACK_BOT_TOKEN}
+    app_token: ${SLACK_APP_TOKEN}
+    signing_secret: ${SLACK_SIGNING_SECRET}
+    default_channel: "#beverage-innovation"
+    timeout: 10s
+    retry_count: 3
+  
+  google_sheets:
+    enabled: true
+    credentials_path: ${GOOGLE_SHEETS_CREDENTIALS}
+    spreadsheet_id: ${GOOGLE_SHEETS_ID}
+    default_sheet_name: Production Data
+    timeout: 15s
+    retry_count: 3
+  
+  email:
+    enabled: true
+    provider: ${EMAIL_PROVIDER:-ses}
+    smtp_host: ${SMTP_HOST}
+    smtp_port: ${SMTP_PORT:-587}
+    username: ${EMAIL_USERNAME}
+    password: ${EMAIL_PASSWORD}
+    from_email: ${FROM_EMAIL}
+    from_name: Go Coffee
+    enable_tls: true
+
+security:
+  jwt:
+    secret_key: ${JWT_SECRET_KEY}
+    issuer: go-coffee-prod
+    audience: go-coffee-users
+    expiration_time: 24h
+    refresh_time: 168h  # 7 days
+    algorithm: HS256
+  
+  api:
+    enable_api_keys: true
+    require_https: true
+    allowed_ips: []
+    blocked_ips: []
+    enable_rate_limit: true
+    max_request_size: 10485760  # 10MB
+  
+  cors:
+    enabled: true
+    allowed_origins:
+      - https://gocoffee.com
+      - https://app.gocoffee.com
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+    exposed_headers: []
+    allow_credentials: true
+    max_age: 86400
+  
+  rate_limit:
+    enabled: true
+    requests_per_min: 100
+    burst_size: 20
+    cleanup_period: 1m
+    storage: redis
+    redis_url: ${REDIS_URL}
+  
+  encryption:
+    algorithm: AES-256-GCM
+    key_size: 256
+    secret_key: ${ENCRYPTION_SECRET_KEY}
+    enable_at_rest: true
+    enable_in_transit: true
+
+observability:
+  service_name: beverage-inventor-agent
+  service_version: 1.0.0
+  environment: production
+  
+  tracing:
+    enabled: true
+    sampling_rate: 0.1  # 10% sampling in production
+    max_spans_per_trace: 1000
+    span_processors:
+      - type: batch
+        batch_size: 512
+        timeout: 5s
+        max_queue: 2048
+  
+  metrics:
+    enabled: true
+    collect_interval: 30s
+    readers:
+      - type: periodic
+        interval: 30s
+  
+  logging:
+    enabled: true
+    level: warn
+    format: json
+    include_trace: true
+    include_span: true
+    correlation_id: true
+  
+  exporters:
+    jaeger:
+      enabled: false
+    
+    prometheus:
+      enabled: true
+      port: 9090
+      path: /metrics
+    
+    otlp:
+      enabled: true
+      endpoint: ${OTLP_ENDPOINT}
+      insecure: false
+      timeout: 10s
+      headers:
+        authorization: Bearer ${OTLP_TOKEN}
+    
+    console:
+      enabled: false
+      pretty: false
+    
+    file:
+      enabled: false
+
+resilience:
+  retry:
+    default:
+      max_attempts: 3
+      initial_delay: 100ms
+      max_delay: 10s
+      backoff_factor: 2.0
+      jitter: true
+    external_api:
+      max_attempts: 3
+      initial_delay: 200ms
+      max_delay: 30s
+      backoff_factor: 2.0
+      jitter: true
+    ai_provider:
+      max_attempts: 2
+      initial_delay: 1s
+      max_delay: 60s
+      backoff_factor: 3.0
+      jitter: true
+  
+  circuit_breaker:
+    default:
+      name: default
+      max_failures: 5
+      reset_timeout: 60s
+      success_threshold: 3
+      failure_threshold: 0.5
+      min_request_threshold: 20
+    external_api:
+      name: external_api
+      max_failures: 3
+      reset_timeout: 60s
+      success_threshold: 2
+    ai_provider:
+      name: ai_provider
+      max_failures: 2
+      reset_timeout: 300s
+      success_threshold: 1
+  
+  rate_limit:
+    ai_provider:
+      type: token_bucket
+      rate: 30
+      window: 1m
+      burst_size: 5
+      max_wait_time: 60s
+    external_api:
+      type: token_bucket
+      rate: 100
+      window: 1m
+      burst_size: 10
+      max_wait_time: 10s
+  
+  timeout:
+    default: 30s
+    operations:
+      ai_generation: 45s
+      database_query: 5s
+      database_write: 10s
+      external_api: 15s
+      kafka_publish: 5s
+    services:
+      clickup: 15s
+      slack: 10s
+      gemini: 60s
+      openai: 45s
+
+features:
+  enable_ai: true
+  enable_task_creation: true
+  enable_notifications: true
+  enable_metrics: true
+  enable_tracing: true
+  enable_audit_logging: true
+  enable_caching: true
+  enable_rate_limiting: true
+  enable_circuit_breaker: true
+  enable_retry: true
+  enable_health_checks: true
+  enable_graceful_shutdown: true
