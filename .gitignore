@@ -120,3 +120,6 @@ go.work.sum
 web-ui/frontend/.next
 GEMINI.md
 CLAUDE.md
+.mcp.json
+dao/.env
+dao/web/dao-portal/.next

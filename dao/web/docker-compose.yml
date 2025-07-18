@@ -1,0 +1,164 @@
+version: '3.8'
+
+services:
+  # Developer Portal
+  dao-portal:
+    build:
+      context: ./dao-portal
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_MARKETPLACE_API_URL=http://localhost:8081
+      - NEXT_PUBLIC_METRICS_API_URL=http://localhost:8082
+      - NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=${WALLET_CONNECT_PROJECT_ID}
+    depends_on:
+      - bounty-service
+      - marketplace-service
+      - metrics-service
+    networks:
+      - developer-dao-network
+
+  # Governance UI
+  governance-ui:
+    build:
+      context: ./governance-ui
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_MARKETPLACE_API_URL=http://localhost:8081
+      - NEXT_PUBLIC_METRICS_API_URL=http://localhost:8082
+      - NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=${WALLET_CONNECT_PROJECT_ID}
+    depends_on:
+      - bounty-service
+      - marketplace-service
+      - metrics-service
+    networks:
+      - developer-dao-network
+
+  # Backend Services (from main docker-compose)
+  bounty-service:
+    image: developer-dao/bounty-service:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/developer_dao
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - developer-dao-network
+
+  marketplace-service:
+    image: developer-dao/marketplace-service:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/developer_dao
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - developer-dao-network
+
+  metrics-service:
+    image: developer-dao/metrics-service:latest
+    ports:
+      - "8082:8082"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/developer_dao
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - developer-dao-network
+
+  # AI Service
+  ai-service:
+    image: developer-dao/ai-service:latest
+    ports:
+      - "8083:8083"
+      - "8084:8084"  # Metrics port
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/developer_dao
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - BOUNTY_SERVICE_URL=http://bounty-service:8080
+      - MARKETPLACE_SERVICE_URL=http://marketplace-service:8081
+      - METRICS_SERVICE_URL=http://metrics-service:8082
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+      - bounty-service
+      - marketplace-service
+      - metrics-service
+    networks:
+      - developer-dao-network
+
+  # Vector Database (Qdrant)
+  qdrant:
+    image: qdrant/qdrant:v1.7.0
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    networks:
+      - developer-dao-network
+
+  # Database
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: developer_dao
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - developer-dao-network
+
+  # Cache
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - developer-dao-network
+
+  # Load Balancer
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - dao-portal
+      - governance-ui
+      - bounty-service
+      - marketplace-service
+      - metrics-service
+    networks:
+      - developer-dao-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+
+networks:
+  developer-dao-network:
+    driver: bridge
