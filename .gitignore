@@ -117,7 +117,6 @@ go.work.sum
 .roo
 .vscode
 .claude
-
 web-ui/frontend/.next
 GEMINI.md
 CLAUDE.md

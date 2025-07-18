@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/zap"
 
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 )
 
 // MockRepository is a mock implementation of Repository
@@ -142,9 +142,49 @@ func (m *MockCache) Set(ctx context.Context, key string, value interface{}, expi
 	return args.Error(0)
 }
 
-func (m *MockCache) Delete(ctx context.Context, key string) error {
-	args := m.Called(ctx, key)
+func (m *MockCache) Del(ctx context.Context, keys ...string) error {
+	args := m.Called(ctx, keys)
 	return args.Error(0)
+}
+
+func (m *MockCache) Exists(ctx context.Context, keys ...string) (bool, error) {
+	args := m.Called(ctx, keys)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockCache) Incr(ctx context.Context, key string) (int64, error) {
+	args := m.Called(ctx, key)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockCache) HGet(ctx context.Context, key, field string) (string, error) {
+	args := m.Called(ctx, key, field)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockCache) HSet(ctx context.Context, key string, values ...interface{}) error {
+	args := m.Called(ctx, key, values)
+	return args.Error(0)
+}
+
+func (m *MockCache) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	args := m.Called(ctx, key)
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
+func (m *MockCache) HDel(ctx context.Context, key string, fields ...string) error {
+	args := m.Called(ctx, key, fields)
+	return args.Error(0)
+}
+
+func (m *MockCache) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	args := m.Called(ctx, key, expiration)
+	return args.Error(0)
+}
+
+func (m *MockCache) Pipeline() redis.Pipeline {
+	args := m.Called()
+	return args.Get(0).(redis.Pipeline)
 }
 
 func (m *MockCache) Ping(ctx context.Context) error {
@@ -164,22 +204,9 @@ func setupTestService() (*AccountService, *MockRepository, *MockCache) {
 	
 	cfg := config.AccountsConfig{
 		MaxLoginAttempts: 5,
-		AccountLimits: config.AccountLimits{
-			DailyTransactionLimit:   "10000.00",
-			MonthlyTransactionLimit: "100000.00",
-			MaxWalletsPerUser:       10,
-			MaxCardsPerUser:         5,
-		},
-		NotificationSettings: config.NotificationSettings{
-			EmailEnabled:      true,
-			SMSEnabled:        true,
-			PushEnabled:       true,
-			SecurityAlerts:    true,
-			TransactionAlerts: true,
-		},
 	}
 
-	logger := logger.New("debug", "json")
+	logger := logger.New("test")
 	service := NewService(mockRepo, cfg, logger, mockCache).(*AccountService)
 
 	return service, mockRepo, mockCache

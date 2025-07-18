@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/kafka"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
@@ -63,13 +65,13 @@ func (s *Service) ClaimOrder(ctx context.Context, orderID string, userID string)
 	data, err := json.Marshal(claim)
 	if err == nil {
 		if err := s.cache.Set(ctx, cacheKey, data, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache claim", "orderID", orderID, "error", err)
+			s.logger.Warn("Failed to cache claim", zap.String("orderID", orderID), zap.Error(err))
 		}
 		
 		// Also cache by claim ID
 		claimKey := fmt.Sprintf("claim:%s", claim.ID)
 		if err := s.cache.Set(ctx, claimKey, data, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache claim by ID", "claimID", claim.ID, "error", err)
+			s.logger.Warn("Failed to cache claim by ID", zap.String("claimID", claim.ID), zap.Error(err))
 		}
 	}
 
@@ -84,7 +86,7 @@ func (s *Service) ClaimOrder(ctx context.Context, orderID string, userID string)
 	eventData, err := json.Marshal(event)
 	if err == nil {
 		if err := s.producer.Produce("claim-events", []byte(claim.ID), eventData); err != nil {
-			s.logger.Warn("Failed to publish order claimed event", "claimID", claim.ID, "error", err)
+			s.logger.Warn("Failed to publish order claimed event", zap.String("claimID", claim.ID), zap.Error(err))
 		}
 	}
 
@@ -100,7 +102,7 @@ func (s *Service) GetClaim(ctx context.Context, id string) (*Claim, error) {
 		// Cache hit
 		var claim Claim
 		if err := json.Unmarshal([]byte(data), &claim); err == nil {
-			s.logger.Debug("Claim cache hit", "id", id)
+			s.logger.Debug("Claim cache hit", zap.String("id", id))
 			return &claim, nil
 		}
 	}
@@ -116,13 +118,13 @@ func (s *Service) GetClaim(ctx context.Context, id string) (*Claim, error) {
 		data, err := json.Marshal(claim)
 		if err == nil {
 			if err := s.cache.Set(ctx, cacheKey, data, s.cacheTTL); err != nil {
-				s.logger.Warn("Failed to cache claim", "id", id, "error", err)
+				s.logger.Warn("Failed to cache claim", zap.String("id", id), zap.Error(err))
 			}
 			
 			// Also cache by order ID
 			orderKey := fmt.Sprintf("claim:order:%s", claim.OrderID)
 			if err := s.cache.Set(ctx, orderKey, data, s.cacheTTL); err != nil {
-				s.logger.Warn("Failed to cache claim by order ID", "orderID", claim.OrderID, "error", err)
+				s.logger.Warn("Failed to cache claim by order ID", zap.String("orderID", claim.OrderID), zap.Error(err))
 			}
 		}
 	}
@@ -156,13 +158,13 @@ func (s *Service) ProcessClaim(ctx context.Context, id string, status string) (*
 	data, err := json.Marshal(claim)
 	if err == nil {
 		if err := s.cache.Set(ctx, cacheKey, data, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache claim", "id", id, "error", err)
+			s.logger.Warn("Failed to cache claim", zap.String("id", id), zap.Error(err))
 		}
 		
 		// Also update by order ID
 		orderKey := fmt.Sprintf("claim:order:%s", claim.OrderID)
 		if err := s.cache.Set(ctx, orderKey, data, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache claim by order ID", "orderID", claim.OrderID, "error", err)
+			s.logger.Warn("Failed to cache claim by order ID", zap.String("orderID", claim.OrderID), zap.Error(err))
 		}
 	}
 
@@ -177,7 +179,7 @@ func (s *Service) ProcessClaim(ctx context.Context, id string, status string) (*
 	eventData, err := json.Marshal(event)
 	if err == nil {
 		if err := s.producer.Produce("claim-events", []byte(claim.ID), eventData); err != nil {
-			s.logger.Warn("Failed to publish claim processed event", "claimID", claim.ID, "error", err)
+			s.logger.Warn("Failed to publish claim processed event", zap.String("claimID", claim.ID), zap.Error(err))
 		}
 	}
 
@@ -198,7 +200,7 @@ func (s *Service) ListClaims(ctx context.Context, userID, orderID, status string
 			Total  int      `json:"total"`
 		}
 		if err := json.Unmarshal([]byte(data), &result); err == nil {
-			s.logger.Debug("Claims cache hit", "key", cacheKey)
+			s.logger.Debug("Claims cache hit", zap.String("key", cacheKey))
 			return result.Claims, result.Total, nil
 		}
 	}
@@ -218,10 +220,10 @@ func (s *Service) ListClaims(ctx context.Context, userID, orderID, status string
 		Total:  total,
 	}
 	
-	data, err = json.Marshal(result)
+	resultData, err := json.Marshal(result)
 	if err == nil {
-		if err := s.cache.Set(ctx, cacheKey, data, s.cacheTTL); err != nil {
-			s.logger.Warn("Failed to cache claims", "key", cacheKey, "error", err)
+		if err := s.cache.Set(ctx, cacheKey, resultData, s.cacheTTL); err != nil {
+			s.logger.Warn("Failed to cache claims", zap.String("key", cacheKey), zap.Error(err))
 		}
 	}
 

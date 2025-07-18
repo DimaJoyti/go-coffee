@@ -1,14 +1,13 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"crypto-terminal/internal/brightdata"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/brightdata"
 )
 
 // TradingSignalsHandler handles trading signals API endpoints
@@ -26,36 +25,36 @@ func NewTradingSignalsHandler(brightDataService *brightdata.Service, logger *log
 }
 
 // RegisterRoutes registers trading signals routes
-func (h *TradingSignalsHandler) RegisterRoutes(router *mux.Router) {
+func (h *TradingSignalsHandler) RegisterRoutes(router *gin.Engine) {
 	// Trading Signals endpoints
-	router.HandleFunc("/api/v2/trading/signals", h.GetTradingSignals).Methods("GET")
-	router.HandleFunc("/api/v2/trading/signals/{symbol}", h.GetTradingSignalsBySymbol).Methods("GET")
-	router.HandleFunc("/api/v2/trading/signals/search", h.SearchTradingSignals).Methods("GET")
+	router.GET("/api/v2/trading/signals", h.GetTradingSignals)
+	router.GET("/api/v2/trading/signals/:symbol", h.GetTradingSignalsBySymbol)
+	router.GET("/api/v2/trading/signals/search", h.SearchTradingSignals)
 	
 	// Trading Bots endpoints
-	router.HandleFunc("/api/v2/trading/bots", h.GetTradingBots).Methods("GET")
-	router.HandleFunc("/api/v2/trading/bots/top", h.GetTopTradingBots).Methods("GET")
+	router.GET("/api/v2/trading/bots", h.GetTradingBots)
+	router.GET("/api/v2/trading/bots/top", h.GetTopTradingBots)
 	
 	// Technical Analysis endpoints
-	router.HandleFunc("/api/v2/trading/analysis", h.GetTechnicalAnalysis).Methods("GET")
-	router.HandleFunc("/api/v2/trading/analysis/{symbol}", h.GetTechnicalAnalysisBySymbol).Methods("GET")
+	router.GET("/api/v2/trading/analysis", h.GetTechnicalAnalysis)
+	router.GET("/api/v2/trading/analysis/:symbol", h.GetTechnicalAnalysisBySymbol)
 	
 	// Active Deals endpoints
-	router.HandleFunc("/api/v2/trading/deals", h.GetActiveDeals).Methods("GET")
-	router.HandleFunc("/api/v2/trading/deals/active", h.GetActiveDealsOnly).Methods("GET")
+	router.GET("/api/v2/trading/deals", h.GetActiveDeals)
+	router.GET("/api/v2/trading/deals/active", h.GetActiveDealsOnly)
 	
 	// 3commas specific endpoints
-	router.HandleFunc("/api/v2/3commas/bots", h.GetCommasBots).Methods("GET")
-	router.HandleFunc("/api/v2/3commas/signals", h.GetCommasSignals).Methods("GET")
-	router.HandleFunc("/api/v2/3commas/deals", h.GetCommasDeals).Methods("GET")
+	router.GET("/api/v2/3commas/bots", h.GetCommasBots)
+	router.GET("/api/v2/3commas/signals", h.GetCommasSignals)
+	router.GET("/api/v2/3commas/deals", h.GetCommasDeals)
 }
 
 // GetTradingSignals returns all trading signals
-func (h *TradingSignalsHandler) GetTradingSignals(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetTradingSignals(c *gin.Context) {
 	h.logger.Info("Getting all trading signals")
 	
 	// Parse query parameters
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 50 // default
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -63,16 +62,16 @@ func (h *TradingSignalsHandler) GetTradingSignals(w http.ResponseWriter, r *http
 		}
 	}
 	
-	symbolsStr := r.URL.Query().Get("symbols")
+	symbolsStr := c.Query("symbols")
 	var symbols []string
 	if symbolsStr != "" {
 		symbols = strings.Split(symbolsStr, ",")
 	}
 	
-	signals, err := h.brightDataService.GetTradingSignals(r.Context(), symbols, limit)
+	signals, err := h.brightDataService.GetTradingSignals(c.Request.Context(), symbols, limit)
 	if err != nil {
 		h.logger.Errorf("Failed to get trading signals: %v", err)
-		http.Error(w, "Failed to get trading signals", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get trading signals"})
 		return
 	}
 	
@@ -82,18 +81,16 @@ func (h *TradingSignalsHandler) GetTradingSignals(w http.ResponseWriter, r *http
 		"limit":   limit,
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetTradingSignalsBySymbol returns trading signals for a specific symbol
-func (h *TradingSignalsHandler) GetTradingSignalsBySymbol(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	symbol := strings.ToUpper(vars["symbol"])
+func (h *TradingSignalsHandler) GetTradingSignalsBySymbol(c *gin.Context) {
+	symbol := strings.ToUpper(c.Param("symbol"))
 	
 	h.logger.Infof("Getting trading signals for symbol: %s", symbol)
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 20 // default
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -101,10 +98,10 @@ func (h *TradingSignalsHandler) GetTradingSignalsBySymbol(w http.ResponseWriter,
 		}
 	}
 	
-	signals, err := h.brightDataService.GetTradingSignals(r.Context(), []string{symbol}, limit)
+	signals, err := h.brightDataService.GetTradingSignals(c.Request.Context(), []string{symbol}, limit)
 	if err != nil {
 		h.logger.Errorf("Failed to get trading signals for %s: %v", symbol, err)
-		http.Error(w, "Failed to get trading signals", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get trading signals"})
 		return
 	}
 	
@@ -114,21 +111,20 @@ func (h *TradingSignalsHandler) GetTradingSignalsBySymbol(w http.ResponseWriter,
 		"count":   len(signals),
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // SearchTradingSignals searches trading signals by criteria
-func (h *TradingSignalsHandler) SearchTradingSignals(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) SearchTradingSignals(c *gin.Context) {
 	h.logger.Info("Searching trading signals")
 	
 	// Parse search parameters
-	source := r.URL.Query().Get("source")
-	signalType := r.URL.Query().Get("type")
-	riskLevel := r.URL.Query().Get("risk_level")
-	minConfidence := r.URL.Query().Get("min_confidence")
+	source := c.Query("source")
+	signalType := c.Query("type")
+	riskLevel := c.Query("risk_level")
+	minConfidence := c.Query("min_confidence")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 50
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -137,10 +133,10 @@ func (h *TradingSignalsHandler) SearchTradingSignals(w http.ResponseWriter, r *h
 	}
 	
 	// Get all signals first
-	signals, err := h.brightDataService.GetTradingSignals(r.Context(), nil, 0)
+	signals, err := h.brightDataService.GetTradingSignals(c.Request.Context(), nil, 0)
 	if err != nil {
 		h.logger.Errorf("Failed to get trading signals: %v", err)
-		http.Error(w, "Failed to search trading signals", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search trading signals"})
 		return
 	}
 	
@@ -181,15 +177,14 @@ func (h *TradingSignalsHandler) SearchTradingSignals(w http.ResponseWriter, r *h
 		},
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetTradingBots returns all trading bots
-func (h *TradingSignalsHandler) GetTradingBots(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetTradingBots(c *gin.Context) {
 	h.logger.Info("Getting trading bots")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 20
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -197,10 +192,10 @@ func (h *TradingSignalsHandler) GetTradingBots(w http.ResponseWriter, r *http.Re
 		}
 	}
 	
-	bots, err := h.brightDataService.GetTradingBots(r.Context(), limit)
+	bots, err := h.brightDataService.GetTradingBots(c.Request.Context(), limit)
 	if err != nil {
 		h.logger.Errorf("Failed to get trading bots: %v", err)
-		http.Error(w, "Failed to get trading bots", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get trading bots"})
 		return
 	}
 	
@@ -209,15 +204,14 @@ func (h *TradingSignalsHandler) GetTradingBots(w http.ResponseWriter, r *http.Re
 		"count": len(bots),
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetTopTradingBots returns top performing trading bots
-func (h *TradingSignalsHandler) GetTopTradingBots(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetTopTradingBots(c *gin.Context) {
 	h.logger.Info("Getting top trading bots")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 10
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -225,10 +219,10 @@ func (h *TradingSignalsHandler) GetTopTradingBots(w http.ResponseWriter, r *http
 		}
 	}
 	
-	bots, err := h.brightDataService.GetTradingBots(r.Context(), limit)
+	bots, err := h.brightDataService.GetTradingBots(c.Request.Context(), limit)
 	if err != nil {
 		h.logger.Errorf("Failed to get top trading bots: %v", err)
-		http.Error(w, "Failed to get top trading bots", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get top trading bots"})
 		return
 	}
 	
@@ -238,24 +232,23 @@ func (h *TradingSignalsHandler) GetTopTradingBots(w http.ResponseWriter, r *http
 		"criteria": "sorted by profit percentage",
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetTechnicalAnalysis returns technical analysis for all symbols
-func (h *TradingSignalsHandler) GetTechnicalAnalysis(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetTechnicalAnalysis(c *gin.Context) {
 	h.logger.Info("Getting technical analysis")
 	
-	symbolsStr := r.URL.Query().Get("symbols")
+	symbolsStr := c.Query("symbols")
 	var symbols []string
 	if symbolsStr != "" {
 		symbols = strings.Split(symbolsStr, ",")
 	}
 	
-	analysis, err := h.brightDataService.GetTechnicalAnalysis(r.Context(), symbols)
+	analysis, err := h.brightDataService.GetTechnicalAnalysis(c.Request.Context(), symbols)
 	if err != nil {
 		h.logger.Errorf("Failed to get technical analysis: %v", err)
-		http.Error(w, "Failed to get technical analysis", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get technical analysis"})
 		return
 	}
 	
@@ -264,26 +257,24 @@ func (h *TradingSignalsHandler) GetTechnicalAnalysis(w http.ResponseWriter, r *h
 		"count":    len(analysis),
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetTechnicalAnalysisBySymbol returns technical analysis for a specific symbol
-func (h *TradingSignalsHandler) GetTechnicalAnalysisBySymbol(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	symbol := strings.ToUpper(vars["symbol"])
+func (h *TradingSignalsHandler) GetTechnicalAnalysisBySymbol(c *gin.Context) {
+	symbol := strings.ToUpper(c.Param("symbol"))
 	
 	h.logger.Infof("Getting technical analysis for symbol: %s", symbol)
 	
-	analysis, err := h.brightDataService.GetTechnicalAnalysis(r.Context(), []string{symbol})
+	analysis, err := h.brightDataService.GetTechnicalAnalysis(c.Request.Context(), []string{symbol})
 	if err != nil {
 		h.logger.Errorf("Failed to get technical analysis for %s: %v", symbol, err)
-		http.Error(w, "Failed to get technical analysis", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get technical analysis"})
 		return
 	}
 	
 	if len(analysis) == 0 {
-		http.Error(w, "No technical analysis found for symbol", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "No technical analysis found for symbol"})
 		return
 	}
 	
@@ -301,15 +292,14 @@ func (h *TradingSignalsHandler) GetTechnicalAnalysisBySymbol(w http.ResponseWrit
 		"count":    len(symbolAnalysis),
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetActiveDeals returns all active trading deals
-func (h *TradingSignalsHandler) GetActiveDeals(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetActiveDeals(c *gin.Context) {
 	h.logger.Info("Getting active trading deals")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 50
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -317,10 +307,10 @@ func (h *TradingSignalsHandler) GetActiveDeals(w http.ResponseWriter, r *http.Re
 		}
 	}
 	
-	deals, err := h.brightDataService.GetActiveDeals(r.Context(), limit)
+	deals, err := h.brightDataService.GetActiveDeals(c.Request.Context(), limit)
 	if err != nil {
 		h.logger.Errorf("Failed to get active deals: %v", err)
-		http.Error(w, "Failed to get active deals", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get active deals"})
 		return
 	}
 	
@@ -329,15 +319,14 @@ func (h *TradingSignalsHandler) GetActiveDeals(w http.ResponseWriter, r *http.Re
 		"count": len(deals),
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetActiveDealsOnly returns only active deals (status = "active")
-func (h *TradingSignalsHandler) GetActiveDealsOnly(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetActiveDealsOnly(c *gin.Context) {
 	h.logger.Info("Getting active deals only")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 30
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -345,10 +334,10 @@ func (h *TradingSignalsHandler) GetActiveDealsOnly(w http.ResponseWriter, r *htt
 		}
 	}
 	
-	deals, err := h.brightDataService.GetActiveDeals(r.Context(), limit)
+	deals, err := h.brightDataService.GetActiveDeals(c.Request.Context(), limit)
 	if err != nil {
 		h.logger.Errorf("Failed to get active deals: %v", err)
-		http.Error(w, "Failed to get active deals", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get active deals"})
 		return
 	}
 	
@@ -358,15 +347,14 @@ func (h *TradingSignalsHandler) GetActiveDealsOnly(w http.ResponseWriter, r *htt
 		"status":       "active_only",
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetCommasBots returns 3commas specific bots
-func (h *TradingSignalsHandler) GetCommasBots(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetCommasBots(c *gin.Context) {
 	h.logger.Info("Getting 3commas bots")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 20
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -375,10 +363,10 @@ func (h *TradingSignalsHandler) GetCommasBots(w http.ResponseWriter, r *http.Req
 	}
 	
 	// Get all bots and filter for 3commas
-	allBots, err := h.brightDataService.GetTradingBots(r.Context(), 0)
+	allBots, err := h.brightDataService.GetTradingBots(c.Request.Context(), 0)
 	if err != nil {
 		h.logger.Errorf("Failed to get 3commas bots: %v", err)
-		http.Error(w, "Failed to get 3commas bots", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get 3commas bots"})
 		return
 	}
 	
@@ -398,15 +386,14 @@ func (h *TradingSignalsHandler) GetCommasBots(w http.ResponseWriter, r *http.Req
 		"source": "3commas",
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetCommasSignals returns 3commas specific signals
-func (h *TradingSignalsHandler) GetCommasSignals(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetCommasSignals(c *gin.Context) {
 	h.logger.Info("Getting 3commas signals")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 30
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -415,10 +402,10 @@ func (h *TradingSignalsHandler) GetCommasSignals(w http.ResponseWriter, r *http.
 	}
 	
 	// Get all signals and filter for 3commas
-	allSignals, err := h.brightDataService.GetTradingSignals(r.Context(), nil, 0)
+	allSignals, err := h.brightDataService.GetTradingSignals(c.Request.Context(), nil, 0)
 	if err != nil {
 		h.logger.Errorf("Failed to get 3commas signals: %v", err)
-		http.Error(w, "Failed to get 3commas signals", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get 3commas signals"})
 		return
 	}
 	
@@ -438,15 +425,14 @@ func (h *TradingSignalsHandler) GetCommasSignals(w http.ResponseWriter, r *http.
 		"source":  "3commas",
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetCommasDeals returns 3commas specific deals
-func (h *TradingSignalsHandler) GetCommasDeals(w http.ResponseWriter, r *http.Request) {
+func (h *TradingSignalsHandler) GetCommasDeals(c *gin.Context) {
 	h.logger.Info("Getting 3commas deals")
 	
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 30
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -455,10 +441,10 @@ func (h *TradingSignalsHandler) GetCommasDeals(w http.ResponseWriter, r *http.Re
 	}
 	
 	// Get all deals and filter for 3commas
-	allDeals, err := h.brightDataService.GetActiveDeals(r.Context(), 0)
+	allDeals, err := h.brightDataService.GetActiveDeals(c.Request.Context(), 0)
 	if err != nil {
 		h.logger.Errorf("Failed to get 3commas deals: %v", err)
-		http.Error(w, "Failed to get 3commas deals", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get 3commas deals"})
 		return
 	}
 	
@@ -478,6 +464,5 @@ func (h *TradingSignalsHandler) GetCommasDeals(w http.ResponseWriter, r *http.Re
 		"source": "3commas",
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }

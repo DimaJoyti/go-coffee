@@ -234,7 +234,7 @@ func (s *Service) DeleteOrder(ctx context.Context, id string) error {
 	// Delete order items from cache
 	cacheKey = fmt.Sprintf("order:%s:items", id)
 	if err := s.cache.Del(ctx, cacheKey); err != nil {
-		s.logger.Warn("Failed to delete order items from cache", "orderID", id, zap.Error(err))
+		s.logger.Warn("Failed to delete order items from cache", zap.String("orderID", id), zap.Error(err))
 	}
 
 	// Publish event
@@ -307,9 +307,9 @@ func (s *Service) ListOrders(ctx context.Context, userID, status string, page, p
 		Total:  total,
 	}
 	
-	data, err = json.Marshal(result)
+	resultData, err := json.Marshal(result)
 	if err == nil {
-		if err := s.cache.Set(ctx, cacheKey, data, s.cacheTTL); err != nil {
+		if err := s.cache.Set(ctx, cacheKey, resultData, s.cacheTTL); err != nil {
 			s.logger.Warn("Failed to cache orders", zap.String("key", cacheKey), zap.Error(err))
 		}
 	}
