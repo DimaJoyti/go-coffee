@@ -11,6 +11,8 @@ type Portfolio struct {
 	ID              string          `json:"id" db:"id"`
 	UserID          string          `json:"user_id" db:"user_id"`
 	Name            string          `json:"name" db:"name"`
+	Description     string          `json:"description" db:"description"`
+	IsPublic        bool            `json:"is_public" db:"is_public"`
 	TotalValue      decimal.Decimal `json:"total_value" db:"total_value"`
 	TotalCost       decimal.Decimal `json:"total_cost" db:"total_cost"`
 	TotalPnL        decimal.Decimal `json:"total_pnl" db:"total_pnl"`
@@ -202,4 +204,18 @@ type PortfolioSync struct {
 	StartedAt   time.Time `json:"started_at" db:"started_at"`
 	CompletedAt *time.Time `json:"completed_at" db:"completed_at"`
 	Error       string    `json:"error" db:"error"`
+}
+
+// CreatePortfolioRequest represents a request to create a new portfolio
+type CreatePortfolioRequest struct {
+	Name        string `json:"name" validate:"required,min=1,max=100"`
+	Description string `json:"description,omitempty" validate:"max=500"`
+	IsPublic    bool   `json:"is_public"`
+}
+
+// UpdatePortfolioRequest represents a request to update an existing portfolio
+type UpdatePortfolioRequest struct {
+	Name        *string `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
+	Description *string `json:"description,omitempty" validate:"omitempty,max=500"`
+	IsPublic    *bool   `json:"is_public,omitempty"`
 }

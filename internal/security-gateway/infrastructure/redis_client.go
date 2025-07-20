@@ -188,9 +188,7 @@ func (r *RedisEventStore) Store(ctx context.Context, event interface{}) error {
 		Member: secEvent.ID,
 	}).Err()
 	if err != nil {
-		r.logger.WithError(err).Error("Failed to add event to time index", map[string]any{
-			"event_id": secEvent.ID,
-		})
+		r.logger.Error("Failed to add event to time index: %v", err)
 	}
 
 	// Add to type-based index
@@ -200,9 +198,7 @@ func (r *RedisEventStore) Store(ctx context.Context, event interface{}) error {
 		Member: secEvent.ID,
 	}).Err()
 	if err != nil {
-		r.logger.WithError(err).Error("Failed to add event to type index", map[string]any{
-			"event_id": secEvent.ID,
-		})
+		r.logger.Error("Failed to add event to type index: %v", err)
 	}
 
 	// Add to severity-based index
@@ -212,9 +208,7 @@ func (r *RedisEventStore) Store(ctx context.Context, event interface{}) error {
 		Member: secEvent.ID,
 	}).Err()
 	if err != nil {
-		r.logger.WithError(err).Error("Failed to add event to severity index", map[string]any{
-			"event_id": secEvent.ID,
-		})
+		r.logger.Error("Failed to add event to severity index: %v", err)
 	}
 
 	return nil
@@ -258,9 +252,7 @@ func (r *RedisEventStore) Query(ctx context.Context, filter interface{}) (interf
 	for _, eventID := range eventIDs {
 		event, err := r.getEventByID(ctx, eventID)
 		if err != nil {
-			r.logger.WithError(err).Error("Failed to get event by ID", map[string]any{
-				"event_id": eventID,
-			})
+			r.logger.Error("Failed to get event by ID: %v", err)
 			continue
 		}
 		if event != nil {
@@ -301,17 +293,13 @@ func (r *RedisEventStore) Delete(ctx context.Context, olderThan time.Time) error
 			if err == redis.Nil {
 				continue // Key doesn't exist
 			}
-			r.logger.WithError(err).Error("Failed to get event for deletion check", map[string]any{
-				"key": key,
-			})
+			r.logger.Error("Failed to get event for deletion check: %v", err)
 			continue
 		}
 
 		var event SecurityEvent
 		if err := json.Unmarshal([]byte(eventJSON), &event); err != nil {
-			r.logger.WithError(err).Error("Failed to unmarshal event for deletion check", map[string]any{
-				"key": key,
-			})
+			r.logger.Error("Failed to unmarshal event for deletion check: %v", err)
 			continue
 		}
 
@@ -319,19 +307,14 @@ func (r *RedisEventStore) Delete(ctx context.Context, olderThan time.Time) error
 		if event.Timestamp.Before(olderThan) {
 			err := r.client.Del(ctx, key).Err()
 			if err != nil {
-				r.logger.WithError(err).Error("Failed to delete old event", map[string]any{
-					"key": key,
-				})
+				r.logger.Error("Failed to delete old event: %v", err)
 			} else {
 				deletedCount++
 			}
 		}
 	}
 
-	r.logger.Info("Deleted old security events", map[string]any{
-		"deleted_count": deletedCount,
-		"older_than":    olderThan.Format(time.RFC3339),
-	})
+	r.logger.Info("Deleted old security events: deleted_count=%d, older_than=%s", deletedCount, olderThan.Format(time.RFC3339))
 
 	return nil
 }
@@ -504,9 +487,7 @@ func (r *RedisAlertManager) CreateAlert(ctx context.Context, alert *SecurityAler
 	if alert.Status != "resolved" {
 		err = r.client.SAdd(ctx, "security:alerts:active", alert.ID).Err()
 		if err != nil {
-			r.logger.WithError(err).Error("Failed to add alert to active set", map[string]any{
-				"alert_id": alert.ID,
-			})
+			r.logger.Error("Failed to add alert to active set: %v", err)
 		}
 	}
 
@@ -517,9 +498,7 @@ func (r *RedisAlertManager) CreateAlert(ctx context.Context, alert *SecurityAler
 		Member: alert.ID,
 	}).Err()
 	if err != nil {
-		r.logger.WithError(err).Error("Failed to add alert to severity index", map[string]any{
-			"alert_id": alert.ID,
-		})
+		r.logger.Error("Failed to add alert to severity index: %v", err)
 	}
 
 	return nil
@@ -594,9 +573,7 @@ func (r *RedisAlertManager) GetActiveAlerts(ctx context.Context) ([]*SecurityAle
 	for _, alertID := range alertIDs {
 		alert, err := r.getAlertByID(ctx, alertID)
 		if err != nil {
-			r.logger.WithError(err).Error("Failed to get alert by ID", map[string]any{
-				"alert_id": alertID,
-			})
+			r.logger.Error("Failed to get alert by ID: %v", err)
 			continue
 		}
 		if alert != nil {

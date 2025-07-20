@@ -10,7 +10,6 @@ import (
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/domain/entities"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/domain/repositories"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/domain/valueobjects"
-	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"

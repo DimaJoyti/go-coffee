@@ -169,7 +169,10 @@ func (s *OrderDomainService) CalculateCommission(order *entities.Order, exchange
 	}
 
 	// Default commission rate (0.1%)
-	commissionRate := valueobjects.NewPriceFromFloat(0.001)
+	commissionRate, err := valueobjects.NewPriceFromFloat(0.001)
+	if err != nil {
+		return valueobjects.Commission{}, fmt.Errorf("failed to create commission rate: %w", err)
+	}
 	if commissionRate.Decimal.IsZero() {
 		return valueobjects.Commission{}, fmt.Errorf("invalid commission rate")
 	}

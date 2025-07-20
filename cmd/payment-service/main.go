@@ -61,7 +61,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("Payment service started", "port", cfg.Server.PaymentServicePort)
+	logger.Info("Payment service started on port %d", cfg.Server.PaymentServicePort)
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)

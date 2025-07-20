@@ -6,7 +6,6 @@ import (
 
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/hft/domain/valueobjects"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
 
 // Import value objects for cleaner code

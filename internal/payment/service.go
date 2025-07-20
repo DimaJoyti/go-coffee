@@ -33,11 +33,11 @@ func NewService(cfg *config.Config, log *logger.Logger) (*Service, error) {
 
 // CreateWallet creates a new Bitcoin wallet
 func (s *Service) CreateWallet(ctx context.Context, testnet bool) (*models.Wallet, error) {
-	s.logger.Info("Creating new Bitcoin wallet", "testnet", testnet)
+	s.logger.Info("Creating new Bitcoin wallet, testnet=%v", testnet)
 
 	wallet, err := bitcoin.NewWallet(testnet)
 	if err != nil {
-		s.logger.Error("Failed to create wallet", "error", err)
+		s.logger.Error("Failed to create wallet: %v", err)
 		return nil, fmt.Errorf("failed to create wallet: %w", err)
 	}
 
@@ -49,7 +49,7 @@ func (s *Service) CreateWallet(ctx context.Context, testnet bool) (*models.Walle
 		Type:       "bitcoin",
 	}
 
-	s.logger.Info("Wallet created successfully", "address", walletModel.Address)
+	s.logger.Info("Wallet created successfully, address=%s", walletModel.Address)
 	return walletModel, nil
 }
 
@@ -59,7 +59,7 @@ func (s *Service) ImportWallet(ctx context.Context, wif string) (*models.Wallet,
 
 	wallet, err := bitcoin.NewWalletFromWIF(wif)
 	if err != nil {
-		s.logger.Error("Failed to import wallet", "error", err)
+		s.logger.Error("Failed to import wallet: %v", err)
 		return nil, fmt.Errorf("failed to import wallet: %w", err)
 	}
 
@@ -77,13 +77,13 @@ func (s *Service) ImportWallet(ctx context.Context, wif string) (*models.Wallet,
 		Type:       "bitcoin",
 	}
 
-	s.logger.Info("Wallet imported successfully", "address", walletModel.Address)
+	s.logger.Info("Wallet imported successfully, address=%s", walletModel.Address)
 	return walletModel, nil
 }
 
 // ValidateAddress validates a Bitcoin address
 func (s *Service) ValidateAddress(ctx context.Context, address string) (*models.AddressValidation, error) {
-	s.logger.Info("Validating Bitcoin address", "address", address)
+	s.logger.Info("Validating Bitcoin address: %s", address)
 
 	isValid := s.bitcoin.ValidateAddress(address)
 	
@@ -99,13 +99,13 @@ func (s *Service) ValidateAddress(ctx context.Context, address string) (*models.
 		Network: network,
 	}
 
-	s.logger.Info("Address validation completed", "address", address, "valid", isValid)
+	s.logger.Info("Address validation completed, address=%s, valid=%v", address, isValid)
 	return validation, nil
 }
 
 // CreateMultisigAddress creates a multisig address
 func (s *Service) CreateMultisigAddress(ctx context.Context, req *models.MultisigRequest) (*models.MultisigAddress, error) {
-	s.logger.Info("Creating multisig address", "threshold", req.Threshold, "keys", len(req.PublicKeys))
+	s.logger.Info("Creating multisig address, threshold=%d, keys=%d", req.Threshold, len(req.PublicKeys))
 
 	if req.Threshold < 1 || req.Threshold > len(req.PublicKeys) {
 		return nil, fmt.Errorf("invalid threshold: %d (must be between 1 and %d)", req.Threshold, len(req.PublicKeys))
@@ -119,7 +119,7 @@ func (s *Service) CreateMultisigAddress(ctx context.Context, req *models.Multisi
 
 	address, err := s.bitcoin.CreateMultisigAddress(publicKeys, req.Threshold, req.Testnet)
 	if err != nil {
-		s.logger.Error("Failed to create multisig address", "error", err)
+		s.logger.Error("Failed to create multisig address: %v", err)
 		return nil, fmt.Errorf("failed to create multisig address: %w", err)
 	}
 
@@ -131,23 +131,23 @@ func (s *Service) CreateMultisigAddress(ctx context.Context, req *models.Multisi
 		Type:       "P2SH",
 	}
 
-	s.logger.Info("Multisig address created successfully", "address", address)
+	s.logger.Info("Multisig address created successfully, address=%s", address)
 	return multisigAddr, nil
 }
 
 // SignMessage signs a message with a private key
 func (s *Service) SignMessage(ctx context.Context, req *models.SignMessageRequest) (*models.SignMessageResponse, error) {
-	s.logger.Info("Signing message", "message_length", len(req.Message))
+	s.logger.Info("Signing message, message_length=%d", len(req.Message))
 
 	wallet, err := bitcoin.NewWalletFromWIF(req.PrivateKey)
 	if err != nil {
-		s.logger.Error("Failed to create wallet from WIF", "error", err)
+		s.logger.Error("Failed to create wallet from WIF: %v", err)
 		return nil, fmt.Errorf("invalid private key: %w", err)
 	}
 
 	signature, err := wallet.SignMessage([]byte(req.Message))
 	if err != nil {
-		s.logger.Error("Failed to sign message", "error", err)
+		s.logger.Error("Failed to sign message: %v", err)
 		return nil, fmt.Errorf("failed to sign message: %w", err)
 	}
 
@@ -163,7 +163,7 @@ func (s *Service) SignMessage(ctx context.Context, req *models.SignMessageReques
 
 // VerifyMessage verifies a message signature
 func (s *Service) VerifyMessage(ctx context.Context, req *models.VerifyMessageRequest) (*models.VerifyMessageResponse, error) {
-	s.logger.Info("Verifying message signature", "address", req.Address)
+	s.logger.Info("Verifying message signature, address=%s", req.Address)
 
 	// This is a simplified implementation
 	// In a real implementation, you would need to recover the public key from the signature
@@ -175,7 +175,7 @@ func (s *Service) VerifyMessage(ctx context.Context, req *models.VerifyMessageRe
 		Valid:   false, // Placeholder - would implement full verification
 	}
 
-	s.logger.Info("Message verification completed", "valid", response.Valid)
+	s.logger.Info("Message verification completed, valid=%v", response.Valid)
 	return response, nil
 }
 

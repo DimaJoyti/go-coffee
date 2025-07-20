@@ -118,12 +118,12 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 		menuKey := "coffee:menu:" + shopID
 		for item, price := range menu {
 			if err := client.HSet(ctx, menuKey, item, price).Err(); err != nil {
-				logger.Error("Failed to set menu item", map[string]interface{}{
+				logger.WithFields(map[string]interface{}{
 					"error": err, "shop": shopID, "item": item,
-				})
+				}).Error("Failed to set menu item")
 			}
 		}
-		logger.Info("✅ Menu set for shop", map[string]interface{}{"shop": shopID})
+		logger.WithFields(map[string]interface{}{"shop": shopID}).Info("✅ Menu set for shop")
 	}
 
 	// Sample inventory data
@@ -156,12 +156,12 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 		inventoryKey := "coffee:inventory:" + shopID
 		for ingredient, quantity := range inventory {
 			if err := client.HSet(ctx, inventoryKey, ingredient, quantity).Err(); err != nil {
-				logger.Error("Failed to set inventory item", map[string]interface{}{
+				logger.WithFields(map[string]interface{}{
 					"error": err, "shop": shopID, "ingredient": ingredient,
-				})
+				}).Error("Failed to set inventory item")
 			}
 		}
-		logger.Info("✅ Inventory set for shop", map[string]interface{}{"shop": shopID})
+		logger.WithFields(map[string]interface{}{"shop": shopID}).Info("✅ Inventory set for shop")
 	}
 
 	// Sample available ingredients set
@@ -173,9 +173,9 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 
 	for _, ingredient := range ingredients {
 		if err := client.SAdd(ctx, "ingredients:available", ingredient).Err(); err != nil {
-			logger.Error("Failed to add ingredient", map[string]interface{}{
+			logger.WithFields(map[string]interface{}{
 				"error": err, "ingredient": ingredient,
-			})
+			}).Error("Failed to add ingredient")
 		}
 	}
 	logger.Info("✅ Available ingredients set")
@@ -196,9 +196,9 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 			Score:  count,
 			Member: drink,
 		}).Err(); err != nil {
-			logger.Error("Failed to add order count", map[string]interface{}{
+			logger.WithFields(map[string]interface{}{
 				"error": err, "drink": drink,
-			})
+			}).Error("Failed to add order count")
 		}
 	}
 	logger.Info("✅ Daily orders data set")
@@ -231,12 +231,12 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 	for customerKey, data := range customers {
 		for field, value := range data {
 			if err := client.HSet(ctx, customerKey, field, value).Err(); err != nil {
-				logger.Error("Failed to set customer data", map[string]interface{}{
+				logger.WithFields(map[string]interface{}{
 					"error": err, "customer": customerKey, "field": field,
-				})
+				}).Error("Failed to set customer data")
 			}
 		}
-		logger.Info("✅ Customer data set", map[string]interface{}{"customer": customerKey})
+		logger.WithFields(map[string]interface{}{"customer": customerKey}).Info("✅ Customer data set")
 	}
 
 	// Sample analytics data
@@ -252,9 +252,9 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 			Score:  value,
 			Member: metric,
 		}).Err(); err != nil {
-			logger.Error("Failed to add analytics", map[string]interface{}{
+			logger.WithFields(map[string]interface{}{
 				"error": err, "metric": metric,
-			})
+			}).Error("Failed to add analytics")
 		}
 	}
 	logger.Info("✅ Analytics data set")

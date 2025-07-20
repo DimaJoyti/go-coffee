@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
 

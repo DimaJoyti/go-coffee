@@ -6,13 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
 
 // DataPipeline manages real-time data collection and processing using Bright Data MCP
 type DataPipeline struct {
 	scraper           *RealTimeScraper
-	marketIntelligence *MarketIntelligence
 	logger            *logrus.Logger
 	config            *BrightDataConfig
 	
@@ -50,7 +50,6 @@ type MarketAlert struct {
 func NewDataPipeline(config *BrightDataConfig, logger *logrus.Logger) *DataPipeline {
 	return &DataPipeline{
 		scraper:             NewRealTimeScraper(logger),
-		marketIntelligence:  NewMarketIntelligence(logger),
 		logger:              logger,
 		config:              config,
 		tradingViewChan:     make(chan *TradingViewData, 100),
@@ -201,7 +200,7 @@ func (dp *DataPipeline) analyzeDataForAlerts(data *TradingViewData) []*MarketAle
 				Type:      "price_movement",
 				Severity:  "high",
 				Title:     fmt.Sprintf("%s Price Surge", coin.Symbol),
-				Message:   fmt.Sprintf("%s has increased by %.2f%% in the last 24 hours", coin.Name, coin.ChangePercent),
+				Message:   fmt.Sprintf("%s has increased by %.2f%% in the last 24 hours", coin.Name, coin.ChangePercent.InexactFloat64()),
 				Symbol:    coin.Symbol,
 				Price:     coin.Price.InexactFloat64(),
 				Change:    coin.ChangePercent.InexactFloat64(),
@@ -219,7 +218,7 @@ func (dp *DataPipeline) analyzeDataForAlerts(data *TradingViewData) []*MarketAle
 				Type:      "price_movement",
 				Severity:  "medium",
 				Title:     fmt.Sprintf("%s Price Drop", coin.Symbol),
-				Message:   fmt.Sprintf("%s has decreased by %.2f%% in the last 24 hours", coin.Name, coin.ChangePercent.Abs()),
+				Message:   fmt.Sprintf("%s has decreased by %.2f%% in the last 24 hours", coin.Name, coin.ChangePercent.Abs().InexactFloat64()),
 				Symbol:    coin.Symbol,
 				Price:     coin.Price.InexactFloat64(),
 				Change:    coin.ChangePercent.InexactFloat64(),
@@ -240,7 +239,7 @@ func (dp *DataPipeline) analyzeDataForAlerts(data *TradingViewData) []*MarketAle
 				Type:      "trending",
 				Severity:  "info",
 				Title:     fmt.Sprintf("%s Trending", trending.Symbol),
-				Message:   fmt.Sprintf("%s is trending with a score of %.1f and %d mentions", trending.Name, trending.TrendScore, trending.Mentions),
+				Message:   fmt.Sprintf("%s is trending with a score of %.1f and %d mentions", trending.Name, trending.TrendScore.InexactFloat64(), trending.Mentions),
 				Symbol:    trending.Symbol,
 				Price:     trending.Price.InexactFloat64(),
 				Change:    trending.Change24h.InexactFloat64(),

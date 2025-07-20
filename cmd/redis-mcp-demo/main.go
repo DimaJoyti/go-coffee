@@ -376,7 +376,7 @@ func main() {
 	})
 	<-c
 
-	logger.Info("🛑 Shutting down Simple Redis MCP Demo Server...", nil)
+	logger.Info("🛑 Shutting down Simple Redis MCP Demo Server...")
 
 	// Close Redis connection
 	if err := redisClient.Close(); err != nil {
@@ -385,13 +385,13 @@ func main() {
 		})
 	}
 
-	logger.Info("✅ Simple Redis MCP Demo Server stopped gracefully", nil)
+	logger.Info("✅ Simple Redis MCP Demo Server stopped gracefully")
 }
 
 func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 	ctx := context.Background()
 
-	logger.Info("🏪 Initializing sample coffee shop data...", nil)
+	logger.Info("🏪 Initializing sample coffee shop data...")
 
 	// Sample coffee shop menu
 	menu := map[string]string{
@@ -459,5 +459,5 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 		}
 	}
 
-	logger.Info("✅ Sample data initialized successfully!", nil)
+	logger.Info("✅ Sample data initialized successfully!")
 }

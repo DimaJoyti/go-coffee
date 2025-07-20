@@ -8,48 +8,39 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/jaeger"
-	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/instrumentation"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // TelemetryConfig holds configuration for OpenTelemetry
 type TelemetryConfig struct {
-	ServiceName     string
-	ServiceVersion  string
-	Environment     string
-	JaegerEndpoint  string
-	PrometheusPort  int
-	SampleRate      float64
-	EnableTracing   bool
-	EnableMetrics   bool
-	EnableLogging   bool
+	ServiceName    string
+	ServiceVersion string
+	Environment    string
+	OTLPEndpoint   string
+	PrometheusPort int
+	SampleRate     float64
+	EnableTracing  bool
+	EnableMetrics  bool
+	EnableLogging  bool
 }
 
 // TelemetryProvider manages OpenTelemetry providers
 type TelemetryProvider struct {
-	config         TelemetryConfig
-	tracerProvider *sdktrace.TracerProvider
-	meterProvider  *sdkmetric.MeterProvider
-	tracer         trace.Tracer
-	meter          metric.Meter
-	
-	// HFT-specific metrics
-	orderLatencyHistogram    metric.Float64Histogram
-	orderThroughputCounter   metric.Int64Counter
-	strategyPnLGauge        metric.Float64Gauge
-	riskViolationCounter    metric.Int64Counter
-	marketDataLatencyHist   metric.Float64Histogram
-	fillRateGauge           metric.Float64Gauge
-	positionSizeGauge       metric.Float64Gauge
-	errorCounter            metric.Int64Counter
+	config TelemetryConfig
+	tracer trace.Tracer
+	meter  metric.Meter
+
+	// HFT-specific metrics (will be initialized when meter is available)
+	orderLatencyHistogram  metric.Float64Histogram
+	orderThroughputCounter metric.Int64Counter
+	strategyPnLGauge       metric.Float64Gauge
+	riskViolationCounter   metric.Int64Counter
+	marketDataLatencyHist  metric.Float64Histogram
+	fillRateGauge          metric.Float64Gauge
+	positionSizeGauge      metric.Float64Gauge
+	errorCounter           metric.Int64Counter
 }
 
 // NewTelemetryProvider creates a new telemetry provider
@@ -58,107 +49,41 @@ func NewTelemetryProvider(config TelemetryConfig) (*TelemetryProvider, error) {
 		config: config,
 	}
 
-	// Initialize resource
-	resource, err := tp.createResource()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
-	}
-
-	// Initialize tracing
-	if config.EnableTracing {
-		if err := tp.initTracing(resource); err != nil {
-			return nil, fmt.Errorf("failed to initialize tracing: %w", err)
-		}
-	}
-
-	// Initialize metrics
-	if config.EnableMetrics {
-		if err := tp.initMetrics(resource); err != nil {
-			return nil, fmt.Errorf("failed to initialize metrics: %w", err)
-		}
-	}
-
 	// Set global propagator
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	))
 
+	// Initialize tracer and meter with global providers
+	if config.EnableTracing {
+		tp.tracer = otel.Tracer(
+			config.ServiceName,
+			trace.WithInstrumentationVersion(config.ServiceVersion),
+		)
+	}
+
+	if config.EnableMetrics {
+		tp.meter = otel.Meter(
+			config.ServiceName,
+			metric.WithInstrumentationVersion(config.ServiceVersion),
+		)
+
+		// Initialize HFT-specific metrics
+		if err := tp.initHFTMetrics(); err != nil {
+			log.Printf("Warning: Failed to initialize HFT metrics: %v", err)
+		}
+	}
+
 	return tp, nil
-}
-
-// createResource creates an OpenTelemetry resource
-func (tp *TelemetryProvider) createResource() (*resource.Resource, error) {
-	return resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(tp.config.ServiceName),
-			semconv.ServiceVersion(tp.config.ServiceVersion),
-			semconv.DeploymentEnvironment(tp.config.Environment),
-			attribute.String("component", "hft-system"),
-		),
-	)
-}
-
-// initTracing initializes OpenTelemetry tracing
-func (tp *TelemetryProvider) initTracing(resource *resource.Resource) error {
-	// Create Jaeger exporter
-	jaegerExporter, err := jaeger.New(
-		jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(tp.config.JaegerEndpoint)),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create Jaeger exporter: %w", err)
-	}
-
-	// Create tracer provider
-	tp.tracerProvider = sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(jaegerExporter),
-		sdktrace.WithResource(resource),
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(tp.config.SampleRate)),
-	)
-
-	// Set global tracer provider
-	otel.SetTracerProvider(tp.tracerProvider)
-
-	// Create tracer
-	tp.tracer = tp.tracerProvider.Tracer(
-		"hft-system",
-		trace.WithInstrumentationVersion(tp.config.ServiceVersion),
-	)
-
-	return nil
-}
-
-// initMetrics initializes OpenTelemetry metrics
-func (tp *TelemetryProvider) initMetrics(resource *resource.Resource) error {
-	// Create Prometheus exporter
-	prometheusExporter, err := prometheus.New()
-	if err != nil {
-		return fmt.Errorf("failed to create Prometheus exporter: %w", err)
-	}
-
-	// Create meter provider
-	tp.meterProvider = sdkmetric.NewMeterProvider(
-		sdkmetric.WithResource(resource),
-		sdkmetric.WithReader(prometheusExporter),
-	)
-
-	// Set global meter provider
-	otel.SetMeterProvider(tp.meterProvider)
-
-	// Create meter
-	tp.meter = tp.meterProvider.Meter(
-		"hft-system",
-		metric.WithInstrumentationVersion(tp.config.ServiceVersion),
-	)
-
-	// Initialize HFT-specific metrics
-	return tp.initHFTMetrics()
 }
 
 // initHFTMetrics initializes HFT-specific metrics
 func (tp *TelemetryProvider) initHFTMetrics() error {
+	if tp.meter == nil {
+		return fmt.Errorf("meter not initialized")
+	}
+
 	var err error
 
 	// Order latency histogram (microseconds)
@@ -308,24 +233,9 @@ func (tp *TelemetryProvider) IncrementErrorCount(ctx context.Context, attributes
 
 // Shutdown gracefully shuts down the telemetry provider
 func (tp *TelemetryProvider) Shutdown(ctx context.Context) error {
-	var errs []error
-
-	if tp.tracerProvider != nil {
-		if err := tp.tracerProvider.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("failed to shutdown tracer provider: %w", err))
-		}
-	}
-
-	if tp.meterProvider != nil {
-		if err := tp.meterProvider.Shutdown(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("failed to shutdown meter provider: %w", err))
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("shutdown errors: %v", errs)
-	}
-
+	// In this simplified version, we don't manage providers directly
+	// The global providers should be managed by the main application
+	log.Printf("Telemetry provider shutdown requested")
 	return nil
 }
 
@@ -421,15 +331,15 @@ func (m *HFTMetrics) RecordError(ctx context.Context, component, errorType, erro
 // DefaultTelemetryConfig returns a default telemetry configuration
 func DefaultTelemetryConfig() TelemetryConfig {
 	return TelemetryConfig{
-		ServiceName:     "hft-system",
-		ServiceVersion:  "1.0.0",
-		Environment:     "development",
-		JaegerEndpoint:  "http://localhost:14268/api/traces",
-		PrometheusPort:  9090,
-		SampleRate:      1.0,
-		EnableTracing:   true,
-		EnableMetrics:   true,
-		EnableLogging:   true,
+		ServiceName:    "hft-system",
+		ServiceVersion: "1.0.0",
+		Environment:    "development",
+		OTLPEndpoint:   "http://localhost:4318/v1/traces",
+		PrometheusPort: 9090,
+		SampleRate:     1.0,
+		EnableTracing:  true,
+		EnableMetrics:  true,
+		EnableLogging:  true,
 	}
 }
 
@@ -444,7 +354,7 @@ func LogTelemetryInfo(config TelemetryConfig) {
 	log.Printf("Initializing HFT Telemetry:")
 	log.Printf("  Service: %s v%s", config.ServiceName, config.ServiceVersion)
 	log.Printf("  Environment: %s", config.Environment)
-	log.Printf("  Tracing: %v (Jaeger: %s)", config.EnableTracing, config.JaegerEndpoint)
+	log.Printf("  Tracing: %v (OTLP: %s)", config.EnableTracing, config.OTLPEndpoint)
 	log.Printf("  Metrics: %v (Prometheus: %d)", config.EnableMetrics, config.PrometheusPort)
 	log.Printf("  Sample Rate: %.2f", config.SampleRate)
 }

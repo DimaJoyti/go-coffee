@@ -2,10 +2,8 @@ package brightdata
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -154,7 +152,6 @@ func (cs *CommasScraper) parseBotsFromContent(content string) ([]TradingBot, err
 			Type:        "composite", // Default type
 			Status:      "enabled",
 			Exchange:    "binance", // Default exchange
-			Source:      "3commas",
 			CreatedAt:   time.Now(),
 			LastUpdated: time.Now(),
 		}

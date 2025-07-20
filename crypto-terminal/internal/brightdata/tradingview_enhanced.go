@@ -2,10 +2,8 @@ package brightdata
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 

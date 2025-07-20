@@ -78,6 +78,8 @@ func (s *Service) GetUserPortfolios(ctx context.Context, userID string) ([]*mode
 			ID:               "portfolio-1",
 			UserID:           userID,
 			Name:             "Main Portfolio",
+			Description:      "My primary cryptocurrency investment portfolio",
+			IsPublic:         false,
 			TotalValue:       decimal.NewFromFloat(50000),
 			TotalCost:        decimal.NewFromFloat(45000),
 			TotalPnL:         decimal.NewFromFloat(5000),
@@ -129,6 +131,8 @@ func (s *Service) GetUserPortfolios(ctx context.Context, userID string) ([]*mode
 			ID:               "portfolio-2",
 			UserID:           userID,
 			Name:             "DeFi Portfolio",
+			Description:      "Diversified DeFi protocols and yield farming strategies",
+			IsPublic:         true,
 			TotalValue:       decimal.NewFromFloat(25000),
 			TotalCost:        decimal.NewFromFloat(22000),
 			TotalPnL:         decimal.NewFromFloat(3000),
@@ -310,11 +314,11 @@ func (s *Service) startPerformanceCalculation(ctx context.Context) {
 // syncAllPortfolios synchronizes all portfolios
 func (s *Service) syncAllPortfolios(ctx context.Context) {
 	// Implementation placeholder
-	logrus.Debug("Syncing all portfolios")
+	logrus.WithContext(ctx).Debug("Syncing all portfolios")
 }
 
 // calculateAllPerformanceMetrics calculates performance metrics for all portfolios
 func (s *Service) calculateAllPerformanceMetrics(ctx context.Context) {
 	// Implementation placeholder
-	logrus.Debug("Calculating performance metrics for all portfolios")
+	logrus.WithContext(ctx).Debug("Calculating performance metrics for all portfolios")
 }
