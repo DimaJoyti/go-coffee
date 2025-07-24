@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,14 +20,14 @@ import (
 
 // Service handles market data operations
 type Service struct {
-	config      *config.Config
-	db          *sql.DB
-	redis       *redis.Client
-	httpClient  *http.Client
-	isHealthy   bool
-	mu          sync.RWMutex
-	stopChan    chan struct{}
-	providers   map[string]Provider
+	config     *config.Config
+	db         *sql.DB
+	redis      *redis.Client
+	httpClient *http.Client
+	isHealthy  bool
+	mu         sync.RWMutex
+	stopChan   chan struct{}
+	providers  map[string]Provider
 }
 
 // Provider interface for market data providers
@@ -104,7 +105,7 @@ func (s *Service) GetAllPrices(ctx context.Context) ([]*models.Price, error) {
 
 	// Get from primary provider (CoinGecko)
 	symbols := []string{"bitcoin", "ethereum", "binancecoin", "cardano", "solana", "polkadot", "dogecoin", "avalanche-2", "polygon", "chainlink"}
-	
+
 	var prices []*models.Price
 	for _, provider := range s.providers {
 		if providerPrices, err := provider.GetPrices(ctx, symbols); err == nil {
@@ -211,8 +212,89 @@ func (s *Service) GetTechnicalIndicators(ctx context.Context, symbol, timeframe 
 
 // GetMarketOverview returns overall market statistics
 func (s *Service) GetMarketOverview(ctx context.Context) (*models.MarketOverview, error) {
-	// Mock data for now
+	// Try to get from cache first
+	cacheKey := "market:overview"
+	cached, err := s.redis.Get(ctx, cacheKey).Result()
+	if err == nil {
+		var overview models.MarketOverview
+		if err := json.Unmarshal([]byte(cached), &overview); err == nil {
+			return &overview, nil
+		}
+	}
+
+	// Get global market data from CoinGecko
+	url := fmt.Sprintf("%s/global", s.config.MarketData.Providers.CoinGecko.BaseURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if s.config.MarketData.Providers.CoinGecko.APIKey != "" {
+		req.Header.Set("X-CG-Demo-API-Key", s.config.MarketData.Providers.CoinGecko.APIKey)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		// Fallback to cached data or default values if API call fails
+		logrus.Warnf("Failed to fetch market overview: %v", err)
+		return s.getFallbackMarketOverview(), nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logrus.Warnf("Market overview API returned status %d", resp.StatusCode)
+		return s.getFallbackMarketOverview(), nil
+	}
+
+	var result struct {
+		Data struct {
+			TotalMarketCap            map[string]float64 `json:"total_market_cap"`
+			TotalVolume               map[string]float64 `json:"total_volume"`
+			MarketCapPercentage       map[string]float64 `json:"market_cap_percentage"`
+			MarketCapChangePercentage float64            `json:"market_cap_change_percentage_24h_usd"`
+			ActiveCryptocurrencies    int                `json:"active_cryptocurrencies"`
+			Markets                   int                `json:"markets"`
+			LastUpdated               int64              `json:"updated_at"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logrus.Warnf("Failed to decode market overview response: %v", err)
+		return s.getFallbackMarketOverview(), nil
+	}
+
+	// Extract data
 	overview := &models.MarketOverview{
+		TotalMarketCap:         decimal.NewFromFloat(result.Data.TotalMarketCap["usd"]),
+		TotalVolume24h:         decimal.NewFromFloat(result.Data.TotalVolume["usd"]),
+		MarketCapChange24h:     decimal.NewFromFloat(result.Data.MarketCapChangePercentage),
+		ActiveCryptocurrencies: result.Data.ActiveCryptocurrencies,
+		Markets:                result.Data.Markets,
+		BTCDominance:           decimal.NewFromFloat(result.Data.MarketCapPercentage["btc"]),
+		ETHDominance:           decimal.NewFromFloat(result.Data.MarketCapPercentage["eth"]),
+		LastUpdated:            time.Unix(result.Data.LastUpdated, 0),
+	}
+
+	// Get Fear & Greed Index from Alternative.me API
+	fgIndex, err := s.getFearGreedIndex(ctx)
+	if err != nil {
+		logrus.Warnf("Failed to fetch fear & greed index: %v", err)
+		overview.FearGreedIndex = 50 // Neutral as fallback
+	} else {
+		overview.FearGreedIndex = fgIndex
+	}
+
+	// Cache the result
+	if data, err := json.Marshal(overview); err == nil {
+		s.redis.Set(ctx, cacheKey, data, 15*time.Minute) // Cache for 15 minutes
+	}
+
+	return overview, nil
+}
+
+// getFallbackMarketOverview returns fallback market overview data
+func (s *Service) getFallbackMarketOverview() *models.MarketOverview {
+	return &models.MarketOverview{
 		TotalMarketCap:         decimal.NewFromFloat(2500000000000), // $2.5T
 		TotalVolume24h:         decimal.NewFromFloat(85000000000),   // $85B
 		MarketCapChange24h:     decimal.NewFromFloat(2.5),           // +2.5%
@@ -220,17 +302,133 @@ func (s *Service) GetMarketOverview(ctx context.Context) (*models.MarketOverview
 		Markets:                50000,
 		BTCDominance:           decimal.NewFromFloat(42.5),
 		ETHDominance:           decimal.NewFromFloat(18.2),
-		FearGreedIndex:         65, // Greed
+		FearGreedIndex:         50, // Neutral
 		LastUpdated:            time.Now(),
 	}
+}
 
-	return overview, nil
+// getFearGreedIndex fetches the current Fear & Greed Index
+func (s *Service) getFearGreedIndex(ctx context.Context) (int, error) {
+	url := "https://api.alternative.me/fng/?limit=1"
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Data []struct {
+			Value int `json:"value"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(result.Data) == 0 {
+		return 0, fmt.Errorf("no data returned")
+	}
+
+	return result.Data[0].Value, nil
 }
 
 // GetTopGainers returns top gaining cryptocurrencies
 func (s *Service) GetTopGainers(ctx context.Context) ([]*models.TopGainer, error) {
-	// Mock data for now
-	gainers := []*models.TopGainer{
+	// Try to get from cache first
+	cacheKey := "market:top_gainers"
+	cached, err := s.redis.Get(ctx, cacheKey).Result()
+	if err == nil {
+		var gainers []*models.TopGainer
+		if err := json.Unmarshal([]byte(cached), &gainers); err == nil {
+			return gainers, nil
+		}
+	}
+
+	// Get top coins from CoinGecko
+	url := fmt.Sprintf("%s/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h",
+		s.config.MarketData.Providers.CoinGecko.BaseURL)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return s.getMockTopGainers(), fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if s.config.MarketData.Providers.CoinGecko.APIKey != "" {
+		req.Header.Set("X-CG-Demo-API-Key", s.config.MarketData.Providers.CoinGecko.APIKey)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		// Fallback to mock data if API call fails
+		logrus.Warnf("Failed to fetch top gainers: %v", err)
+		return s.getMockTopGainers(), nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logrus.Warnf("Top gainers API returned status %d", resp.StatusCode)
+		return s.getMockTopGainers(), nil
+	}
+
+	var coins []struct {
+		ID                 string  `json:"id"`
+		Symbol             string  `json:"symbol"`
+		Name               string  `json:"name"`
+		CurrentPrice       float64 `json:"current_price"`
+		MarketCap          float64 `json:"market_cap"`
+		TotalVolume        float64 `json:"total_volume"`
+		PriceChangePercent float64 `json:"price_change_percentage_24h"`
+		LastUpdated        string  `json:"last_updated"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&coins); err != nil {
+		logrus.Warnf("Failed to decode top gainers response: %v", err)
+		return s.getMockTopGainers(), nil
+	}
+
+	// Filter and sort by price change percentage (descending)
+	var gainers []*models.TopGainer
+	for _, coin := range coins {
+		if coin.PriceChangePercent > 0 && len(gainers) < 10 {
+			_, _ = time.Parse(time.RFC3339, coin.LastUpdated)
+
+			gainer := &models.TopGainer{
+				Symbol:    strings.ToUpper(coin.Symbol),
+				Name:      coin.Name,
+				Price:     decimal.NewFromFloat(coin.CurrentPrice),
+				Change24h: decimal.NewFromFloat(coin.PriceChangePercent),
+				Volume24h: decimal.NewFromFloat(coin.TotalVolume),
+			}
+			gainers = append(gainers, gainer)
+		}
+	}
+
+	// If no gainers found, return mock data
+	if len(gainers) == 0 {
+		return s.getMockTopGainers(), nil
+	}
+
+	// Cache the result
+	if data, err := json.Marshal(gainers); err == nil {
+		s.redis.Set(ctx, cacheKey, data, 5*time.Minute) // Cache for 5 minutes
+	}
+
+	return gainers, nil
+}
+
+// getMockTopGainers returns mock top gainers data
+func (s *Service) getMockTopGainers() []*models.TopGainer {
+	return []*models.TopGainer{
 		{
 			Symbol:    "SOL",
 			Name:      "Solana",
@@ -246,8 +444,6 @@ func (s *Service) GetTopGainers(ctx context.Context) ([]*models.TopGainer, error
 			Volume24h: decimal.NewFromFloat(850000000),
 		},
 	}
-
-	return gainers, nil
 }
 
 // GetTopLosers returns top losing cryptocurrencies

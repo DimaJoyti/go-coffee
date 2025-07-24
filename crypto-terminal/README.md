@@ -65,6 +65,24 @@ crypto-terminal/
 └── tests/               # Test files
 ```
 
+## 🆕 Recent Updates
+
+### Enhanced Features
+- **OpenTelemetry Integration**: Comprehensive monitoring, tracing, and metrics
+- **Enhanced Configuration**: Environment-specific settings with validation
+- **Improved Health Monitoring**: Detailed component health checks
+- **Real API Integration**: Replaced mock data with live API calls
+- **Database Migrations**: Complete database schema with migrations
+- **Go Coffee Integration**: Kafka-based ecosystem integration
+- **Enhanced WebSocket Hub**: Improved real-time communication with subscriptions
+- **Comprehensive Testing**: Unit, integration, and benchmark tests
+
+### Performance Improvements
+- **Caching Strategy**: Redis-based caching for market data and user sessions
+- **Connection Pooling**: Optimized database and Redis connection management
+- **Error Handling**: Robust error handling with fallback mechanisms
+- **Security Enhancements**: CORS middleware, rate limiting, and input validation
+
 ## 🚀 Quick Start
 
 ### Prerequisites

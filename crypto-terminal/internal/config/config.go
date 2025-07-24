@@ -2,28 +2,31 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
 // Config represents the application configuration
 type Config struct {
-	Server           ServerConfig           `mapstructure:"server"`
-	MarketData       MarketDataConfig       `mapstructure:"market_data"`
-	Redis            RedisConfig            `mapstructure:"redis"`
-	Database         DatabaseConfig         `mapstructure:"database"`
-	WebSocket        WebSocketConfig        `mapstructure:"websocket"`
+	Server            ServerConfig            `mapstructure:"server"`
+	MarketData        MarketDataConfig        `mapstructure:"market_data"`
+	Redis             RedisConfig             `mapstructure:"redis"`
+	Database          DatabaseConfig          `mapstructure:"database"`
+	WebSocket         WebSocketConfig         `mapstructure:"websocket"`
 	TechnicalAnalysis TechnicalAnalysisConfig `mapstructure:"technical_analysis"`
-	Portfolio        PortfolioConfig        `mapstructure:"portfolio"`
-	Alerts           AlertsConfig           `mapstructure:"alerts"`
-	Integrations     IntegrationsConfig     `mapstructure:"integrations"`
-	Logging          LoggingConfig          `mapstructure:"logging"`
-	Monitoring       MonitoringConfig       `mapstructure:"monitoring"`
-	Security         SecurityConfig         `mapstructure:"security"`
-	DeFi             DeFiConfig             `mapstructure:"defi"`
-	AI               AIConfig               `mapstructure:"ai"`
-	HFT              *HFTConfig             `mapstructure:"hft"`
+	Portfolio         PortfolioConfig         `mapstructure:"portfolio"`
+	Alerts            AlertsConfig            `mapstructure:"alerts"`
+	Integrations      IntegrationsConfig      `mapstructure:"integrations"`
+	Logging           LoggingConfig           `mapstructure:"logging"`
+	Monitoring        MonitoringConfig        `mapstructure:"monitoring"`
+	Security          SecurityConfig          `mapstructure:"security"`
+	DeFi              DeFiConfig              `mapstructure:"defi"`
+	AI                AIConfig                `mapstructure:"ai"`
+	HFT               *HFTConfig              `mapstructure:"hft"`
 }
 
 // ServerConfig holds server configuration
@@ -37,9 +40,9 @@ type ServerConfig struct {
 
 // MarketDataConfig holds market data provider configuration
 type MarketDataConfig struct {
-	Providers ProvidersConfig `mapstructure:"providers"`
-	Exchanges ExchangesConfig `mapstructure:"exchanges"`
-	Cache     CacheConfig     `mapstructure:"cache"`
+	Providers   ProvidersConfig   `mapstructure:"providers"`
+	Exchanges   ExchangesConfig   `mapstructure:"exchanges"`
+	Cache       CacheConfig       `mapstructure:"cache"`
 	Aggregation AggregationConfig `mapstructure:"aggregation"`
 }
 
@@ -181,16 +184,16 @@ type IndicatorConfig struct {
 
 // PortfolioConfig holds portfolio configuration
 type PortfolioConfig struct {
-	SyncInterval                    time.Duration `mapstructure:"sync_interval"`
-	PerformanceCalculationInterval  time.Duration `mapstructure:"performance_calculation_interval"`
+	SyncInterval                   time.Duration `mapstructure:"sync_interval"`
+	PerformanceCalculationInterval time.Duration `mapstructure:"performance_calculation_interval"`
 	RiskMetricsInterval            time.Duration `mapstructure:"risk_metrics_interval"`
 }
 
 // AlertsConfig holds alerts configuration
 type AlertsConfig struct {
-	MaxAlertsPerUser       int           `mapstructure:"max_alerts_per_user"`
-	CheckInterval          time.Duration `mapstructure:"check_interval"`
-	NotificationChannels   []string      `mapstructure:"notification_channels"`
+	MaxAlertsPerUser     int           `mapstructure:"max_alerts_per_user"`
+	CheckInterval        time.Duration `mapstructure:"check_interval"`
+	NotificationChannels []string      `mapstructure:"notification_channels"`
 }
 
 // IntegrationsConfig holds integration configuration
@@ -224,9 +227,9 @@ type LoggingConfig struct {
 
 // MonitoringConfig holds monitoring configuration
 type MonitoringConfig struct {
-	MetricsEnabled        bool          `mapstructure:"metrics_enabled"`
-	TracingEnabled        bool          `mapstructure:"tracing_enabled"`
-	HealthCheckInterval   time.Duration `mapstructure:"health_check_interval"`
+	MetricsEnabled      bool          `mapstructure:"metrics_enabled"`
+	TracingEnabled      bool          `mapstructure:"tracing_enabled"`
+	HealthCheckInterval time.Duration `mapstructure:"health_check_interval"`
 }
 
 // SecurityConfig holds security configuration
@@ -244,9 +247,9 @@ type CORSConfig struct {
 
 // RateLimitingConfig holds rate limiting configuration
 type RateLimitingConfig struct {
-	Enabled            bool `mapstructure:"enabled"`
-	RequestsPerMinute  int  `mapstructure:"requests_per_minute"`
-	Burst              int  `mapstructure:"burst"`
+	Enabled           bool `mapstructure:"enabled"`
+	RequestsPerMinute int  `mapstructure:"requests_per_minute"`
+	Burst             int  `mapstructure:"burst"`
 }
 
 // DeFiConfig holds DeFi configuration
@@ -280,9 +283,9 @@ type CompoundConfig struct {
 
 // ArbitrageConfig holds arbitrage configuration
 type ArbitrageConfig struct {
-	MinProfitThreshold  float64 `mapstructure:"min_profit_threshold"`
-	MaxGasPrice         int     `mapstructure:"max_gas_price"`
-	SlippageTolerance   float64 `mapstructure:"slippage_tolerance"`
+	MinProfitThreshold float64 `mapstructure:"min_profit_threshold"`
+	MaxGasPrice        int     `mapstructure:"max_gas_price"`
+	SlippageTolerance  float64 `mapstructure:"slippage_tolerance"`
 }
 
 // AIConfig holds AI configuration
@@ -307,11 +310,11 @@ type SentimentAnalysisConfig struct {
 
 // HFTConfig holds High-Frequency Trading configuration
 type HFTConfig struct {
-	Enabled           bool                  `mapstructure:"enabled"`
-	Feeds             HFTFeedsConfig        `mapstructure:"feeds"`
-	OrderManagement   HFTOMSConfig          `mapstructure:"order_management"`
-	StrategyEngine    HFTStrategyConfig     `mapstructure:"strategy_engine"`
-	RiskManagement    HFTRiskConfig         `mapstructure:"risk_management"`
+	Enabled         bool              `mapstructure:"enabled"`
+	Feeds           HFTFeedsConfig    `mapstructure:"feeds"`
+	OrderManagement HFTOMSConfig      `mapstructure:"order_management"`
+	StrategyEngine  HFTStrategyConfig `mapstructure:"strategy_engine"`
+	RiskManagement  HFTRiskConfig     `mapstructure:"risk_management"`
 }
 
 // HFTFeedsConfig holds HFT market data feeds configuration
@@ -350,11 +353,21 @@ type HFTRiskConfig struct {
 
 // Load loads configuration from file and environment variables
 func Load(configPath string) (*Config, error) {
+	// Set default values
+	setDefaults()
+
+	// Configure viper
 	viper.SetConfigFile(configPath)
 	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	// Read config file if it exists
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+		// Config file not found, use defaults and environment variables
+		logrus.Warn("Config file not found, using defaults and environment variables")
 	}
 
 	var config Config
@@ -362,7 +375,220 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Validate configuration
+	if err := validateConfig(&config); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// Apply environment-specific overrides
+	applyEnvironmentOverrides(&config)
+
 	return &config, nil
+}
+
+// setDefaults sets default configuration values
+func setDefaults() {
+	// Server defaults
+	viper.SetDefault("server.port", 8090)
+	viper.SetDefault("server.host", "0.0.0.0")
+	viper.SetDefault("server.read_timeout", "30s")
+	viper.SetDefault("server.write_timeout", "30s")
+	viper.SetDefault("server.idle_timeout", "120s")
+
+	// Redis defaults
+	viper.SetDefault("redis.host", "localhost")
+	viper.SetDefault("redis.port", 6379)
+	viper.SetDefault("redis.db", 2)
+	viper.SetDefault("redis.max_retries", 3)
+	viper.SetDefault("redis.pool_size", 10)
+	viper.SetDefault("redis.min_idle_conns", 5)
+
+	// Database defaults
+	viper.SetDefault("database.host", "localhost")
+	viper.SetDefault("database.port", 5432)
+	viper.SetDefault("database.name", "crypto_terminal")
+	viper.SetDefault("database.user", "postgres")
+	viper.SetDefault("database.ssl_mode", "disable")
+	viper.SetDefault("database.max_open_conns", 25)
+	viper.SetDefault("database.max_idle_conns", 5)
+	viper.SetDefault("database.conn_max_lifetime", "5m")
+
+	// Market data defaults
+	viper.SetDefault("market_data.providers.coingecko.base_url", "https://api.coingecko.com/api/v3")
+	viper.SetDefault("market_data.providers.coingecko.rate_limit", 50)
+	viper.SetDefault("market_data.providers.coingecko.timeout", "10s")
+	viper.SetDefault("market_data.providers.binance.rest_url", "https://api.binance.com")
+	viper.SetDefault("market_data.providers.binance.websocket_url", "wss://stream.binance.com:9443/ws")
+	viper.SetDefault("market_data.providers.binance.timeout", "10s")
+
+	// Cache defaults
+	viper.SetDefault("market_data.cache.price_ttl", "30s")
+	viper.SetDefault("market_data.cache.indicator_ttl", "5m")
+	viper.SetDefault("market_data.cache.market_data_ttl", "1m")
+
+	// WebSocket defaults
+	viper.SetDefault("websocket.read_buffer_size", 1024)
+	viper.SetDefault("websocket.write_buffer_size", 1024)
+	viper.SetDefault("websocket.check_origin", false)
+	viper.SetDefault("websocket.ping_period", "54s")
+	viper.SetDefault("websocket.pong_wait", "60s")
+	viper.SetDefault("websocket.write_wait", "10s")
+
+	// Portfolio defaults
+	viper.SetDefault("portfolio.sync_interval", "5m")
+	viper.SetDefault("portfolio.performance_calculation_interval", "1h")
+	viper.SetDefault("portfolio.risk_metrics_interval", "30m")
+
+	// Alerts defaults
+	viper.SetDefault("alerts.max_alerts_per_user", 100)
+	viper.SetDefault("alerts.check_interval", "30s")
+	viper.SetDefault("alerts.notification_channels", []string{"EMAIL", "PUSH"})
+
+	// Logging defaults
+	viper.SetDefault("logging.level", "info")
+	viper.SetDefault("logging.format", "json")
+	viper.SetDefault("logging.output", "stdout")
+
+	// Monitoring defaults
+	viper.SetDefault("monitoring.metrics_enabled", true)
+	viper.SetDefault("monitoring.tracing_enabled", true)
+	viper.SetDefault("monitoring.health_check_interval", "30s")
+
+	// Security defaults
+	viper.SetDefault("security.cors.allowed_origins", []string{"http://localhost:3000", "http://localhost:8090"})
+	viper.SetDefault("security.cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	viper.SetDefault("security.cors.allowed_headers", []string{"Content-Type", "Authorization", "X-Requested-With"})
+	viper.SetDefault("security.rate_limiting.enabled", true)
+	viper.SetDefault("security.rate_limiting.requests_per_minute", 1000)
+	viper.SetDefault("security.rate_limiting.burst", 100)
+
+	// HFT defaults
+	viper.SetDefault("hft.enabled", false)
+}
+
+// validateConfig validates the configuration
+func validateConfig(config *Config) error {
+	// Validate server configuration
+	if config.Server.Port <= 0 || config.Server.Port > 65535 {
+		return fmt.Errorf("invalid server port: %d", config.Server.Port)
+	}
+
+	// Validate database configuration
+	if config.Database.Host == "" {
+		return fmt.Errorf("database host is required")
+	}
+	if config.Database.Name == "" {
+		return fmt.Errorf("database name is required")
+	}
+	if config.Database.User == "" {
+		return fmt.Errorf("database user is required")
+	}
+
+	// Validate Redis configuration
+	if config.Redis.Host == "" {
+		return fmt.Errorf("redis host is required")
+	}
+	if config.Redis.Port <= 0 || config.Redis.Port > 65535 {
+		return fmt.Errorf("invalid redis port: %d", config.Redis.Port)
+	}
+
+	// Validate market data configuration
+	if config.MarketData.Providers.CoinGecko.BaseURL == "" {
+		return fmt.Errorf("coingecko base URL is required")
+	}
+	if config.MarketData.Providers.Binance.RestURL == "" {
+		return fmt.Errorf("binance rest URL is required")
+	}
+
+	return nil
+}
+
+// applyEnvironmentOverrides applies environment-specific configuration overrides
+func applyEnvironmentOverrides(config *Config) {
+	// Check for environment-specific settings
+	env := os.Getenv("ENVIRONMENT")
+	if env == "" {
+		env = os.Getenv("ENV")
+	}
+
+	switch strings.ToLower(env) {
+	case "development", "dev":
+		applyDevelopmentOverrides(config)
+	case "production", "prod":
+		applyProductionOverrides(config)
+	case "testing", "test":
+		applyTestingOverrides(config)
+	}
+}
+
+// applyDevelopmentOverrides applies development environment overrides
+func applyDevelopmentOverrides(config *Config) {
+	// Enable debug logging
+	config.Logging.Level = "debug"
+	config.Logging.Format = "text"
+
+	// Disable CORS origin checking for development
+	config.WebSocket.CheckOrigin = false
+
+	// Enable all monitoring features
+	config.Monitoring.MetricsEnabled = true
+	config.Monitoring.TracingEnabled = true
+
+	// Relaxed rate limiting for development
+	config.Security.RateLimiting.RequestsPerMinute = 10000
+	config.Security.RateLimiting.Burst = 1000
+
+	logrus.Info("Applied development environment overrides")
+}
+
+// applyProductionOverrides applies production environment overrides
+func applyProductionOverrides(config *Config) {
+	// Production logging
+	config.Logging.Level = "info"
+	config.Logging.Format = "json"
+
+	// Strict CORS checking
+	config.WebSocket.CheckOrigin = true
+
+	// Enable all monitoring features
+	config.Monitoring.MetricsEnabled = true
+	config.Monitoring.TracingEnabled = true
+
+	// Strict rate limiting for production
+	config.Security.RateLimiting.Enabled = true
+
+	// Disable HFT by default in production unless explicitly enabled
+	if !viper.IsSet("hft.enabled") {
+		config.HFT.Enabled = false
+	}
+
+	logrus.Info("Applied production environment overrides")
+}
+
+// applyTestingOverrides applies testing environment overrides
+func applyTestingOverrides(config *Config) {
+	// Test logging
+	config.Logging.Level = "warn"
+	config.Logging.Format = "text"
+
+	// Disable external services for testing
+	config.Monitoring.MetricsEnabled = false
+	config.Monitoring.TracingEnabled = false
+
+	// Disable rate limiting for tests
+	config.Security.RateLimiting.Enabled = false
+
+	// Use test database
+	if !viper.IsSet("database.name") {
+		config.Database.Name = "crypto_terminal_test"
+	}
+
+	// Use test Redis DB
+	if !viper.IsSet("redis.db") {
+		config.Redis.DB = 15 // Use last Redis DB for tests
+	}
+
+	logrus.Info("Applied testing environment overrides")
 }
 
 // GetDSN returns the database connection string

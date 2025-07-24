@@ -12,16 +12,81 @@ import (
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/api"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/brightdata"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/config"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/health"
+	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/middleware"
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/terminal"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/prometheus"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
 	version   = "1.0.0"
 	buildTime = "unknown"
 	gitCommit = "unknown"
+	tracer    trace.Tracer
 )
+
+// initTelemetry initializes OpenTelemetry tracing and metrics
+func initTelemetry(ctx context.Context, serviceName string) (func(), error) {
+	// Create resource
+	res, err := resource.New(ctx,
+		resource.WithAttributes(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize tracing
+	traceExporter, err := otlptracehttp.New(ctx)
+	if err != nil {
+		logrus.Warnf("Failed to create trace exporter: %v", err)
+	}
+
+	var tracerProvider *sdktrace.TracerProvider
+	if traceExporter != nil {
+		tracerProvider = sdktrace.NewTracerProvider(
+			sdktrace.WithBatcher(traceExporter),
+			sdktrace.WithResource(res),
+		)
+		otel.SetTracerProvider(tracerProvider)
+	}
+
+	// Initialize metrics
+	promExporter, err := prometheus.New()
+	if err != nil {
+		logrus.Warnf("Failed to create prometheus exporter: %v", err)
+	}
+
+	var meterProvider *sdkmetric.MeterProvider
+	if promExporter != nil {
+		meterProvider = sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(res),
+			sdkmetric.WithReader(promExporter),
+		)
+		otel.SetMeterProvider(meterProvider)
+	}
+
+	// Set global tracer
+	tracer = otel.Tracer(serviceName)
+
+	// Return cleanup function
+	return func() {
+		if tracerProvider != nil {
+			tracerProvider.Shutdown(ctx)
+		}
+		if meterProvider != nil {
+			meterProvider.Shutdown(ctx)
+		}
+	}, nil
+}
 
 func main() {
 	// Load configuration
@@ -32,6 +97,14 @@ func main() {
 
 	// Setup logging
 	setupLogging(cfg.Logging)
+
+	// Initialize telemetry
+	ctx := context.Background()
+	cleanup, err := initTelemetry(ctx, "crypto-terminal")
+	if err != nil {
+		logrus.Warnf("Failed to initialize telemetry: %v", err)
+	}
+	defer cleanup()
 
 	logrus.WithFields(logrus.Fields{
 		"version":    version,
@@ -45,38 +118,49 @@ func main() {
 		logrus.Fatalf("Failed to create terminal service: %v", err)
 	}
 
+	// Create health service
+	healthService, err := health.NewService(cfg, nil, nil)
+	if err != nil {
+		logrus.Fatalf("Failed to create health service: %v", err)
+	}
+
+	// Initialize telemetry middleware
+	if err := middleware.InitTelemetryMiddleware(); err != nil {
+		logrus.Warnf("Failed to initialize telemetry middleware: %v", err)
+	}
+
 	// Setup Gin router
 	if cfg.Logging.Level != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.New()
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
 
-	// Setup CORS
-	router.Use(func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-		for _, allowedOrigin := range cfg.Security.CORS.AllowedOrigins {
-			if origin == allowedOrigin {
-				c.Header("Access-Control-Allow-Origin", origin)
-				break
-			}
-		}
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Header("Access-Control-Allow-Credentials", "true")
+	// Add telemetry and observability middleware
+	router.Use(middleware.RecoveryMiddleware())
+	router.Use(middleware.TracingMiddleware())
+	router.Use(middleware.MetricsMiddleware())
+	router.Use(middleware.LoggingMiddleware())
+	router.Use(middleware.ErrorHandlingMiddleware())
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
+	// Setup CORS with proper middleware
+	corsConfig := cors.Config{
+		AllowOrigins:     cfg.Security.CORS.AllowedOrigins,
+		AllowMethods:     cfg.Security.CORS.AllowedMethods,
+		AllowHeaders:     cfg.Security.CORS.AllowedHeaders,
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}
 
-		c.Next()
-	})
+	// If no origins specified, allow all for development
+	if len(corsConfig.AllowOrigins) == 0 {
+		corsConfig.AllowAllOrigins = true
+	}
+
+	router.Use(cors.New(corsConfig))
 
 	// Setup routes
-	setupRoutes(router, terminalService)
+	setupRoutes(router, terminalService, healthService)
 
 	// Create HTTP server
 	server := &http.Server{
@@ -95,10 +179,18 @@ func main() {
 		}
 	}()
 
-	// Start terminal service
+	// Start services
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Start health service
+	go func() {
+		if err := healthService.Start(ctx); err != nil {
+			logrus.Errorf("Health service error: %v", err)
+		}
+	}()
+
+	// Start terminal service
 	go func() {
 		if err := terminalService.Start(ctx); err != nil {
 			logrus.Errorf("Terminal service error: %v", err)
@@ -154,11 +246,46 @@ func setupLogging(cfg config.LoggingConfig) {
 	}
 }
 
-func setupRoutes(router *gin.Engine, service *terminal.Service) {
-	// Health check
+func setupRoutes(router *gin.Engine, service *terminal.Service, healthService *health.Service) {
+	// Health check endpoints
 	router.GET("/health", func(c *gin.Context) {
-		health := service.GetHealthStatus()
-		c.JSON(http.StatusOK, health)
+		systemHealth := healthService.GetSystemHealth()
+
+		// Return appropriate status code based on health
+		statusCode := http.StatusOK
+		if systemHealth.Status == health.StatusUnhealthy {
+			statusCode = http.StatusServiceUnavailable
+		} else if systemHealth.Status == health.StatusDegraded {
+			statusCode = http.StatusPartialContent
+		}
+
+		c.JSON(statusCode, systemHealth)
+	})
+
+	// Simple liveness probe
+	router.GET("/health/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "alive",
+			"timestamp": time.Now(),
+		})
+	})
+
+	// Readiness probe
+	router.GET("/health/ready", func(c *gin.Context) {
+		systemHealth := healthService.GetSystemHealth()
+
+		if systemHealth.Status == health.StatusUnhealthy {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status":    "not ready",
+				"timestamp": time.Now(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "ready",
+			"timestamp": time.Now(),
+		})
 	})
 
 	// Version info

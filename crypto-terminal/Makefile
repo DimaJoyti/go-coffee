@@ -80,6 +80,27 @@ bench:
 	@echo "Running benchmarks..."
 	$(GOTEST) -v -bench=. -benchmem ./...
 
+# Run unit tests only
+test-unit:
+	@echo "Running unit tests..."
+	$(GOTEST) -v -short ./...
+
+# Run integration tests only
+test-integration:
+	@echo "Running integration tests..."
+	$(GOTEST) -v -run Integration ./test/...
+
+# Database migration targets
+migrate-up:
+	@echo "Running database migrations up..."
+	@which migrate > /dev/null || (echo "Please install golang-migrate: https://github.com/golang-migrate/migrate" && exit 1)
+	migrate -path ./migrations -database "postgres://postgres:password@localhost:5432/crypto_terminal?sslmode=disable" up
+
+migrate-down:
+	@echo "Running database migrations down..."
+	@which migrate > /dev/null || (echo "Please install golang-migrate: https://github.com/golang-migrate/migrate" && exit 1)
+	migrate -path ./migrations -database "postgres://postgres:password@localhost:5432/crypto_terminal?sslmode=disable" down
+
 # Lint the code
 lint:
 	@echo "Running linter..."
