@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +9,6 @@ import { formatCurrency, formatPercent } from '@/lib/utils'
 import {
   BarChart3,
   TrendingUp,
-  TrendingDown,
   Maximize2,
   Settings,
   RefreshCw,
@@ -41,13 +40,28 @@ export function TradingViewChart() {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Mock chart data - in real implementation, this would come from TradingView API
-  const currentPrice = priceUpdates[selectedSymbol.replace('USDT', '')]?.price || 
-                      marketData[selectedSymbol.replace('USDT', '')]?.currentPrice || 
+  const currentPrice = priceUpdates[selectedSymbol.replace('USDT', '')]?.price ||
+                      marketData[selectedSymbol.replace('USDT', '')]?.currentPrice ||
                       45000
 
-  const change24h = priceUpdates[selectedSymbol.replace('USDT', '')]?.changePercent || 
-                   marketData[selectedSymbol.replace('USDT', '')]?.change24h || 
+  const change24h = priceUpdates[selectedSymbol.replace('USDT', '')]?.changePercent ||
+                   marketData[selectedSymbol.replace('USDT', '')]?.change24h ||
                    2.5
+
+  // Mock volume data based on symbol
+  const getVolumeData = (symbol: string) => {
+    const volumeMap: Record<string, { volume24h: number; avgVolume7d: number }> = {
+      'BTCUSDT': { volume24h: 28500000000, avgVolume7d: 25800000000 },
+      'ETHUSDT': { volume24h: 15200000000, avgVolume7d: 14100000000 },
+      'BNBUSDT': { volume24h: 2800000000, avgVolume7d: 2650000000 },
+      'ADAUSDT': { volume24h: 1200000000, avgVolume7d: 1150000000 },
+      'SOLUSDT': { volume24h: 3400000000, avgVolume7d: 3100000000 },
+      'XRPUSDT': { volume24h: 2100000000, avgVolume7d: 1950000000 },
+    }
+    return volumeMap[symbol] || { volume24h: 1000000000, avgVolume7d: 950000000 }
+  }
+
+  const volumeData = getVolumeData(selectedSymbol)
 
   return (
     <div className="space-y-6">
@@ -241,7 +255,7 @@ export function TradingViewChart() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">24h Volume</span>
                 <span className="text-sm font-medium">
-                  {formatCurrency(Math.random() * 1000000000 + 500000000, 'USD', 0, 0)}
+                  ${(volumeData.volume24h / 1000000000).toFixed(2)}B
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -254,7 +268,7 @@ export function TradingViewChart() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">Avg Volume (7d)</span>
                 <span className="text-sm font-medium">
-                  {formatCurrency(Math.random() * 800000000 + 400000000, 'USD', 0, 0)}
+                  ${(volumeData.avgVolume7d / 1000000000).toFixed(2)}B
                 </span>
               </div>
             </div>

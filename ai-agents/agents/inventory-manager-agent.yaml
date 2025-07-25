@@ -1,0 +1,501 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-manager-config
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: ai-agent
+data:
+  # Agent configuration
+  agent-config.yaml: |
+    agent:
+      name: "Inventory Manager"
+      version: "1.0.0"
+      description: "AI agent for intelligent inventory management and supply chain optimization"
+      
+    capabilities:
+      - demand_forecasting
+      - stock_optimization
+      - supplier_management
+      - waste_reduction
+      - cost_optimization
+      - seasonal_planning
+      - automated_ordering
+      - quality_monitoring
+      
+    models:
+      primary: "mistral:7b-instruct"
+      fallback: "llama2:13b-chat"
+      embedding: "nomic-embed-text"
+      
+    parameters:
+      forecast_horizon_days: 30
+      safety_stock_percentage: 15
+      reorder_point_buffer: 0.2
+      cost_optimization_weight: 0.7
+      quality_threshold: 0.85
+      waste_tolerance: 0.05
+      
+    integrations:
+      - inventory_database
+      - sales_analytics
+      - supplier_apis
+      - weather_service
+      - market_trends
+      - quality_sensors
+
+  # AI prompts for inventory management
+  prompts.yaml: |
+    system_prompt: |
+      You are the Inventory Manager, an expert AI system specializing in coffee shop inventory management and supply chain optimization. Your role is to:
+      
+      1. Predict demand for coffee beans, milk, syrups, and other supplies
+      2. Optimize stock levels to minimize waste and stockouts
+      3. Manage supplier relationships and procurement
+      4. Monitor quality and freshness of inventory
+      5. Reduce costs while maintaining quality standards
+      6. Plan for seasonal variations and trends
+      
+      Always consider:
+      - Freshness and quality of coffee products
+      - Cost efficiency and budget constraints
+      - Seasonal demand patterns
+      - Supplier reliability and lead times
+      - Storage capacity and shelf life
+      - Customer satisfaction and service levels
+      
+      Provide data-driven recommendations with confidence scores and reasoning.
+    
+    demand_forecast_prompt: |
+      Analyze the following data to forecast demand for the next {forecast_days} days:
+      
+      Historical sales data: {sales_data}
+      Current inventory levels: {current_inventory}
+      Seasonal factors: {seasonal_factors}
+      Weather forecast: {weather_data}
+      Promotional calendar: {promotions}
+      Market trends: {trends}
+      
+      Provide:
+      1. Daily demand forecast for each product
+      2. Confidence intervals (95%)
+      3. Key factors influencing demand
+      4. Risk assessment
+      5. Recommended safety stock levels
+      6. Optimal reorder points
+    
+    supplier_optimization_prompt: |
+      Evaluate suppliers for {product_category} based on:
+      
+      Supplier data: {supplier_info}
+      Historical performance: {performance_data}
+      Current market conditions: {market_conditions}
+      Quality requirements: {quality_specs}
+      Cost constraints: {budget_limits}
+      
+      Recommend:
+      1. Primary and backup suppliers
+      2. Optimal order quantities
+      3. Delivery schedules
+      4. Quality monitoring requirements
+      5. Cost optimization opportunities
+      6. Risk mitigation strategies
+    
+    waste_reduction_prompt: |
+      Analyze inventory waste patterns and recommend improvements:
+      
+      Waste data: {waste_history}
+      Product shelf life: {shelf_life_data}
+      Storage conditions: {storage_info}
+      Sales velocity: {velocity_data}
+      
+      Provide:
+      1. Root cause analysis of waste
+      2. Waste reduction strategies
+      3. Optimal ordering patterns
+      4. Storage optimization
+      5. Pricing strategies for aging inventory
+      6. Staff training recommendations
+
+  # Inventory optimization algorithms
+  algorithms.yaml: |
+    forecasting:
+      method: "ensemble"
+      models:
+        - "arima"
+        - "exponential_smoothing"
+        - "neural_network"
+        - "seasonal_decomposition"
+      weights: [0.3, 0.2, 0.3, 0.2]
+      
+    reorder_calculation:
+      formula: "demand_forecast * lead_time + safety_stock"
+      safety_stock_formula: "sqrt(lead_time) * demand_std * service_level_factor"
+      service_level: 0.95
+      
+    abc_analysis:
+      a_threshold: 0.8  # 80% of value
+      b_threshold: 0.95  # 95% of value
+      review_frequency:
+        a_items: "daily"
+        b_items: "weekly"
+        c_items: "monthly"
+    
+    economic_order_quantity:
+      formula: "sqrt(2 * annual_demand * ordering_cost / holding_cost)"
+      holding_cost_rate: 0.25  # 25% annually
+      ordering_cost: 50  # $50 per order
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-manager
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: ai-agent
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inventory-manager
+      app.kubernetes.io/component: ai-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: inventory-manager
+        app.kubernetes.io/component: ai-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Scheduling preferences
+      nodeSelector:
+        workload-type: ai-gpu
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      priorityClassName: ai-high-priority
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      serviceAccountName: inventory-manager
+      
+      containers:
+      - name: inventory-manager
+        image: go-coffee/inventory-manager:v1.0.0
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        
+        env:
+        # Agent configuration
+        - name: AGENT_NAME
+          value: "inventory-manager"
+        - name: AGENT_VERSION
+          value: "1.0.0"
+        - name: LOG_LEVEL
+          value: "info"
+        
+        # Ollama connection
+        - name: OLLAMA_HOST
+          value: "ollama.go-coffee-ai.svc.cluster.local:11434"
+        - name: PRIMARY_MODEL
+          value: "mistral:7b-instruct"
+        - name: FALLBACK_MODEL
+          value: "llama2:13b-chat"
+        - name: EMBEDDING_MODEL
+          value: "nomic-embed-text"
+        
+        # Service connections
+        - name: INVENTORY_SERVICE_URL
+          value: "http://go-coffee-inventory-service.go-coffee.svc.cluster.local:8080"
+        - name: SALES_ANALYTICS_URL
+          value: "http://go-coffee-analytics.go-coffee.svc.cluster.local:8080"
+        - name: WEATHER_API_URL
+          value: "https://api.openweathermap.org/data/2.5"
+        
+        # External API keys
+        - name: WEATHER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inventory-manager-secrets
+              key: weather-api-key
+        - name: SUPPLIER_API_KEYS
+          valueFrom:
+            secretKeyRef:
+              name: inventory-manager-secrets
+              key: supplier-api-keys
+        
+        # Database connections
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-db-secret
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-redis-secret
+              key: redis-url
+        
+        # Time series database for forecasting
+        - name: TIMESERIES_DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: inventory-manager-secrets
+              key: timeseries-db-url
+        
+        # Volume mounts
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: prompts
+          mountPath: /app/prompts
+          readOnly: true
+        - name: algorithms
+          mountPath: /app/algorithms
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/cache
+        - name: models
+          mountPath: /app/models
+        
+        # Resource requirements
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+            nvidia.com/gpu: "0.25"
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            nvidia.com/gpu: "0.5"
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      
+      # Forecasting model sidecar
+      - name: forecasting-engine
+        image: go-coffee/forecasting-engine:v1.0.0
+        ports:
+        - name: forecast-api
+          containerPort: 8081
+          protocol: TCP
+        
+        env:
+        - name: MODEL_PATH
+          value: "/models"
+        - name: CACHE_SIZE
+          value: "1000"
+        - name: UPDATE_INTERVAL
+          value: "3600"  # 1 hour
+        
+        volumeMounts:
+        - name: models
+          mountPath: /models
+        - name: cache
+          mountPath: /cache
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: config
+        configMap:
+          name: inventory-manager-config
+          items:
+          - key: agent-config.yaml
+            path: agent-config.yaml
+      - name: prompts
+        configMap:
+          name: inventory-manager-config
+          items:
+          - key: prompts.yaml
+            path: prompts.yaml
+      - name: algorithms
+        configMap:
+          name: inventory-manager-config
+          items:
+          - key: algorithms.yaml
+            path: algorithms.yaml
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir:
+          sizeLimit: 2Gi
+      - name: models
+        persistentVolumeClaim:
+          claimName: inventory-models-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-manager
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: ai-agent
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 50051
+    targetPort: grpc
+    protocol: TCP
+  - name: forecast-api
+    port: 8081
+    targetPort: forecast-api
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: ai-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: inventory-manager
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: ai-agent
+---
+# Persistent Volume Claim for forecasting models
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: inventory-models-pvc
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: ai-fast-ssd
+  resources:
+    requests:
+      storage: 10Gi
+---
+# Secrets for Inventory Manager Agent
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inventory-manager-secrets
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: secrets
+type: Opaque
+stringData:
+  weather-api-key: "your-openweather-api-key"
+  supplier-api-keys: |
+    {
+      "coffee_supplier_1": "api-key-1",
+      "dairy_supplier": "api-key-2",
+      "packaging_supplier": "api-key-3"
+    }
+  timeseries-db-url: "postgresql://user:pass@timescaledb:5432/inventory"
+---
+# CronJob for daily inventory optimization
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-inventory-optimization
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: inventory-manager
+    app.kubernetes.io/component: scheduler
+spec:
+  schedule: "0 6 * * *"  # Daily at 6 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: optimizer
+            image: go-coffee/inventory-optimizer:v1.0.0
+            env:
+            - name: INVENTORY_MANAGER_URL
+              value: "http://inventory-manager.go-coffee-ai.svc.cluster.local:8080"
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting daily inventory optimization..."
+              curl -X POST $INVENTORY_MANAGER_URL/api/v1/optimize/daily
+              echo "Daily optimization completed"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi

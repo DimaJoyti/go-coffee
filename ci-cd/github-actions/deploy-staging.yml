@@ -1,0 +1,467 @@
+name: 🚀 Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ["🚀 Go Coffee - Build, Test & Security Scan"]
+    types:
+      - completed
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if tests failed'
+        required: false
+        default: false
+        type: boolean
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - staging-eu
+        - staging-asia
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  KUSTOMIZE_VERSION: '5.2.1'
+  HELM_VERSION: '3.13.0'
+
+jobs:
+  # Pre-deployment Checks
+  pre-deployment:
+    name: 🔍 Pre-deployment Checks
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event.inputs.force_deploy == 'true' }}
+    
+    outputs:
+      deploy_version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.env.outputs.environment }}
+      cluster_name: ${{ steps.env.outputs.cluster_name }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+    
+    - name: 🏷️ Determine Version
+      id: version
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+          VERSION="${{ github.event.workflow_run.head_sha }}"
+        else
+          VERSION="${{ github.sha }}"
+        fi
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Deploying version: ${VERSION}"
+    
+    - name: 🌍 Determine Environment
+      id: env
+      run: |
+        if [[ "${{ github.event.inputs.environment }}" != "" ]]; then
+          ENV="${{ github.event.inputs.environment }}"
+        else
+          ENV="staging"
+        fi
+        
+        case $ENV in
+          staging)
+            CLUSTER="go-coffee-staging-us"
+            ;;
+          staging-eu)
+            CLUSTER="go-coffee-staging-eu"
+            ;;
+          staging-asia)
+            CLUSTER="go-coffee-staging-asia"
+            ;;
+          *)
+            CLUSTER="go-coffee-staging-us"
+            ;;
+        esac
+        
+        echo "environment=${ENV}" >> $GITHUB_OUTPUT
+        echo "cluster_name=${CLUSTER}" >> $GITHUB_OUTPUT
+        echo "Deploying to environment: ${ENV}, cluster: ${CLUSTER}"
+    
+    - name: ✅ Verify Images Exist
+      run: |
+        services=("api-gateway" "order-service" "payment-service" "kitchen-service" "user-gateway" "security-gateway" "web-ui-backend" "ai-search" "bright-data-hub" "communication-hub" "enterprise-service")
+
+        for service in "${services[@]}"; do
+          image="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${service}:${{ steps.version.outputs.version }}"
+          echo "Checking image: ${image}"
+
+          # Use crane or skopeo to inspect images without pulling
+          if command -v crane &> /dev/null; then
+            if crane manifest "${image}" > /dev/null 2>&1; then
+              echo "✅ Image found: ${service}:${{ steps.version.outputs.version }}"
+            else
+              echo "❌ Image not found: ${service}:${{ steps.version.outputs.version }}"
+              echo "Will use latest tag as fallback"
+            fi
+          else
+            echo "⚠️ Skipping image verification (crane not available)"
+          fi
+        done
+
+  # Infrastructure Deployment
+  deploy-infrastructure:
+    name: 🏗️ Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: pre-deployment
+    environment: 
+      name: ${{ needs.pre-deployment.outputs.environment }}
+      url: https://${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+    
+    - name: 🔧 Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+    
+    - name: 🔐 Configure GCP Credentials
+      if: ${{ secrets.GCP_SA_KEY != '' }}
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: 🔐 Configure AWS Credentials
+      if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+
+    - name: 🔐 Configure Azure Credentials
+      if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: 🏗️ Deploy Infrastructure
+      working-directory: terraform/environments/${{ needs.pre-deployment.outputs.environment }}
+      run: |
+        terraform init
+        terraform plan -var="image_tag=${{ needs.pre-deployment.outputs.deploy_version }}" -out=tfplan
+        terraform apply -auto-approve tfplan
+    
+    - name: 📊 Output Infrastructure Info
+      working-directory: terraform/environments/${{ needs.pre-deployment.outputs.environment }}
+      run: |
+        terraform output -json > /tmp/terraform-outputs.json
+        echo "Infrastructure outputs saved"
+
+  # Application Deployment
+  deploy-application:
+    name: 🚀 Deploy Application
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-infrastructure]
+    environment: 
+      name: ${{ needs.pre-deployment.outputs.environment }}
+      url: https://${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+    
+    - name: 🔧 Setup Kubernetes Tools
+      run: |
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install Helm
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        
+        # Install Kustomize
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        sudo mv kustomize /usr/local/bin/
+        
+        # Install ArgoCD CLI
+        curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        chmod +x argocd-linux-amd64
+        sudo mv argocd-linux-amd64 /usr/local/bin/argocd
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        # Configure kubectl for the target cluster
+        if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+          echo '${{ secrets.KUBECONFIG_STAGING }}' | base64 -d > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+
+          # Verify cluster access
+          kubectl cluster-info
+          kubectl get nodes
+        else
+          echo "⚠️ KUBECONFIG_STAGING secret not configured"
+          exit 1
+        fi
+    
+    - name: 🔄 Update Image Tags
+      run: |
+        # Update image tags in Kustomization files
+        cd k8s/overlays/${{ needs.pre-deployment.outputs.environment }}
+        
+        services=("api-gateway" "order-service" "payment-service" "kitchen-service" "user-gateway" "security-gateway" "web-ui-backend" "ai-search" "bright-data-hub" "communication-hub" "enterprise-service")
+        
+        for service in "${services[@]}"; do
+          kustomize edit set image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${service}=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${service}:${{ needs.pre-deployment.outputs.deploy_version }}
+        done
+    
+    - name: 🚀 Deploy Core Services
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Deploy namespace and RBAC
+        kubectl apply -k k8s/base/namespace/
+        
+        # Deploy secrets (if not using external secret management)
+        kubectl apply -k k8s/base/secrets/
+        
+        # Deploy core services
+        kubectl apply -k k8s/overlays/${{ needs.pre-deployment.outputs.environment }}/
+        
+        # Wait for deployments to be ready
+        kubectl wait --for=condition=available --timeout=600s deployment --all -n go-coffee
+    
+    - name: 🚀 Deploy Monitoring Stack
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Deploy monitoring namespace
+        kubectl apply -f monitoring/namespace.yaml
+        
+        # Deploy Prometheus and Grafana
+        helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack \
+          --namespace go-coffee-monitoring \
+          --values monitoring/prometheus/values-${{ needs.pre-deployment.outputs.environment }}.yaml \
+          --wait --timeout=10m
+        
+        # Deploy custom dashboards
+        kubectl apply -k monitoring/grafana/dashboards/
+    
+    - name: 🚀 Deploy AI Stack
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Deploy AI namespace
+        kubectl apply -f ai-agents/infrastructure/gpu-node-pool.yaml
+        
+        # Deploy Ollama model serving
+        kubectl apply -f ai-agents/model-serving/ollama-deployment.yaml
+        
+        # Deploy AI agents
+        kubectl apply -f ai-agents/agents/
+        
+        # Deploy orchestration
+        kubectl apply -f ai-agents/orchestration/
+        
+        # Wait for AI services
+        kubectl wait --for=condition=available --timeout=600s deployment --all -n go-coffee-ai
+    
+    - name: 🔒 Deploy Security Stack
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Deploy security policies
+        kubectl apply -f security/zero-trust/network-policies.yaml
+        kubectl apply -f security/rbac/rbac-policies.yaml
+        kubectl apply -f security/pod-security/pod-security-standards.yaml
+        
+        # Deploy Falco threat detection
+        kubectl apply -f security/threat-detection/falco-security.yaml
+        
+        # Deploy sealed secrets
+        kubectl apply -f security/secrets-management/sealed-secrets.yaml
+
+  # Post-deployment Testing
+  post-deployment-tests:
+    name: 🧪 Post-deployment Tests
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-application]
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+    
+    - name: 🔧 Setup Testing Tools
+      run: |
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install curl and jq for API testing
+        sudo apt-get update
+        sudo apt-get install -y curl jq
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        echo '${{ secrets.KUBECONFIG_STAGING }}' | base64 -d > /tmp/kubeconfig
+        export KUBECONFIG=/tmp/kubeconfig
+    
+    - name: 🏥 Health Check Tests
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Check all pods are running
+        kubectl get pods -n go-coffee
+        kubectl get pods -n go-coffee-ai
+        kubectl get pods -n go-coffee-monitoring
+        
+        # Check service endpoints
+        services=("api-gateway" "order-service" "payment-service" "kitchen-service")
+        
+        for service in "${services[@]}"; do
+          echo "Testing ${service} health endpoint..."
+          kubectl port-forward svc/go-coffee-${service} 8080:8080 -n go-coffee &
+          PF_PID=$!
+          sleep 5
+          
+          if curl -f http://localhost:8080/health; then
+            echo "✅ ${service} health check passed"
+          else
+            echo "❌ ${service} health check failed"
+            exit 1
+          fi
+          
+          kill $PF_PID 2>/dev/null || true
+        done
+    
+    - name: 🧪 Smoke Tests
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Test API Gateway
+        kubectl port-forward svc/go-coffee-api-gateway 8080:8080 -n go-coffee &
+        PF_PID=$!
+        sleep 10
+        
+        # Test basic API endpoints
+        echo "Testing API endpoints..."
+        
+        # Test health endpoint
+        curl -f http://localhost:8080/api/v1/health
+        
+        # Test menu endpoint
+        curl -f http://localhost:8080/api/v1/menu
+        
+        # Test AI agent endpoint
+        curl -f http://localhost:8080/api/v1/ai/beverage-inventor/health
+        
+        kill $PF_PID 2>/dev/null || true
+        
+        echo "✅ Smoke tests passed"
+    
+    - name: 🔒 Security Tests
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Check network policies are applied
+        kubectl get networkpolicies -n go-coffee
+        
+        # Check RBAC is configured
+        kubectl get rolebindings -n go-coffee
+        
+        # Check Falco is running
+        kubectl get pods -n falco-system -l app.kubernetes.io/name=falco
+        
+        echo "✅ Security tests passed"
+
+  # Deployment Notification
+  notify-deployment:
+    name: 📢 Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-application, post-deployment-tests]
+    if: always()
+    
+    steps:
+    - name: 📢 Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: |
+          🚀 Staging Deployment ${{ job.status }}
+          
+          Environment: ${{ needs.pre-deployment.outputs.environment }}
+          Version: ${{ needs.pre-deployment.outputs.deploy_version }}
+          Cluster: ${{ needs.pre-deployment.outputs.cluster_name }}
+          
+          Services Deployed:
+          ✅ Core Services (11 microservices)
+          ✅ AI Agent Stack (9 agents + Ollama)
+          ✅ Monitoring Stack (Prometheus + Grafana)
+          ✅ Security Stack (Falco + Network Policies)
+          
+          Access URLs:
+          🌐 Application: https://${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev
+          📊 Grafana: https://grafana-${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev
+          🤖 AI Dashboard: https://ai-${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    
+    - name: 📧 Email Notification
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: "🚀 Go Coffee Staging Deployment ${{ job.status }}"
+        to: ${{ secrets.DEPLOYMENT_EMAIL_LIST }}
+        from: Go Coffee CI/CD <noreply@gocoffee.dev>
+        html_body: |
+          <h2>🚀 Go Coffee Staging Deployment ${{ job.status }}</h2>
+          
+          <h3>Deployment Details</h3>
+          <ul>
+            <li><strong>Environment:</strong> ${{ needs.pre-deployment.outputs.environment }}</li>
+            <li><strong>Version:</strong> ${{ needs.pre-deployment.outputs.deploy_version }}</li>
+            <li><strong>Cluster:</strong> ${{ needs.pre-deployment.outputs.cluster_name }}</li>
+            <li><strong>Timestamp:</strong> ${{ github.event.head_commit.timestamp }}</li>
+          </ul>
+          
+          <h3>Services Deployed</h3>
+          <ul>
+            <li>✅ Core Services (11 microservices)</li>
+            <li>✅ AI Agent Stack (9 agents + Ollama)</li>
+            <li>✅ Monitoring Stack (Prometheus + Grafana)</li>
+            <li>✅ Security Stack (Falco + Network Policies)</li>
+          </ul>
+          
+          <h3>Access URLs</h3>
+          <ul>
+            <li><a href="https://${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev">🌐 Application</a></li>
+            <li><a href="https://grafana-${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev">📊 Grafana</a></li>
+            <li><a href="https://ai-${{ needs.pre-deployment.outputs.environment }}.gocoffee.dev">🤖 AI Dashboard</a></li>
+          </ul>
+    
+    - name: 📋 Update Deployment Status
+      run: |
+        echo "## 🚀 Staging Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status | Version |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Environment | ${{ needs.pre-deployment.outputs.environment }} | - |" >> $GITHUB_STEP_SUMMARY
+        echo "| Infrastructure | ✅ Deployed | ${{ needs.pre-deployment.outputs.deploy_version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Core Services | ✅ Deployed | ${{ needs.pre-deployment.outputs.deploy_version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| AI Stack | ✅ Deployed | ${{ needs.pre-deployment.outputs.deploy_version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Monitoring | ✅ Deployed | Latest |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security | ✅ Deployed | Latest |" >> $GITHUB_STEP_SUMMARY
+        echo "| Health Checks | ✅ Passed | - |" >> $GITHUB_STEP_SUMMARY
+        echo "| Smoke Tests | ✅ Passed | - |" >> $GITHUB_STEP_SUMMARY

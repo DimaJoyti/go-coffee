@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useTradingStore } from '@/stores/trading-store'
 import { portfolioApi } from '@/lib/api'
 import { formatCurrency, formatPercent } from '@/lib/utils'
@@ -23,10 +22,7 @@ import {
 } from 'recharts'
 import {
   TrendingUp,
-  Calendar,
   BarChart3,
-  Activity,
-  Target,
 } from 'lucide-react'
 
 const timeRanges = [
@@ -164,12 +160,30 @@ export function PortfolioPerformanceChart() {
             />
             <Bar
               dataKey="pnl"
-              fill={(entry: any) => entry > 0 ? '#10b981' : '#ef4444'}
+              fill="#10b981"
             />
           </BarChart>
         )
       default:
-        return null
+        // Return a default area chart instead of null
+        return (
+          <AreaChart {...commonProps}>
+            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip
+              formatter={(value: number) => [formatCurrency(value), 'Portfolio Value']}
+              labelFormatter={(label) => `Date: ${label}`}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="#10b981"
+              fill="#10b981"
+              fillOpacity={0.3}
+            />
+          </AreaChart>
+        )
     }
   }
 

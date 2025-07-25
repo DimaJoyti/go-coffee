@@ -1,0 +1,417 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-default-deny-all
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-api-gateway-ingress
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api-gateway
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow ingress from Istio gateway
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: istio-system
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow health checks from monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-internal-services
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: internal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: go-coffee
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow communication between Go Coffee services
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: go-coffee
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8082
+    - protocol: TCP
+      port: 8083
+    - protocol: TCP
+      port: 8084
+    - protocol: TCP
+      port: 8085
+    - protocol: TCP
+      port: 8086
+    - protocol: TCP
+      port: 8087
+    - protocol: TCP
+      port: 8088
+    - protocol: TCP
+      port: 8089
+    - protocol: TCP
+      port: 8090
+  # Allow gRPC communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: go-coffee
+    ports:
+    - protocol: TCP
+      port: 50051
+  egress:
+  # Allow communication to other Go Coffee services
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: go-coffee
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8082
+    - protocol: TCP
+      port: 8083
+    - protocol: TCP
+      port: 8084
+    - protocol: TCP
+      port: 8085
+    - protocol: TCP
+      port: 8086
+    - protocol: TCP
+      port: 8087
+    - protocol: TCP
+      port: 8088
+    - protocol: TCP
+      port: 8089
+    - protocol: TCP
+      port: 8090
+    - protocol: TCP
+      port: 50051
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-database-access
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: database
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: go-coffee
+      security.gocoffee.dev/database-access: "true"
+  policyTypes:
+  - Egress
+  egress:
+  # Allow PostgreSQL access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow Redis access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-external-apis
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: external
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: go-coffee
+      security.gocoffee.dev/external-access: "true"
+  policyTypes:
+  - Egress
+  egress:
+  # Allow HTTPS to external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow HTTP for specific services (AI, Web3)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-dns-access
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: dns
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: go-coffee
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-monitoring-access
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: go-coffee
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow monitoring scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  # Allow sending metrics and traces
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+    ports:
+    - protocol: TCP
+      port: 4317  # OTLP gRPC
+    - protocol: TCP
+      port: 4318  # OTLP HTTP
+    - protocol: TCP
+      port: 14268 # Jaeger
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-payment-isolation
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: payment-isolation
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: payment-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Only allow API Gateway to access payment service
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: api-gateway
+    ports:
+    - protocol: TCP
+      port: 8082
+  # Allow monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  # Allow database access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow external payment APIs (HTTPS only)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow monitoring
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-web3-isolation
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: web3-isolation
+spec:
+  podSelector:
+    matchLabels:
+      security.gocoffee.dev/web3-service: "true"
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow access from authorized services only
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: api-gateway
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: payment-service
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow blockchain RPC access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 8545  # Ethereum
+    - protocol: TCP
+      port: 8546  # Ethereum WebSocket
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-ai-isolation
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/policy-type: ai-isolation
+spec:
+  podSelector:
+    matchLabels:
+      security.gocoffee.dev/ai-service: "true"
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow access from API Gateway and specific services
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: api-gateway
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: ai-search
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow AI API access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow internal AI model serving
+  - to:
+    - podSelector:
+        matchLabels:
+          security.gocoffee.dev/ai-service: "true"
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 11434  # Ollama
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53

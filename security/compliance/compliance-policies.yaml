@@ -1,0 +1,495 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-compliance-config
+  namespace: go-coffee-security
+  labels:
+    app.kubernetes.io/name: go-coffee-compliance
+    app.kubernetes.io/component: config
+    security.gocoffee.dev/compliance-framework: multi
+data:
+  # PCI DSS Compliance Configuration
+  pci-dss-config.yaml: |
+    # PCI DSS Requirements for Go Coffee Payment Processing
+    
+    compliance_framework: "PCI DSS v4.0"
+    scope: "Payment Card Industry Data Security Standard"
+    
+    requirements:
+      # Requirement 1: Install and maintain network security controls
+      req_1:
+        description: "Network security controls"
+        controls:
+          - network_segmentation
+          - firewall_rules
+          - network_policies
+        implementation:
+          - "Kubernetes NetworkPolicies for payment service isolation"
+          - "Istio service mesh for traffic encryption"
+          - "Cloud provider firewall rules"
+      
+      # Requirement 2: Apply secure configurations
+      req_2:
+        description: "Secure configurations"
+        controls:
+          - default_passwords
+          - secure_protocols
+          - system_hardening
+        implementation:
+          - "Pod Security Standards (restricted)"
+          - "Sealed Secrets for credential management"
+          - "Read-only root filesystems"
+      
+      # Requirement 3: Protect stored cardholder data
+      req_3:
+        description: "Protect cardholder data"
+        controls:
+          - data_encryption
+          - key_management
+          - data_retention
+        implementation:
+          - "AES-256 encryption for data at rest"
+          - "TLS 1.3 for data in transit"
+          - "Kubernetes secrets encryption"
+          - "Automated data purging after retention period"
+      
+      # Requirement 4: Protect cardholder data with strong cryptography
+      req_4:
+        description: "Strong cryptography"
+        controls:
+          - encryption_transit
+          - key_strength
+          - certificate_management
+        implementation:
+          - "mTLS between all services"
+          - "RSA 4096-bit or ECDSA P-384 keys"
+          - "Cert-manager for certificate lifecycle"
+      
+      # Requirement 5: Protect all systems and networks from malicious software
+      req_5:
+        description: "Anti-malware protection"
+        controls:
+          - malware_detection
+          - vulnerability_scanning
+          - security_monitoring
+        implementation:
+          - "Falco runtime security monitoring"
+          - "Container image scanning with Trivy"
+          - "Admission controllers for image validation"
+      
+      # Requirement 6: Develop and maintain secure systems and software
+      req_6:
+        description: "Secure development"
+        controls:
+          - secure_coding
+          - vulnerability_management
+          - change_control
+        implementation:
+          - "SAST/DAST in CI/CD pipeline"
+          - "Dependency vulnerability scanning"
+          - "GitOps for change management"
+      
+      # Requirement 7: Restrict access by business need to know
+      req_7:
+        description: "Access control"
+        controls:
+          - least_privilege
+          - role_based_access
+          - access_review
+        implementation:
+          - "Kubernetes RBAC with minimal permissions"
+          - "Service account isolation"
+          - "Regular access reviews"
+      
+      # Requirement 8: Identify users and authenticate access
+      req_8:
+        description: "Authentication"
+        controls:
+          - unique_ids
+          - strong_authentication
+          - password_policy
+        implementation:
+          - "Workload Identity for service authentication"
+          - "Multi-factor authentication for admin access"
+          - "Strong password policies"
+      
+      # Requirement 9: Restrict physical access
+      req_9:
+        description: "Physical access"
+        controls:
+          - facility_access
+          - media_handling
+          - device_controls
+        implementation:
+          - "Cloud provider physical security"
+          - "No local storage of sensitive data"
+          - "Encrypted storage volumes"
+      
+      # Requirement 10: Log and monitor all access
+      req_10:
+        description: "Logging and monitoring"
+        controls:
+          - audit_logging
+          - log_review
+          - time_synchronization
+        implementation:
+          - "Comprehensive audit logging"
+          - "Centralized log management with Loki"
+          - "NTP time synchronization"
+      
+      # Requirement 11: Test security of systems and networks regularly
+      req_11:
+        description: "Security testing"
+        controls:
+          - vulnerability_scanning
+          - penetration_testing
+          - intrusion_detection
+        implementation:
+          - "Automated vulnerability scanning"
+          - "Regular penetration testing"
+          - "Falco intrusion detection"
+      
+      # Requirement 12: Support information security with organizational policies
+      req_12:
+        description: "Security policies"
+        controls:
+          - security_policy
+          - security_awareness
+          - incident_response
+        implementation:
+          - "Documented security policies"
+          - "Security training program"
+          - "Incident response procedures"
+
+  # SOC 2 Type II Compliance Configuration
+  soc2-config.yaml: |
+    # SOC 2 Trust Service Criteria for Go Coffee
+    
+    compliance_framework: "SOC 2 Type II"
+    scope: "System Organization Controls"
+    
+    trust_service_criteria:
+      # Security
+      security:
+        description: "Information and systems are protected against unauthorized access"
+        controls:
+          - access_controls
+          - logical_access
+          - system_operations
+        implementation:
+          - "Multi-factor authentication"
+          - "Role-based access control"
+          - "Privileged access management"
+          - "Security monitoring and alerting"
+      
+      # Availability
+      availability:
+        description: "Information and systems are available for operation and use"
+        controls:
+          - system_availability
+          - capacity_planning
+          - backup_recovery
+        implementation:
+          - "99.9% uptime SLA"
+          - "Auto-scaling and load balancing"
+          - "Disaster recovery procedures"
+          - "Regular backup testing"
+      
+      # Processing Integrity
+      processing_integrity:
+        description: "System processing is complete, valid, accurate, timely, and authorized"
+        controls:
+          - data_validation
+          - error_handling
+          - processing_controls
+        implementation:
+          - "Input validation and sanitization"
+          - "Transaction integrity checks"
+          - "Error logging and monitoring"
+          - "Automated testing in CI/CD"
+      
+      # Confidentiality
+      confidentiality:
+        description: "Information designated as confidential is protected"
+        controls:
+          - data_classification
+          - encryption
+          - access_restrictions
+        implementation:
+          - "Data classification policies"
+          - "End-to-end encryption"
+          - "Need-to-know access controls"
+          - "Data loss prevention"
+      
+      # Privacy
+      privacy:
+        description: "Personal information is collected, used, retained, disclosed, and disposed of in conformity with commitments"
+        controls:
+          - privacy_notice
+          - data_collection
+          - data_retention
+        implementation:
+          - "Privacy policy and notices"
+          - "Consent management"
+          - "Data retention policies"
+          - "Right to deletion procedures"
+
+  # GDPR Compliance Configuration
+  gdpr-config.yaml: |
+    # GDPR Compliance for Go Coffee
+    
+    compliance_framework: "GDPR"
+    scope: "General Data Protection Regulation"
+    
+    principles:
+      # Lawfulness, fairness and transparency
+      lawfulness:
+        description: "Processing must be lawful, fair and transparent"
+        controls:
+          - legal_basis
+          - transparency
+          - fair_processing
+        implementation:
+          - "Clear privacy notices"
+          - "Lawful basis documentation"
+          - "Transparent data processing"
+      
+      # Purpose limitation
+      purpose_limitation:
+        description: "Data must be collected for specified, explicit and legitimate purposes"
+        controls:
+          - purpose_specification
+          - compatible_use
+          - purpose_binding
+        implementation:
+          - "Purpose documentation"
+          - "Data use restrictions"
+          - "Purpose compatibility assessments"
+      
+      # Data minimisation
+      data_minimisation:
+        description: "Data must be adequate, relevant and limited to what is necessary"
+        controls:
+          - necessity_assessment
+          - data_reduction
+          - collection_limitation
+        implementation:
+          - "Data minimization reviews"
+          - "Automated data reduction"
+          - "Collection justification"
+      
+      # Accuracy
+      accuracy:
+        description: "Data must be accurate and kept up to date"
+        controls:
+          - data_quality
+          - correction_procedures
+          - accuracy_monitoring
+        implementation:
+          - "Data validation rules"
+          - "Correction mechanisms"
+          - "Data quality monitoring"
+      
+      # Storage limitation
+      storage_limitation:
+        description: "Data must not be kept longer than necessary"
+        controls:
+          - retention_periods
+          - deletion_procedures
+          - archival_policies
+        implementation:
+          - "Automated retention policies"
+          - "Scheduled data deletion"
+          - "Secure data archival"
+      
+      # Integrity and confidentiality
+      integrity_confidentiality:
+        description: "Data must be processed securely"
+        controls:
+          - encryption
+          - access_controls
+          - security_measures
+        implementation:
+          - "End-to-end encryption"
+          - "Strong access controls"
+          - "Security monitoring"
+      
+      # Accountability
+      accountability:
+        description: "Controller must demonstrate compliance"
+        controls:
+          - documentation
+          - governance
+          - compliance_monitoring
+        implementation:
+          - "Compliance documentation"
+          - "Data protection governance"
+          - "Regular compliance audits"
+
+  # ISO 27001 Compliance Configuration
+  iso27001-config.yaml: |
+    # ISO 27001 Information Security Management for Go Coffee
+    
+    compliance_framework: "ISO 27001:2022"
+    scope: "Information Security Management System"
+    
+    control_categories:
+      # Information security policies
+      A_5:
+        description: "Information security policies"
+        controls:
+          - A_5_1: "Policies for information security"
+        implementation:
+          - "Information security policy documentation"
+          - "Policy approval and communication"
+          - "Regular policy reviews"
+      
+      # Organization of information security
+      A_6:
+        description: "Organization of information security"
+        controls:
+          - A_6_1: "Internal organization"
+          - A_6_2: "Mobile devices and teleworking"
+        implementation:
+          - "Security roles and responsibilities"
+          - "Mobile device management"
+          - "Remote work security"
+      
+      # Human resource security
+      A_7:
+        description: "Human resource security"
+        controls:
+          - A_7_1: "Prior to employment"
+          - A_7_2: "During employment"
+          - A_7_3: "Termination and change of employment"
+        implementation:
+          - "Background checks"
+          - "Security awareness training"
+          - "Access revocation procedures"
+      
+      # Asset management
+      A_8:
+        description: "Asset management"
+        controls:
+          - A_8_1: "Responsibility for assets"
+          - A_8_2: "Information classification"
+          - A_8_3: "Media handling"
+        implementation:
+          - "Asset inventory and classification"
+          - "Data classification scheme"
+          - "Secure media handling"
+      
+      # Access control
+      A_9:
+        description: "Access control"
+        controls:
+          - A_9_1: "Business requirements of access control"
+          - A_9_2: "User access management"
+          - A_9_3: "User responsibilities"
+          - A_9_4: "System and application access control"
+        implementation:
+          - "Access control policy"
+          - "User provisioning and deprovisioning"
+          - "Privileged access management"
+          - "Application access controls"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-audit-config
+  namespace: go-coffee-security
+  labels:
+    app.kubernetes.io/name: go-coffee-compliance
+    app.kubernetes.io/component: audit
+data:
+  audit-policy.yaml: |
+    # Kubernetes Audit Policy for Go Coffee Compliance
+    
+    apiVersion: audit.k8s.io/v1
+    kind: Policy
+    rules:
+    # Log all requests to Go Coffee namespace at RequestResponse level
+    - level: RequestResponse
+      namespaces: ["go-coffee"]
+      resources:
+      - group: ""
+        resources: ["secrets", "configmaps", "services", "pods"]
+      - group: "apps"
+        resources: ["deployments", "statefulsets", "daemonsets"]
+    
+    # Log payment service access at Metadata level
+    - level: Metadata
+      namespaces: ["go-coffee"]
+      resources:
+      - group: ""
+        resources: ["*"]
+      omitStages:
+      - RequestReceived
+      namespaceSelector:
+        matchLabels:
+          security.gocoffee.dev/pci-dss: "true"
+    
+    # Log all authentication and authorization events
+    - level: Request
+      users: ["system:anonymous"]
+      verbs: ["*"]
+    
+    # Log all admin actions
+    - level: RequestResponse
+      userGroups: ["system:masters", "go-coffee:admins"]
+      verbs: ["create", "update", "patch", "delete"]
+    
+    # Log secret access
+    - level: Metadata
+      resources:
+      - group: ""
+        resources: ["secrets"]
+      verbs: ["get", "list", "watch"]
+    
+    # Log RBAC changes
+    - level: RequestResponse
+      resources:
+      - group: "rbac.authorization.k8s.io"
+        resources: ["*"]
+      verbs: ["create", "update", "patch", "delete"]
+    
+    # Log network policy changes
+    - level: RequestResponse
+      resources:
+      - group: "networking.k8s.io"
+        resources: ["networkpolicies"]
+      verbs: ["create", "update", "patch", "delete"]
+    
+    # Log security policy changes
+    - level: RequestResponse
+      resources:
+      - group: "policy"
+        resources: ["podsecuritypolicies"]
+      verbs: ["create", "update", "patch", "delete"]
+    
+    # Don't log requests to certain non-resource URLs
+    - level: None
+      nonResourceURLs:
+      - /healthz*
+      - /version
+      - /swagger*
+      - /openapi*
+    
+    # Don't log watch requests by the kubelet
+    - level: None
+      users: ["kubelet"]
+      verbs: ["watch"]
+    
+    # Don't log routine system events
+    - level: None
+      userGroups: ["system:nodes"]
+      verbs: ["get"]
+      resources:
+      - group: ""
+        resources: ["nodes", "nodes/status"]
+    
+    # Catch-all rule to log everything else at Metadata level
+    - level: Metadata
+      omitStages:
+      - RequestReceived

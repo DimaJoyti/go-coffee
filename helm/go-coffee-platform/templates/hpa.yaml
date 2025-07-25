@@ -1,0 +1,202 @@
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- if and $serviceConfig.enabled $serviceConfig.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "go-coffee-platform.fullname" $ }}-{{ $serviceName }}-hpa
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $serviceName }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "go-coffee-platform.deploymentName" (dict "component" $serviceName "Values" $.Values "Chart" $.Chart "Release" $.Release) }}
+  minReplicas: {{ $serviceConfig.autoscaling.minReplicas | default 1 }}
+  maxReplicas: {{ $serviceConfig.autoscaling.maxReplicas | default 10 }}
+  metrics:
+  {{- if $serviceConfig.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ $serviceConfig.autoscaling.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if $serviceConfig.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ $serviceConfig.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+  {{- if $serviceConfig.autoscaling.customMetrics }}
+  {{- range $serviceConfig.autoscaling.customMetrics }}
+  - type: {{ .type }}
+    {{- if eq .type "Pods" }}
+    pods:
+      metric:
+        name: {{ .name }}
+        {{- if .selector }}
+        selector:
+          {{- toYaml .selector | nindent 10 }}
+        {{- end }}
+      target:
+        type: {{ .target.type }}
+        {{- if .target.averageValue }}
+        averageValue: {{ .target.averageValue }}
+        {{- end }}
+        {{- if .target.value }}
+        value: {{ .target.value }}
+        {{- end }}
+    {{- else if eq .type "Object" }}
+    object:
+      metric:
+        name: {{ .name }}
+        {{- if .selector }}
+        selector:
+          {{- toYaml .selector | nindent 10 }}
+        {{- end }}
+      describedObject:
+        apiVersion: {{ .describedObject.apiVersion }}
+        kind: {{ .describedObject.kind }}
+        name: {{ .describedObject.name }}
+      target:
+        type: {{ .target.type }}
+        {{- if .target.averageValue }}
+        averageValue: {{ .target.averageValue }}
+        {{- end }}
+        {{- if .target.value }}
+        value: {{ .target.value }}
+        {{- end }}
+    {{- else if eq .type "External" }}
+    external:
+      metric:
+        name: {{ .name }}
+        {{- if .selector }}
+        selector:
+          {{- toYaml .selector | nindent 10 }}
+        {{- end }}
+      target:
+        type: {{ .target.type }}
+        {{- if .target.averageValue }}
+        averageValue: {{ .target.averageValue }}
+        {{- end }}
+        {{- if .target.value }}
+        value: {{ .target.value }}
+        {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ $serviceConfig.autoscaling.behavior.scaleDown.stabilizationWindowSeconds | default 300 }}
+      policies:
+      - type: {{ $serviceConfig.autoscaling.behavior.scaleDown.policies.type | default "Percent" }}
+        value: {{ $serviceConfig.autoscaling.behavior.scaleDown.policies.value | default 10 }}
+        periodSeconds: {{ $serviceConfig.autoscaling.behavior.scaleDown.policies.periodSeconds | default 60 }}
+    scaleUp:
+      stabilizationWindowSeconds: {{ $serviceConfig.autoscaling.behavior.scaleUp.stabilizationWindowSeconds | default 60 }}
+      policies:
+      - type: {{ $serviceConfig.autoscaling.behavior.scaleUp.policies.type | default "Percent" }}
+        value: {{ $serviceConfig.autoscaling.behavior.scaleUp.policies.value | default 50 }}
+        periodSeconds: {{ $serviceConfig.autoscaling.behavior.scaleUp.policies.periodSeconds | default 60 }}
+      - type: Pods
+        value: {{ $serviceConfig.autoscaling.behavior.scaleUp.policies.podsValue | default 2 }}
+        periodSeconds: {{ $serviceConfig.autoscaling.behavior.scaleUp.policies.periodSeconds | default 60 }}
+      selectPolicy: {{ $serviceConfig.autoscaling.behavior.scaleUp.selectPolicy | default "Max" }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.global.autoscaling.vpa.enabled }}
+---
+# Vertical Pod Autoscaler for AI services that require GPU resources
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- if and $serviceConfig.enabled (or (contains "ai" $serviceName) (contains "gpu" ($serviceConfig.resources.requests | toString))) }}
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: {{ include "go-coffee-platform.fullname" $ }}-{{ $serviceName }}-vpa
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $serviceName }}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "go-coffee-platform.deploymentName" (dict "component" $serviceName "Values" $.Values "Chart" $.Chart "Release" $.Release) }}
+  updatePolicy:
+    updateMode: {{ $.Values.global.autoscaling.vpa.updateMode | default "Auto" }}
+  resourcePolicy:
+    containerPolicies:
+    - containerName: {{ $serviceName }}
+      {{- if $serviceConfig.vpa }}
+      {{- if $serviceConfig.vpa.minAllowed }}
+      minAllowed:
+        {{- toYaml $serviceConfig.vpa.minAllowed | nindent 8 }}
+      {{- end }}
+      {{- if $serviceConfig.vpa.maxAllowed }}
+      maxAllowed:
+        {{- toYaml $serviceConfig.vpa.maxAllowed | nindent 8 }}
+      {{- end }}
+      {{- if $serviceConfig.vpa.controlledResources }}
+      controlledResources:
+        {{- toYaml $serviceConfig.vpa.controlledResources | nindent 8 }}
+      {{- end }}
+      {{- else }}
+      minAllowed:
+        cpu: 100m
+        memory: 128Mi
+      maxAllowed:
+        cpu: 2000m
+        memory: 4Gi
+      controlledResources: ["cpu", "memory"]
+      {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.global.autoscaling.cluster.enabled }}
+---
+# Cluster Autoscaler configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "go-coffee-platform.fullname" . }}-cluster-autoscaler-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" . | nindent 4 }}
+data:
+  cluster-autoscaler-config.yaml: |
+    nodes:
+      min: {{ .Values.global.autoscaling.cluster.minNodes | default 1 }}
+      max: {{ .Values.global.autoscaling.cluster.maxNodes | default 10 }}
+    scaleDownDelayAfterAdd: {{ .Values.global.autoscaling.cluster.scaleDownDelayAfterAdd | default "10m" }}
+    scaleDownUnneededTime: {{ .Values.global.autoscaling.cluster.scaleDownUnneededTime | default "10m" }}
+    scaleDownUtilizationThreshold: {{ .Values.global.autoscaling.cluster.scaleDownUtilizationThreshold | default 0.5 }}
+    skipNodesWithLocalStorage: {{ .Values.global.autoscaling.cluster.skipNodesWithLocalStorage | default false }}
+    skipNodesWithSystemPods: {{ .Values.global.autoscaling.cluster.skipNodesWithSystemPods | default true }}
+    maxNodeProvisionTime: {{ .Values.global.autoscaling.cluster.maxNodeProvisionTime | default "15m" }}
+    
+    # Node groups configuration
+    nodeGroups:
+    {{- range .Values.global.autoscaling.cluster.nodeGroups }}
+    - name: {{ .name }}
+      minSize: {{ .minSize }}
+      maxSize: {{ .maxSize }}
+      instanceType: {{ .instanceType }}
+      {{- if .labels }}
+      labels:
+        {{- toYaml .labels | nindent 8 }}
+      {{- end }}
+      {{- if .taints }}
+      taints:
+        {{- toYaml .taints | nindent 8 }}
+      {{- end }}
+    {{- end }}
+{{- end }}

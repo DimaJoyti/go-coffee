@@ -109,3 +109,95 @@ variable "grafana_admin_password" {
   sensitive   = true
   default     = "admin"  # Змінити в terraform.tfvars
 }
+
+# Application Configuration
+variable "app_version" {
+  description = "Application version for labeling"
+  type        = string
+  default     = "1.0.0"
+}
+
+variable "terraform_state_bucket" {
+  description = "GCS bucket for Terraform state"
+  type        = string
+  default     = "go-coffee-terraform-state"
+}
+
+# Multi-region configuration
+variable "multi_region_enabled" {
+  description = "Enable multi-region deployment"
+  type        = bool
+  default     = false
+}
+
+variable "regions" {
+  description = "List of regions for multi-region deployment"
+  type        = list(string)
+  default     = ["europe-west3", "us-central1", "asia-southeast1"]
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "firewall_rules" {
+  description = "Firewall rules configuration"
+  type = list(object({
+    name      = string
+    direction = string
+    allow = list(object({
+      protocol = string
+      ports    = list(string)
+    }))
+    source_ranges = list(string)
+    target_tags   = list(string)
+  }))
+  default = []
+}
+
+# Redis Configuration
+variable "redis_instance_name" {
+  description = "Redis instance name"
+  type        = string
+  default     = "go-coffee-redis"
+}
+
+variable "redis_memory_size_gb" {
+  description = "Redis memory size in GB"
+  type        = number
+  default     = 4
+}
+
+variable "redis_version" {
+  description = "Redis version"
+  type        = string
+  default     = "REDIS_7_0"
+}
+
+# PostgreSQL Configuration
+variable "postgres_instance_name" {
+  description = "PostgreSQL instance name"
+  type        = string
+  default     = "go-coffee-postgres"
+}
+
+variable "postgres_version" {
+  description = "PostgreSQL version"
+  type        = string
+  default     = "POSTGRES_15"
+}
+
+variable "postgres_tier" {
+  description = "PostgreSQL machine type"
+  type        = string
+  default     = "db-custom-2-8192"
+}
+
+# Service Mesh Configuration
+variable "enable_service_mesh" {
+  description = "Enable Istio service mesh"
+  type        = bool
+  default     = true
+}

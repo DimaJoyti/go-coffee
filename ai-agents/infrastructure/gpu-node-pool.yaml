@@ -1,0 +1,445 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gpu-node-pool-config
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: infrastructure
+data:
+  # GPU Node Pool Configuration for AI Workloads
+  gpu-node-pool.yaml: |
+    # Google Cloud GPU Node Pool
+    apiVersion: container.cnrm.cloud.google.com/v1beta1
+    kind: ContainerNodePool
+    metadata:
+      name: go-coffee-gpu-pool
+      namespace: go-coffee-ai
+      labels:
+        app.kubernetes.io/name: go-coffee-ai
+        app.kubernetes.io/component: gpu-infrastructure
+    spec:
+      location: us-central1
+      cluster: projects/${PROJECT_ID}/locations/us-central1/clusters/go-coffee-cluster
+      
+      # Node configuration
+      nodeCount: 2
+      nodeConfig:
+        machineType: n1-standard-4
+        diskSizeGb: 100
+        diskType: pd-ssd
+        
+        # GPU configuration
+        guestAccelerator:
+        - type: nvidia-tesla-t4
+          count: 1
+          gpuPartitionSize: ""
+        
+        # Node labels and taints
+        labels:
+          workload-type: ai-gpu
+          node-pool: gpu-enabled
+          gpu-type: nvidia-t4
+        
+        taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+        
+        # Security and networking
+        serviceAccount: "go-coffee-gpu-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+        oauthScopes:
+        - https://www.googleapis.com/auth/cloud-platform
+        
+        # Preemptible for cost optimization
+        preemptible: true
+        
+        # Node image with GPU support  
+        imageType: COS_CONTAINERD
+        
+        # Shielded instance configuration
+        shieldedInstanceConfig:
+          enableSecureBoot: true
+          enableIntegrityMonitoring: true
+        
+        # Metadata
+        metadata:
+          disable-legacy-endpoints: "true"
+          install-nvidia-driver: "true"
+      
+      # Auto-scaling configuration
+      autoscaling:
+        enabled: true
+        minNodeCount: 0
+        maxNodeCount: 5
+      
+      # Management configuration
+      management:
+        autoRepair: true
+        autoUpgrade: true
+      
+      # Upgrade settings
+      upgradeSettings:
+        maxSurge: 1
+        maxUnavailable: 0
+
+  # AWS EKS GPU Node Group
+  aws-gpu-nodegroup.yaml: |
+    apiVersion: eks.aws.crossplane.io/v1beta1
+    kind: NodeGroup
+    metadata:
+      name: go-coffee-gpu-nodegroup
+      namespace: go-coffee-ai
+    spec:
+      forProvider:
+        clusterName: go-coffee-cluster
+        region: us-west-2
+        nodeGroupName: go-coffee-gpu-nodes
+        
+        # Instance configuration
+        instanceTypes:
+        - "g4dn.xlarge"   # NVIDIA T4 GPU
+        - "g4dn.2xlarge"
+        
+        # Scaling configuration
+        scalingConfig:
+          desiredSize: 2
+          maxSize: 5
+          minSize: 0
+        
+        # Capacity type (SPOT for cost optimization)
+        capacityType: SPOT
+        
+        # Remote access configuration
+        remoteAccess:
+          ec2SshKey: go-coffee-gpu-nodes
+        
+        # AMI configuration for GPU nodes
+        amiType: AL2_x86_64_GPU
+        releaseVersion: "1.28.5-20240103"
+        
+        # Node configuration
+        diskSize: 100
+        
+        # Networking
+        subnetIds:
+        - "${subnet_id_1}"
+        - "${subnet_id_2}"
+        
+        # IAM role
+        nodeRole: "arn:aws:iam::${account_id}:role/go-coffee-gpu-node-role"
+        
+        # Labels and taints
+        labels:
+          workload-type: ai-gpu
+          node-pool: gpu-enabled
+          gpu-type: nvidia-t4
+        
+        taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+        
+        # Launch template (commented out - will be auto-generated)
+        # launchTemplate:
+        #   name: "go-coffee-gpu-launch-template"
+        #   version: "$Latest"
+        
+        # Update configuration
+        updateConfig:
+          maxUnavailablePercentage: 25
+
+  # Azure AKS GPU Node Pool
+  azure-gpu-nodepool.yaml: |
+    apiVersion: containerservice.azure.crossplane.io/v1beta1
+    kind: KubernetesClusterNodePool
+    metadata:
+      name: go-coffee-gpu-nodepool
+      namespace: go-coffee-ai
+    spec:
+      forProvider:
+        kubernetesClusterId: "/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ContainerService/managedClusters/go-coffee-cluster"
+        
+        # Node configuration
+        vmSize: "Standard_NC6s_v3"  # NVIDIA V100 GPU
+        nodeCount: 2
+        
+        # Auto-scaling
+        enableAutoScaling: true
+        minCount: 0
+        maxCount: 5
+        
+        # OS configuration
+        osDiskSizeGb: 100
+        osDiskType: "Premium_LRS"
+        osType: "Linux"
+        
+        # Node labels and taints
+        nodeLabels:
+          workload-type: ai-gpu
+          node-pool: gpu-enabled
+          gpu-type: nvidia-v100
+        
+        nodeTaints:
+        - nvidia.com/gpu=true:NoSchedule
+        
+        # Spot instances for cost optimization
+        priority: "Spot"
+        evictionPolicy: "Delete"
+        spotMaxPrice: 0.5
+        
+        # Networking
+        vnetSubnetId: "/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/virtualNetworks/${vnet_name}/subnets/go-coffee-gpu-subnet"
+        
+        # Upgrade settings
+        maxSurge: 1
+        maxUnavailable: 0
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-coffee-ai
+  labels:
+    name: go-coffee-ai
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: ai-infrastructure
+    # Pod Security Standards for AI workloads
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    # GPU scheduling
+    nvidia.com/gpu.deploy.operands: "true"
+---
+# NVIDIA GPU Operator for GPU support
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gpu-operator
+  labels:
+    name: gpu-operator
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: nvidia
+  namespace: gpu-operator
+spec:
+  interval: 1h
+  url: https://helm.ngc.nvidia.com/nvidia
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: gpu-operator
+  namespace: gpu-operator
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: gpu-operator
+      version: "v23.9.2"
+      sourceRef:
+        kind: HelmRepository
+        name: nvidia
+        namespace: gpu-operator
+  values:
+    # GPU Operator configuration
+    operator:
+      defaultRuntime: containerd
+      runtimeClass: nvidia
+      
+    # Node selector for GPU nodes
+    nodeSelector:
+      workload-type: ai-gpu
+    
+    # Driver configuration
+    driver:
+      enabled: true
+      version: "545.23.08"
+      
+    # Toolkit configuration
+    toolkit:
+      enabled: true
+      version: "1.14.5-centos7"
+    
+    # Device plugin configuration
+    devicePlugin:
+      enabled: true
+      version: "0.14.5-ubi8"
+      
+    # DCGM exporter for monitoring
+    dcgmExporter:
+      enabled: true
+      version: "3.3.0-3.1.8-ubuntu20.04"
+      serviceMonitor:
+        enabled: true
+        interval: 15s
+    
+    # Node Feature Discovery
+    nfd:
+      enabled: true
+    
+    # MIG (Multi-Instance GPU) support
+    mig:
+      strategy: single
+      
+    # GPU Feature Discovery
+    gfd:
+      enabled: true
+    
+    # Tolerations for GPU nodes
+    tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+---
+# GPU Resource Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gpu-quota
+  namespace: go-coffee-ai
+spec:
+  hard:
+    requests.nvidia.com/gpu: "10"
+    limits.nvidia.com/gpu: "10"
+    requests.cpu: "20"
+    requests.memory: 80Gi
+    limits.cpu: "40"
+    limits.memory: 160Gi
+    persistentvolumeclaims: "20"
+    requests.storage: 1Ti
+---
+# Priority Classes for AI workloads
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ai-high-priority
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: scheduling
+value: 1000
+globalDefault: false
+description: "High priority for critical AI inference workloads"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ai-training-priority
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: scheduling
+value: 500
+globalDefault: false
+description: "Medium priority for AI training workloads"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ai-batch-priority
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: scheduling
+value: 100
+globalDefault: false
+description: "Low priority for batch AI processing"
+---
+# Storage Classes for AI workloads
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ai-fast-ssd
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: storage
+provisioner: pd.csi.storage.gke.io
+parameters:
+  type: pd-ssd
+  replication-type: regional-pd
+  zones: "us-central1-a,us-central1-b,us-central1-c"
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ai-model-storage
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: storage
+provisioner: pd.csi.storage.gke.io
+parameters:
+  type: pd-standard
+  replication-type: regional-pd
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+# Network Policies for AI namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-namespace-isolation
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow communication from go-coffee namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 11434  # Ollama
+  # Allow monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  # Allow communication to go-coffee services
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow external AI APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow internal AI communication
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 11434

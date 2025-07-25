@@ -6,11 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useTradingStore } from '@/stores/trading-store'
 import { portfolioApi } from '@/lib/api'
-import { formatCurrency, formatPercent, getRiskLevelColor } from '@/lib/utils'
+import { formatCurrency, formatPercent } from '@/lib/utils'
 import {
-  PieChart,
-  Pie,
-  Cell,
   ResponsiveContainer,
   BarChart,
   Bar,
@@ -31,8 +28,6 @@ import {
   Activity,
   Zap,
 } from 'lucide-react'
-
-const RISK_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#dc2626']
 
 export function PortfolioRiskMetrics() {
   const { selectedPortfolioId, riskAlerts } = useTradingStore()
@@ -263,7 +258,7 @@ export function PortfolioRiskMetrics() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {metrics.stressTests.map((test, index) => (
+            {metrics.stressTests.map((test: any, index: number) => (
               <div key={index} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
                 <div>
                   <div className="font-medium">{test.scenario}</div>
@@ -295,7 +290,7 @@ export function PortfolioRiskMetrics() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {metrics.recommendations.map((rec, index) => (
+            {metrics.recommendations.map((rec: any, index: number) => (
               <div
                 key={index}
                 className={`p-4 rounded-lg border-l-4 ${

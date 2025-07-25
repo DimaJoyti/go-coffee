@@ -1,52 +1,33 @@
-import { Toaster } from 'react-hot-toast';
+import React from 'react';
 import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import './App.css';
-import Layout from './components/Layout';
-import Alerts from './pages/Alerts';
-import Dashboard from './pages/Dashboard';
-import DeFi from './pages/DeFi';
-import Markets from './pages/Markets';
-import Portfolio from './pages/Portfolio';
-import Settings from './pages/Settings';
+import { EpicCryptoDashboard } from './components/dashboard/epic-crypto-dashboard';
+import { MarketHeatmap } from './components/market/market-heatmap';
+import { OrderBook } from './components/trading/order-book';
+import { TradingViewChart } from './components/trading/tradingview-chart';
+import { MarketDataTable } from './components/ui/market-data-table';
+import { PriceChart } from './components/ui/price-chart';
+
+// Import CSS for shadcn-ui
+import './index.css';
 
 function App() {
   return (
     <Router>
-      <div className="App">
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/portfolio-manager" element={<PortfolioManager />} />
-            <Route path="/markets" element={<Markets />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/defi" element={<DeFi />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </Layout>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#1e293b',
-              color: '#e2e8f0',
-              border: '1px solid #334155',
-            },
-            success: {
-              iconTheme: {
-                primary: '#10b981',
-                secondary: '#1e293b',
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: '#1e293b',
-              },
-            },
-          }}
-        />
+      <div className="App min-h-screen bg-background text-foreground">
+        <Routes>
+          <Route path="/" element={<EpicCryptoDashboard />} />
+          <Route path="/dashboard" element={<EpicCryptoDashboard />} />
+          <Route path="/markets" element={<EpicCryptoDashboard />} />
+          <Route path="/trading" element={<EpicCryptoDashboard />} />
+          <Route path="/portfolio" element={<EpicCryptoDashboard />} />
+          <Route path="/analytics" element={<EpicCryptoDashboard />} />
+          <Route path="/arbitrage" element={<EpicCryptoDashboard />} />
+          <Route path="/risk" element={<EpicCryptoDashboard />} />
+          <Route path="/settings" element={<EpicCryptoDashboard />} />
+          <Route path="/notifications" element={<EpicCryptoDashboard />} />
+          <Route path="/help" element={<EpicCryptoDashboard />} />
+        </Routes>
       </div>
     </Router>
   );

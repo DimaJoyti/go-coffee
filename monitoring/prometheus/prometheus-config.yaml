@@ -1,0 +1,426 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: server
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: go-coffee-cluster
+        environment: production
+        region: europe-west3
+
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager.go-coffee-monitoring.svc.cluster.local:9093
+          scheme: http
+          timeout: 10s
+          api_version: v2
+
+    scrape_configs:
+      # Go Coffee Application Services
+      - job_name: 'go-coffee-services'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - go-coffee
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: replace
+            target_label: service_name
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            action: replace
+            target_label: component
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: 'go_.*'
+            target_label: __tmp_go_metric
+          - source_labels: [__tmp_go_metric]
+            regex: 'go_(gc_duration_seconds|memstats_.*|goroutines|threads)'
+            action: keep
+
+      # Kubernetes API Server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - default
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+
+      # Kubernetes Nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+
+      # Kubernetes Node Exporter
+      - job_name: 'kubernetes-nodes-cadvisor'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+        metric_relabel_configs:
+          - source_labels: [container]
+            regex: POD
+            action: drop
+          - source_labels: [container]
+            regex: ""
+            action: drop
+
+      # Kubernetes Service Endpoints
+      - job_name: 'kubernetes-service-endpoints'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+            action: replace
+            target_label: __scheme__
+            regex: (https?)
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            action: replace
+            target_label: kubernetes_name
+
+      # OpenTelemetry Collector
+      - job_name: 'otel-collector'
+        static_configs:
+          - targets: ['otel-collector.go-coffee-monitoring.svc.cluster.local:8889']
+        scrape_interval: 30s
+        metrics_path: /metrics
+
+      # Istio Control Plane
+      - job_name: 'istio-mesh'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - istio-system
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-telemetry;prometheus
+
+      # Istio Proxy (Envoy)
+      - job_name: 'envoy-stats'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - go-coffee
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: istio-proxy;http-monitoring
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+):(?:\d+);(\d+)
+            replacement: ${1}:15090
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod_name
+
+      # PostgreSQL Exporter
+      - job_name: 'postgresql'
+        static_configs:
+          - targets: ['postgres-exporter.go-coffee-monitoring.svc.cluster.local:9187']
+        scrape_interval: 30s
+
+      # Redis Exporter
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis-exporter.go-coffee-monitoring.svc.cluster.local:9121']
+        scrape_interval: 30s
+
+      # Kafka Exporter
+      - job_name: 'kafka'
+        static_configs:
+          - targets: ['kafka-exporter.go-coffee-monitoring.svc.cluster.local:9308']
+        scrape_interval: 30s
+
+      # AI/ML Model Metrics
+      - job_name: 'ai-models'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - go-coffee
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            action: keep
+            regex: ai-.*
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+
+      # Web3/Blockchain Metrics
+      - job_name: 'web3-services'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - go-coffee
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            action: keep
+            regex: (web3|blockchain|defi).*
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+
+      # Business Metrics (Custom)
+      - job_name: 'business-metrics'
+        static_configs:
+          - targets: ['business-metrics-exporter.go-coffee.svc.cluster.local:8080']
+        scrape_interval: 60s
+        metrics_path: /business/metrics
+
+  recording_rules.yml: |
+    groups:
+    - name: go-coffee.business.rules
+      interval: 30s
+      rules:
+      # Order metrics
+      - record: go_coffee:orders_per_minute
+        expr: rate(coffee_orders_total[1m]) * 60
+      
+      - record: go_coffee:revenue_per_minute
+        expr: rate(coffee_revenue_total[1m]) * 60
+      
+      - record: go_coffee:average_order_value
+        expr: |
+          rate(coffee_revenue_total[5m]) /
+          rate(coffee_orders_total[5m])
+      
+      # Customer metrics
+      - record: go_coffee:customer_satisfaction_score
+        expr: |
+          (
+            rate(customer_feedback_total{rating="5"}[1h]) * 5 +
+            rate(customer_feedback_total{rating="4"}[1h]) * 4 +
+            rate(customer_feedback_total{rating="3"}[1h]) * 3 +
+            rate(customer_feedback_total{rating="2"}[1h]) * 2 +
+            rate(customer_feedback_total{rating="1"}[1h]) * 1
+          ) /
+          rate(customer_feedback_total[1h])
+      
+      # AI metrics
+      - record: go_coffee:ai_agent_efficiency
+        expr: |
+          rate(ai_agent_tasks_completed_total[1h]) /
+          rate(ai_agent_tasks_created_total[1h])
+      
+      - record: go_coffee:ai_inference_latency_p95
+        expr: |
+          histogram_quantile(0.95,
+            rate(ai_inference_duration_seconds_bucket[5m])
+          )
+      
+      # Web3 metrics
+      - record: go_coffee:web3_transaction_success_rate
+        expr: |
+          rate(web3_transaction_total{status="success"}[5m]) /
+          rate(web3_transaction_total[5m])
+      
+      - record: go_coffee:defi_trading_profit_rate
+        expr: |
+          rate(defi_trading_profit_total[1h]) /
+          rate(defi_trading_volume_total[1h])
+
+    - name: go-coffee.sli.rules
+      interval: 30s
+      rules:
+      # Service Level Indicators
+      - record: go_coffee:sli_availability
+        expr: |
+          (
+            sum(rate(http_requests_total{job=~".*go-coffee.*",code!~"5.."}[5m])) /
+            sum(rate(http_requests_total{job=~".*go-coffee.*"}[5m]))
+          )
+      
+      - record: go_coffee:sli_latency_p99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job=~".*go-coffee.*"}[5m])) by (le)
+          )
+      
+      - record: go_coffee:sli_error_rate
+        expr: |
+          sum(rate(http_requests_total{job=~".*go-coffee.*",code=~"5.."}[5m])) /
+          sum(rate(http_requests_total{job=~".*go-coffee.*"}[5m]))
+
+  alerting_rules.yml: |
+    groups:
+    - name: go-coffee.alerts
+      rules:
+      # Critical alerts
+      - alert: GoCoffeeServiceDown
+        expr: up{job=~".*go-coffee.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Go Coffee service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+          runbook_url: "https://runbooks.gocoffee.dev/service-down"
+      
+      - alert: GoCoffeeHighErrorRate
+        expr: go_coffee:sli_error_rate > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for Go Coffee services."
+      
+      - alert: GoCoffeeHighLatency
+        expr: go_coffee:sli_latency_p99 > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High latency detected"
+          description: "99th percentile latency is {{ $value }}s for Go Coffee services."
+      
+      # Business alerts
+      - alert: GoCoffeeOrdersDropped
+        expr: go_coffee:orders_per_minute < 1
+        for: 10m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "Order rate has dropped significantly"
+          description: "Orders per minute is {{ $value }}, which is below normal levels."
+      
+      - alert: GoCoffeeRevenueDropped
+        expr: go_coffee:revenue_per_minute < 10
+        for: 15m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "Revenue rate has dropped"
+          description: "Revenue per minute is ${{ $value }}, which is below expected levels."
+      
+      # AI alerts
+      - alert: GoCoffeeAIAgentFailure
+        expr: go_coffee:ai_agent_efficiency < 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI agent efficiency is low"
+          description: "AI agent efficiency is {{ $value | humanizePercentage }}."
+      
+      # Web3 alerts
+      - alert: GoCoffeeWeb3TransactionFailure
+        expr: go_coffee:web3_transaction_success_rate < 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: web3
+        annotations:
+          summary: "High Web3 transaction failure rate"
+          description: "Web3 transaction success rate is {{ $value | humanizePercentage }}."

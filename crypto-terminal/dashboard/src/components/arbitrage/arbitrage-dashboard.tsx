@@ -302,7 +302,7 @@ export function ArbitrageDashboard() {
                         </Badge>
                       </td>
                       <td className="text-right py-4">
-                        {formatCurrency(opportunity.volume, 'USD', 0, 0)}
+                        {formatCurrency(opportunity.volume, 'USD', 0)}
                       </td>
                       <td className="text-right py-4 font-semibold text-profit">
                         {formatCurrency(opportunity.profitPotential)}

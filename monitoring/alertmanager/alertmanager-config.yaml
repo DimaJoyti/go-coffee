@@ -1,0 +1,506 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: config
+data:
+  alertmanager.yml: |
+    global:
+      # Global configuration
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'alerts@gocoffee.dev'
+      smtp_auth_username: 'alerts@gocoffee.dev'
+      smtp_auth_password: '${SMTP_PASSWORD}'
+      smtp_require_tls: true
+      
+      # Slack configuration
+      slack_api_url: '${SLACK_API_URL}'
+      
+      # PagerDuty configuration
+      pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+      
+      # Default resolution timeout
+      resolve_timeout: 5m
+
+    # Templates for notifications
+    templates:
+      - '/etc/alertmanager/templates/*.tmpl'
+
+    # Routing configuration
+    route:
+      # Default receiver
+      receiver: 'go-coffee-default'
+      
+      # Group alerts by these labels
+      group_by: ['alertname', 'cluster', 'service']
+      
+      # Wait time before sending initial notification
+      group_wait: 30s
+      
+      # Wait time before sending notification about new alerts in group
+      group_interval: 5m
+      
+      # Wait time before re-sending notification
+      repeat_interval: 12h
+      
+      # Routes for specific alert types
+      routes:
+        # Critical alerts - immediate notification
+        - match:
+            severity: critical
+          receiver: 'go-coffee-critical'
+          group_wait: 10s
+          group_interval: 1m
+          repeat_interval: 1h
+          routes:
+            # Payment service critical alerts
+            - match:
+                team: platform
+                service: payment
+              receiver: 'go-coffee-payment-critical'
+            
+            # Web3 service critical alerts
+            - match:
+                team: web3
+              receiver: 'go-coffee-web3-critical'
+        
+        # Warning alerts - standard notification
+        - match:
+            severity: warning
+          receiver: 'go-coffee-warning'
+          group_wait: 1m
+          group_interval: 5m
+          repeat_interval: 6h
+        
+        # Business alerts - business team notification
+        - match:
+            team: business
+          receiver: 'go-coffee-business'
+          group_wait: 2m
+          group_interval: 10m
+          repeat_interval: 24h
+        
+        # AI/ML alerts - AI team notification
+        - match:
+            team: ai
+          receiver: 'go-coffee-ai'
+          group_wait: 1m
+          group_interval: 5m
+          repeat_interval: 4h
+        
+        # Infrastructure alerts - platform team
+        - match:
+            team: platform
+          receiver: 'go-coffee-platform'
+          group_wait: 30s
+          group_interval: 2m
+          repeat_interval: 2h
+
+    # Inhibition rules - suppress certain alerts when others are firing
+    inhibit_rules:
+      # Suppress warning alerts when critical alerts are firing
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'cluster', 'service']
+      
+      # Suppress individual service alerts when cluster is down
+      - source_match:
+          alertname: 'GoCoffeeClusterDown'
+        target_match_re:
+          alertname: 'GoCoffee.*'
+        equal: ['cluster']
+      
+      # Suppress high error rate when service is down
+      - source_match:
+          alertname: 'GoCoffeeServiceDown'
+        target_match:
+          alertname: 'GoCoffeeHighErrorRate'
+        equal: ['service']
+
+    # Receivers configuration
+    receivers:
+      # Default receiver
+      - name: 'go-coffee-default'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-alerts'
+            title: '☕ Go Coffee Alert'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Severity:* {{ .Labels.severity }}
+              *Service:* {{ .Labels.service }}
+              {{ end }}
+            color: 'warning'
+            send_resolved: true
+
+      # Critical alerts receiver
+      - name: 'go-coffee-critical'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-critical'
+            title: '🚨 CRITICAL: Go Coffee Alert'
+            text: |
+              {{ range .Alerts }}
+              *CRITICAL ALERT*
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Service:* {{ .Labels.service }}
+              *Runbook:* {{ .Annotations.runbook_url }}
+              {{ end }}
+            color: 'danger'
+            send_resolved: true
+        
+        email_configs:
+          - to: 'oncall@gocoffee.dev'
+            subject: '🚨 CRITICAL: Go Coffee Alert - {{ .GroupLabels.alertname }}'
+            body: |
+              Critical alert in Go Coffee platform:
+              
+              {{ range .Alerts }}
+              Alert: {{ .Annotations.summary }}
+              Description: {{ .Annotations.description }}
+              Service: {{ .Labels.service }}
+              Severity: {{ .Labels.severity }}
+              Runbook: {{ .Annotations.runbook_url }}
+              {{ end }}
+        
+        pagerduty_configs:
+          - routing_key: '${PAGERDUTY_ROUTING_KEY}'
+            description: '{{ .GroupLabels.alertname }} - {{ .CommonAnnotations.summary }}'
+            severity: 'critical'
+            details:
+              service: '{{ .CommonLabels.service }}'
+              environment: '{{ .CommonLabels.environment }}'
+
+      # Payment service critical alerts
+      - name: 'go-coffee-payment-critical'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-payments'
+            title: '💳 CRITICAL: Payment Service Alert'
+            text: |
+              {{ range .Alerts }}
+              *PAYMENT CRITICAL ALERT*
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Impact:* Payment processing may be affected
+              *Runbook:* {{ .Annotations.runbook_url }}
+              {{ end }}
+            color: 'danger'
+            send_resolved: true
+        
+        email_configs:
+          - to: 'payments-team@gocoffee.dev'
+            subject: '💳 CRITICAL: Payment Service Alert'
+
+      # Web3 service critical alerts
+      - name: 'go-coffee-web3-critical'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-web3'
+            title: '🌐 CRITICAL: Web3 Service Alert'
+            text: |
+              {{ range .Alerts }}
+              *WEB3 CRITICAL ALERT*
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Impact:* Blockchain operations may be affected
+              *Runbook:* {{ .Annotations.runbook_url }}
+              {{ end }}
+            color: 'danger'
+            send_resolved: true
+
+      # Warning alerts receiver
+      - name: 'go-coffee-warning'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-warnings'
+            title: '⚠️ Go Coffee Warning'
+            text: |
+              {{ range .Alerts }}
+              *Warning:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Service:* {{ .Labels.service }}
+              {{ end }}
+            color: 'warning'
+            send_resolved: true
+
+      # Business alerts receiver
+      - name: 'go-coffee-business'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-business'
+            title: '📊 Go Coffee Business Alert'
+            text: |
+              {{ range .Alerts }}
+              *Business Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Metric:* {{ .Labels.alertname }}
+              {{ end }}
+            color: 'warning'
+            send_resolved: true
+        
+        email_configs:
+          - to: 'business-team@gocoffee.dev'
+            subject: '📊 Go Coffee Business Alert - {{ .GroupLabels.alertname }}'
+
+      # AI team alerts receiver
+      - name: 'go-coffee-ai'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-ai'
+            title: '🤖 Go Coffee AI Alert'
+            text: |
+              {{ range .Alerts }}
+              *AI Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Agent:* {{ .Labels.agent }}
+              *Model:* {{ .Labels.model }}
+              {{ end }}
+            color: 'warning'
+            send_resolved: true
+
+      # Platform team alerts receiver
+      - name: 'go-coffee-platform'
+        slack_configs:
+          - api_url: '${SLACK_API_URL}'
+            channel: '#go-coffee-platform'
+            title: '🏗️ Go Coffee Platform Alert'
+            text: |
+              {{ range .Alerts }}
+              *Platform Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Component:* {{ .Labels.component }}
+              *Cluster:* {{ .Labels.cluster }}
+              {{ end }}
+            color: 'warning'
+            send_resolved: true
+
+  # Custom notification templates
+  notification.tmpl: |
+    {{ define "slack.go-coffee.title" }}
+    {{ if eq .Status "firing" }}🚨{{ else }}✅{{ end }} Go Coffee Alert
+    {{ end }}
+
+    {{ define "slack.go-coffee.text" }}
+    {{ range .Alerts }}
+    {{ if eq .Status "firing" }}
+    *🔥 FIRING:* {{ .Annotations.summary }}
+    {{ else }}
+    *✅ RESOLVED:* {{ .Annotations.summary }}
+    {{ end }}
+    *Description:* {{ .Annotations.description }}
+    *Service:* {{ .Labels.service | default "unknown" }}
+    *Severity:* {{ .Labels.severity | default "unknown" }}
+    *Environment:* {{ .Labels.environment | default "unknown" }}
+    {{ if .Annotations.runbook_url }}
+    *Runbook:* {{ .Annotations.runbook_url }}
+    {{ end }}
+    {{ if .Annotations.dashboard_url }}
+    *Dashboard:* {{ .Annotations.dashboard_url }}
+    {{ end }}
+    ---
+    {{ end }}
+    {{ end }}
+
+    {{ define "email.go-coffee.subject" }}
+    {{ if eq .Status "firing" }}🚨 ALERT{{ else }}✅ RESOLVED{{ end }}: {{ .GroupLabels.alertname }} - Go Coffee
+    {{ end }}
+
+    {{ define "email.go-coffee.body" }}
+    <h2>{{ if eq .Status "firing" }}🚨 Alert Firing{{ else }}✅ Alert Resolved{{ end }}</h2>
+    
+    <table border="1" cellpadding="5" cellspacing="0">
+      <tr>
+        <th>Alert</th>
+        <th>Status</th>
+        <th>Service</th>
+        <th>Severity</th>
+        <th>Description</th>
+      </tr>
+      {{ range .Alerts }}
+      <tr>
+        <td>{{ .Annotations.summary }}</td>
+        <td>{{ .Status }}</td>
+        <td>{{ .Labels.service | default "unknown" }}</td>
+        <td>{{ .Labels.severity | default "unknown" }}</td>
+        <td>{{ .Annotations.description }}</td>
+      </tr>
+      {{ end }}
+    </table>
+    
+    <h3>Additional Information</h3>
+    <ul>
+      <li><strong>Environment:</strong> {{ .CommonLabels.environment | default "unknown" }}</li>
+      <li><strong>Cluster:</strong> {{ .CommonLabels.cluster | default "unknown" }}</li>
+      <li><strong>Timestamp:</strong> {{ .CommonAnnotations.timestamp | default "unknown" }}</li>
+    </ul>
+    
+    {{ if .CommonAnnotations.runbook_url }}
+    <p><strong>Runbook:</strong> <a href="{{ .CommonAnnotations.runbook_url }}">{{ .CommonAnnotations.runbook_url }}</a></p>
+    {{ end }}
+    
+    {{ if .CommonAnnotations.dashboard_url }}
+    <p><strong>Dashboard:</strong> <a href="{{ .CommonAnnotations.dashboard_url }}">{{ .CommonAnnotations.dashboard_url }}</a></p>
+    {{ end }}
+    {{ end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-secrets
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: secrets
+type: Opaque
+stringData:
+  smtp-password: "your-smtp-password"
+  slack-api-url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  pagerduty-routing-key: "your-pagerduty-routing-key"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alertmanager
+        app.kubernetes.io/component: server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9093"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: alertmanager
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:v0.26.0
+        args:
+          - --config.file=/etc/alertmanager/alertmanager.yml
+          - --storage.path=/alertmanager
+          - --data.retention=120h
+          - --cluster.listen-address=0.0.0.0:9094
+          - --cluster.peer=alertmanager-0.alertmanager.go-coffee-monitoring.svc.cluster.local:9094
+          - --cluster.peer=alertmanager-1.alertmanager.go-coffee-monitoring.svc.cluster.local:9094
+          - --web.listen-address=0.0.0.0:9093
+          - --web.external-url=https://alertmanager.gocoffee.dev
+          - --log.level=info
+        env:
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: alertmanager-secrets
+              key: smtp-password
+        - name: SLACK_API_URL
+          valueFrom:
+            secretKeyRef:
+              name: alertmanager-secrets
+              key: slack-api-url
+        - name: PAGERDUTY_ROUTING_KEY
+          valueFrom:
+            secretKeyRef:
+              name: alertmanager-secrets
+              key: pagerduty-routing-key
+        ports:
+        - name: http
+          containerPort: 9093
+          protocol: TCP
+        - name: cluster
+          containerPort: 9094
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+          readOnly: true
+        - name: templates
+          mountPath: /etc/alertmanager/templates
+          readOnly: true
+        - name: storage
+          mountPath: /alertmanager
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager-config
+      - name: templates
+        configMap:
+          name: alertmanager-config
+          items:
+          - key: notification.tmpl
+            path: notification.tmpl
+      - name: storage
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: server
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9093"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 9093
+    targetPort: http
+    protocol: TCP
+  - name: cluster
+    port: 9094
+    targetPort: cluster
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: server

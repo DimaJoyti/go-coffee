@@ -1,0 +1,520 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-configuration
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: configuration
+data:
+  jaeger.yaml: |
+    # Jaeger configuration for Go Coffee distributed tracing
+    
+    # Collector configuration
+    collector:
+      # gRPC server configuration
+      grpc-server:
+        host-port: 0.0.0.0:14250
+      
+      # HTTP server configuration  
+      http-server:
+        host-port: 0.0.0.0:14268
+      
+      # Zipkin HTTP server
+      zipkin:
+        host-port: 0.0.0.0:9411
+      
+      # OTLP receiver
+      otlp:
+        grpc:
+          host-port: 0.0.0.0:4317
+        http:
+          host-port: 0.0.0.0:4318
+    
+    # Storage configuration
+    storage:
+      type: elasticsearch
+      elasticsearch:
+        server-urls: http://elasticsearch.go-coffee-monitoring.svc.cluster.local:9200
+        index-prefix: jaeger
+        username: ${ELASTICSEARCH_USERNAME}
+        password: ${ELASTICSEARCH_PASSWORD}
+        tls:
+          enabled: false
+        create-index-templates: true
+        version: 7
+        max-span-age: 168h  # 7 days
+        num-shards: 1
+        num-replicas: 1
+        bulk:
+          size: 5000000
+          workers: 1
+          flush-interval: 200ms
+    
+    # Query configuration
+    query:
+      base-path: /
+      static-files: /go/bin/jaeger-ui/
+      ui-config: /etc/jaeger/ui-config.json
+      max-clock-skew-adjustment: 0s
+      
+    # Agent configuration
+    agent:
+      # Jaeger agent server configuration
+      processors:
+        - jaeger-compact:
+            server-host-port: 0.0.0.0:6831
+        - jaeger-binary:
+            server-host-port: 0.0.0.0:6832
+      
+      # Reporter configuration
+      reporter:
+        grpc:
+          host-port: jaeger-collector.go-coffee-monitoring.svc.cluster.local:14250
+        type: grpc
+    
+    # Sampling configuration
+    sampling:
+      default_strategy:
+        type: probabilistic
+        param: 0.1  # 10% sampling rate
+      max_traces_per_second: 100
+      
+      # Per-service sampling strategies
+      per_service_strategies:
+        - service: "go-coffee-api-gateway"
+          type: probabilistic
+          param: 0.5  # 50% for API gateway
+        - service: "go-coffee-payment-service"
+          type: probabilistic
+          param: 1.0  # 100% for payment service
+        - service: "go-coffee-ai-*"
+          type: probabilistic
+          param: 0.2  # 20% for AI services
+        - service: "go-coffee-web3-*"
+          type: probabilistic
+          param: 1.0  # 100% for Web3 services
+
+  ui-config.json: |
+    {
+      "monitor": {
+        "menuEnabled": true
+      },
+      "dependencies": {
+        "menuEnabled": true
+      },
+      "archiveEnabled": true,
+      "tracking": {
+        "gaID": "UA-000000-2",
+        "trackErrors": true
+      },
+      "menu": [
+        {
+          "label": "Go Coffee Docs",
+          "url": "https://docs.gocoffee.dev",
+          "newTab": true
+        },
+        {
+          "label": "Grafana",
+          "url": "https://grafana.gocoffee.dev",
+          "newTab": true
+        }
+      ],
+      "linkPatterns": [
+        {
+          "type": "logs",
+          "key": "customer_id",
+          "url": "https://grafana.gocoffee.dev/explore?left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%22expr%22:%22%7Bcustomer_id%3D%5C%22#customer_id%5C%22%7D%22%7D%5D",
+          "text": "View customer logs"
+        },
+        {
+          "type": "metrics",
+          "key": "service_name",
+          "url": "https://grafana.gocoffee.dev/d/service-overview?var-service=#service_name",
+          "text": "View service metrics"
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-collector
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+      app.kubernetes.io/component: collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/component: collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "14269"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: jaeger
+      containers:
+      - name: jaeger-collector
+        image: jaegertracing/jaeger-collector:1.51.0
+        args:
+          - --config-file=/etc/jaeger/jaeger.yaml
+          - --log-level=info
+        env:
+        - name: SPAN_STORAGE_TYPE
+          value: elasticsearch
+        - name: ES_SERVER_URLS
+          value: http://elasticsearch.go-coffee-monitoring.svc.cluster.local:9200
+        - name: ES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: username
+              optional: true
+        - name: ES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: password
+              optional: true
+        - name: COLLECTOR_OTLP_ENABLED
+          value: "true"
+        - name: COLLECTOR_ZIPKIN_HOST_PORT
+          value: "0.0.0.0:9411"
+        ports:
+        - name: grpc
+          containerPort: 14250
+          protocol: TCP
+        - name: http
+          containerPort: 14268
+          protocol: TCP
+        - name: zipkin
+          containerPort: 9411
+          protocol: TCP
+        - name: otlp-grpc
+          containerPort: 4317
+          protocol: TCP
+        - name: otlp-http
+          containerPort: 4318
+          protocol: TCP
+        - name: metrics
+          containerPort: 14269
+          protocol: TCP
+        - name: admin
+          containerPort: 14270
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/jaeger
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /
+            port: admin
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: jaeger-configuration
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-query
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+      app.kubernetes.io/component: query
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/component: query
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "16687"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: jaeger
+      containers:
+      - name: jaeger-query
+        image: jaegertracing/jaeger-query:1.51.0
+        args:
+          - --config-file=/etc/jaeger/jaeger.yaml
+          - --log-level=info
+          - --query.ui-config=/etc/jaeger/ui-config.json
+        env:
+        - name: SPAN_STORAGE_TYPE
+          value: elasticsearch
+        - name: ES_SERVER_URLS
+          value: http://elasticsearch.go-coffee-monitoring.svc.cluster.local:9200
+        - name: ES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: username
+              optional: true
+        - name: ES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: password
+              optional: true
+        - name: QUERY_BASE_PATH
+          value: /jaeger
+        ports:
+        - name: http
+          containerPort: 16686
+          protocol: TCP
+        - name: grpc
+          containerPort: 16685
+          protocol: TCP
+        - name: metrics
+          containerPort: 16687
+          protocol: TCP
+        - name: admin
+          containerPort: 16688
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/jaeger
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /
+            port: admin
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: jaeger-configuration
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: jaeger-agent
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "14271"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: jaeger
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: jaeger-agent
+        image: jaegertracing/jaeger-agent:1.51.0
+        args:
+          - --config-file=/etc/jaeger/jaeger.yaml
+          - --log-level=info
+        env:
+        - name: REPORTER_GRPC_HOST_PORT
+          value: jaeger-collector.go-coffee-monitoring.svc.cluster.local:14250
+        ports:
+        - name: compact
+          containerPort: 6831
+          protocol: UDP
+          hostPort: 6831
+        - name: binary
+          containerPort: 6832
+          protocol: UDP
+          hostPort: 6832
+        - name: http
+          containerPort: 5778
+          protocol: TCP
+          hostPort: 5778
+        - name: metrics
+          containerPort: 14271
+          protocol: TCP
+        - name: admin
+          containerPort: 14272
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/jaeger
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /
+            port: admin
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: jaeger-configuration
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: collector
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "14269"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: grpc
+    port: 14250
+    targetPort: grpc
+    protocol: TCP
+  - name: http
+    port: 14268
+    targetPort: http
+    protocol: TCP
+  - name: zipkin
+    port: 9411
+    targetPort: zipkin
+    protocol: TCP
+  - name: otlp-grpc
+    port: 4317
+    targetPort: otlp-grpc
+    protocol: TCP
+  - name: otlp-http
+    port: 4318
+    targetPort: otlp-http
+    protocol: TCP
+  - name: metrics
+    port: 14269
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "16687"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 16686
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 16685
+    targetPort: grpc
+    protocol: TCP
+  - name: metrics
+    port: 16687
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query

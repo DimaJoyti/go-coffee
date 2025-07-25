@@ -123,3 +123,7 @@ CLAUDE.md
 .mcp.json
 dao/.env
 dao/web/dao-portal/.next
+crypto-terminal/web/package-lock.json
+crypto-terminal/dashboard/.next
+.env.staging
+web-ui/frontend/package-lock.json

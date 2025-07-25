@@ -5,47 +5,75 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.75rem;
+
+    /* Trading specific colors */
+    --bull: 142 76% 36%;
+    --bear: 0 84% 60%;
+    --neutral: 240 3.8% 46.1%;
+    --profit: 142 76% 36%;
+    --loss: 0 84% 60%;
+    --warning: 38 92% 50%;
+    --info: 221 83% 53%;
+
+    /* Glass effect variables */
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+
+    /* Trading specific colors for dark mode */
+    --bull: 142 76% 36%;
+    --bear: 0 84% 60%;
+    --neutral: 240 5% 64.9%;
+    --profit: 142 76% 36%;
+    --loss: 0 84% 60%;
+    --warning: 38 92% 50%;
+    --info: 221 83% 53%;
+
+    /* Glass effect variables for dark mode */
+    --glass-bg: rgba(0, 0, 0, 0.3);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   }
 }
 
@@ -53,69 +81,235 @@
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 }
 
-/* Trading Dashboard Specific Styles */
-.trading-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
+@layer utilities {
+  /* Trading specific utilities */
+  .text-bull {
+    color: hsl(var(--bull));
+  }
+
+  .text-bear {
+    color: hsl(var(--bear));
+  }
+
+  .text-profit {
+    color: hsl(var(--profit));
+  }
+
+  .text-loss {
+    color: hsl(var(--loss));
+  }
+
+  .bg-bull {
+    background-color: hsl(var(--bull));
+  }
+
+  .bg-bear {
+    background-color: hsl(var(--bear));
+  }
+
+  .bg-profit {
+    background-color: hsl(var(--profit));
+  }
+
+  .bg-loss {
+    background-color: hsl(var(--loss));
+  }
+
+  /* Glass morphism effects */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+
+  .glass-card {
+    @apply glass rounded-xl p-6;
+  }
+
+  /* Epic gradients */
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+  }
+
+  .gradient-bull {
+    background: linear-gradient(135deg, hsl(var(--bull)) 0%, hsl(var(--bull) / 0.8) 100%);
+  }
+
+  .gradient-bear {
+    background: linear-gradient(135deg, hsl(var(--bear)) 0%, hsl(var(--bear) / 0.8) 100%);
+  }
+
+  /* Trading grid layouts */
+  .trading-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .trading-grid-dense {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  /* Epic animations */
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-bounce-slow {
+    animation: bounce 3s infinite;
+  }
 }
 
-.price-up {
-  @apply text-profit;
-}
-
-.price-down {
-  @apply text-loss;
-}
-
-.coffee-gradient {
-  background: linear-gradient(135deg, #d4791f 0%, #a44d14 100%);
-}
-
-.trading-card {
-  @apply bg-card border border-border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow;
-}
-
-.metric-card {
-  @apply trading-card flex flex-col items-center justify-center text-center;
-}
-
-/* Custom scrollbar for trading tables */
-.trading-scrollbar::-webkit-scrollbar {
+/* Custom scrollbars */
+.scrollbar-thin::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-.trading-scrollbar::-webkit-scrollbar-track {
-  @apply bg-muted rounded-full;
+.scrollbar-thin::-webkit-scrollbar-track {
+  @apply bg-transparent;
 }
 
-.trading-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50;
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
 }
 
-/* Animation for real-time updates */
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Epic keyframe animations */
+@keyframes glow {
+  from {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+  to {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.6), 0 0 40px hsl(var(--primary) / 0.3);
+  }
+}
+
 @keyframes flash-profit {
-  0% { background-color: transparent; }
-  50% { background-color: rgba(16, 185, 129, 0.2); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+  50% {
+    background-color: hsl(var(--profit) / 0.2);
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
 }
 
 @keyframes flash-loss {
-  0% { background-color: transparent; }
-  50% { background-color: rgba(239, 68, 68, 0.2); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+  50% {
+    background-color: hsl(var(--loss) / 0.2);
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .flash-profit {
-  animation: flash-profit 0.5s ease-in-out;
+  animation: flash-profit 0.6s ease-in-out;
 }
 
 .flash-loss {
-  animation: flash-loss 0.5s ease-in-out;
+  animation: flash-loss 0.6s ease-in-out;
+}
+
+.slide-in-up {
+  animation: slideInUp 0.5s ease-out;
+}
+
+.slide-in-right {
+  animation: slideInRight 0.5s ease-out;
+}
+
+/* Trading terminal specific styles */
+.terminal-bg {
+  background:
+    radial-gradient(circle at 20% 80%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, hsl(var(--accent) / 0.1) 0%, transparent 50%),
+    hsl(var(--background));
+}
+
+.trading-card {
+  @apply bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-border;
+}
+
+.metric-card {
+  @apply trading-card flex flex-col items-center justify-center text-center min-h-[120px];
+}
+
+.price-ticker {
+  @apply font-mono text-sm tabular-nums;
+}
+
+/* Chart container styles */
+.chart-container {
+  @apply relative overflow-hidden rounded-lg border border-border/50 bg-card/30 backdrop-blur-sm;
+}
+
+/* Epic button variants */
+.btn-epic {
+  @apply relative overflow-hidden bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-medium px-6 py-3 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 hover:scale-105 active:scale-95;
+}
+
+.btn-epic::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] transition-transform duration-700;
+}
+
+.btn-epic:hover::before {
+  @apply translate-x-[100%];
 }

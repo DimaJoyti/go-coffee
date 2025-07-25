@@ -1,0 +1,415 @@
+name: 🚀 Deploy Go Coffee Infrastructure
+
+# This workflow deploys Go Coffee infrastructure across multiple cloud providers
+# Required secrets:
+#   - GCP_PROJECT_ID: GCP project ID
+#   - GCP_SA_KEY: GCP service account key (JSON)
+#   - AWS_ACCESS_KEY_ID: AWS access key (optional, for AWS deployment)
+#   - AWS_SECRET_ACCESS_KEY: AWS secret key (optional, for AWS deployment)
+#   - AZURE_CREDENTIALS: Azure credentials (optional, for Azure deployment)
+#   - TERRAFORM_STATE_BUCKET: GCS bucket for Terraform state
+#   - SLACK_WEBHOOK_URL: Slack webhook for notifications (optional)
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'terraform/**'
+      - 'helm/**'
+      - 'k8s/**'
+      - '.github/workflows/deploy-infrastructure.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - 'helm/**'
+      - 'k8s/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      cloud_provider:
+        description: 'Cloud provider'
+        required: true
+        default: 'gcp'
+        type: choice
+        options:
+          - gcp
+          - aws
+          - azure
+      destroy:
+        description: 'Destroy infrastructure'
+        required: false
+        default: false
+        type: boolean
+      enable_gitops:
+        description: 'Enable GitOps deployment'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  TERRAFORM_VERSION: '1.6.0'
+  HELM_VERSION: '3.13.0'
+  KUBECTL_VERSION: '1.28.0'
+  TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+  TF_VAR_region: ${{ vars.GCP_REGION || 'us-central1' }}
+  TF_VAR_environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod') || (github.ref == 'refs/heads/develop' && 'staging') || 'dev' }}
+
+jobs:
+  # Security and compliance checks
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Checkov static analysis
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: terraform,kubernetes,helm
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+  # Terraform validation and planning
+  terraform-plan:
+    name: 📋 Terraform Plan
+    runs-on: ubuntu-latest
+    needs: security-scan
+    strategy:
+      matrix:
+        cloud: [gcp, aws, azure]
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure GCP credentials
+        if: matrix.cloud == 'gcp'
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure AWS credentials
+        if: matrix.cloud == 'aws'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
+
+      - name: Configure Azure credentials
+        if: matrix.cloud == 'azure'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="prefix=go-coffee/${{ matrix.cloud }}/${{ env.TF_VAR_environment }}"
+
+      - name: Terraform Validate
+        working-directory: terraform
+        run: terraform validate
+
+      - name: Terraform Format Check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform
+        run: |
+          terraform plan \
+            -var="cloud_provider=${{ matrix.cloud }}" \
+            -var="environment=${{ env.TF_VAR_environment }}" \
+            -out=tfplan-${{ matrix.cloud }} \
+            -no-color
+
+          # Save plan output
+          terraform show -no-color tfplan-${{ matrix.cloud }} > plan-${{ matrix.cloud }}.txt
+
+          # Create plan summary
+          echo "## Terraform Plan Summary for ${{ matrix.cloud }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          head -50 plan-${{ matrix.cloud }}.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-plan-${{ matrix.cloud }}-${{ env.TF_VAR_environment }}
+          path: |
+            terraform/tfplan-${{ matrix.cloud }}
+            terraform/plan-${{ matrix.cloud }}.txt
+          retention-days: 30
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan-${{ matrix.cloud }}.txt', 'utf8');
+            const output = `#### Terraform Plan for ${{ matrix.cloud }} 📖
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${plan.slice(0, 65000)}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # Helm chart validation
+  helm-validate:
+    name: ⚓ Helm Validation
+    runs-on: ubuntu-latest
+    needs: security-scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+          helm repo add istio https://istio-release.storage.googleapis.com/charts
+          helm repo update
+
+      - name: Lint Helm charts
+        run: |
+          for chart in helm/*/; do
+            if [[ -f "$chart/Chart.yaml" ]]; then
+              echo "Linting $chart"
+              helm lint "$chart"
+            fi
+          done
+
+      - name: Template Helm charts
+        run: |
+          for chart in helm/*/; do
+            if [[ -f "$chart/Chart.yaml" ]]; then
+              chart_name=$(basename "$chart")
+              echo "Templating $chart_name"
+              helm template "$chart_name" "$chart" \
+                --values "$chart/values-${{ env.TF_VAR_environment }}.yaml" \
+                --output-dir "rendered/$chart_name"
+            fi
+          done
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v3
+        with:
+          name: helm-rendered-${{ env.TF_VAR_environment }}
+          path: rendered/
+          retention-days: 7
+
+  # Deploy infrastructure
+  deploy:
+    name: 🚀 Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [terraform-plan, helm-validate]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/develop' && 'staging') || 'development' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup tools
+        run: |
+          # Install Terraform
+          wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt update && sudo apt install terraform=${{ env.TERRAFORM_VERSION }}
+          
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/v${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          
+          # Install Helm
+          curl https://get.helm.sh/helm-v${{ env.HELM_VERSION }}-linux-amd64.tar.gz | tar xz
+          sudo mv linux-amd64/helm /usr/local/bin/
+
+      - name: Configure GCP credentials
+        if: github.event.inputs.cloud_provider == 'gcp' || github.event.inputs.cloud_provider == ''
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure AWS credentials
+        if: github.event.inputs.cloud_provider == 'aws'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
+
+      - name: Configure Azure credentials
+        if: github.event.inputs.cloud_provider == 'azure'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-plan-${{ github.event.inputs.cloud_provider || 'gcp' }}-${{ env.TF_VAR_environment }}
+          path: terraform/
+
+      - name: Deploy infrastructure
+        if: github.event.inputs.destroy != 'true'
+        run: |
+          chmod +x scripts/deploy-complete-infrastructure.sh
+          export ENVIRONMENT=${{ env.TF_VAR_environment }}
+          export CLOUD_PROVIDER=${{ github.event.inputs.cloud_provider || 'gcp' }}
+          export PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          export REGION=${{ env.TF_VAR_region }}
+          export ENABLE_MONITORING=true
+          export ENABLE_SERVICE_MESH=true
+          export ENABLE_GITOPS=${{ github.event.inputs.enable_gitops || 'false' }}
+          ./scripts/deploy-complete-infrastructure.sh deploy
+
+      - name: Destroy infrastructure
+        if: github.event.inputs.destroy == 'true'
+        run: |
+          chmod +x scripts/deploy-complete-infrastructure.sh
+          export ENVIRONMENT=${{ env.TF_VAR_environment }}
+          export CLOUD_PROVIDER=${{ github.event.inputs.cloud_provider || 'gcp' }}
+          export PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          export REGION=${{ env.TF_VAR_region }}
+          ./scripts/deploy-complete-infrastructure.sh destroy
+
+      - name: Run post-deployment tests
+        if: github.event.inputs.destroy != 'true'
+        run: |
+          # Wait for services to be ready
+          kubectl wait --for=condition=available --timeout=300s deployment --all -n go-coffee
+          
+          # Run health checks
+          ./scripts/deploy-complete-infrastructure.sh verify
+
+      - name: Update deployment status
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { context } = require('@actions/github');
+            const status = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+            const description = status === 'success' 
+              ? '✅ Infrastructure deployed successfully' 
+              : '❌ Infrastructure deployment failed';
+            
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment?.id || 0,
+              state: status,
+              description: description,
+              environment: '${{ env.TF_VAR_environment }}',
+              auto_inactive: false
+            });
+
+  # Notify deployment status
+  notify:
+    name: 📢 Notify
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Notify Slack
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v1.24.0
+        continue-on-error: true
+        with:
+          payload: |
+            {
+              "text": "Go Coffee Infrastructure Deployment - ${{ needs.deploy.result }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ needs.deploy.result == 'success' && ':white_check_mark:' || ':x:' }} *Go Coffee Infrastructure Deployment*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\n${{ env.TF_VAR_environment }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Cloud Provider:*\n${{ github.event.inputs.cloud_provider || 'gcp' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Status:*\n${{ needs.deploy.result }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Workflow:*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Actor:*\n${{ github.actor }}"
+                    }
+                  ]
+                }
+              ]
+            }

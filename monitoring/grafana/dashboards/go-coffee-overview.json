@@ -1,0 +1,409 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "☕ Go Coffee - Business Overview",
+    "tags": ["go-coffee", "business", "overview"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "☕ Orders per Minute",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "go_coffee:orders_per_minute",
+            "legendFormat": "Orders/min",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "green", "value": 10}
+              ]
+            },
+            "unit": "short",
+            "decimals": 1
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "💰 Revenue per Minute",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "go_coffee:revenue_per_minute",
+            "legendFormat": "Revenue/min",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "green", "value": 100}
+              ]
+            },
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "📊 Average Order Value",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "go_coffee:average_order_value",
+            "legendFormat": "AOV",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "green", "value": 10}
+              ]
+            },
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "⭐ Customer Satisfaction",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "go_coffee:customer_satisfaction_score",
+            "legendFormat": "Satisfaction Score",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 3},
+                {"color": "green", "value": 4}
+              ]
+            },
+            "min": 1,
+            "max": 5,
+            "unit": "short",
+            "decimals": 2
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "📈 Orders Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "go_coffee:orders_per_minute",
+            "legendFormat": "Orders/min",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 10
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "💵 Revenue Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "go_coffee:revenue_per_minute",
+            "legendFormat": "Revenue/min",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 10
+            },
+            "unit": "currencyUSD"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "🤖 AI Agent Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "go_coffee:ai_agent_efficiency",
+            "legendFormat": "AI Efficiency",
+            "refId": "A"
+          },
+          {
+            "expr": "go_coffee:ai_inference_latency_p95",
+            "legendFormat": "Inference Latency P95",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "AI Efficiency"},
+              "properties": [
+                {"id": "unit", "value": "percentunit"},
+                {"id": "custom.axisPlacement", "value": "left"}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Inference Latency P95"},
+              "properties": [
+                {"id": "unit", "value": "s"},
+                {"id": "custom.axisPlacement", "value": "right"}
+              ]
+            }
+          ]
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "🌐 Web3 Transaction Success Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "go_coffee:web3_transaction_success_rate",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.9},
+                {"color": "green", "value": 0.95}
+              ]
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "fillOpacity": 20
+            },
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "🏪 Service Health Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "up{job=~\".*go-coffee.*\"}",
+            "legendFormat": "{{job}}",
+            "refId": "A",
+            "instant": true
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "displayMode": "color-background"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": {"color": "red", "text": "Down"},
+                  "1": {"color": "green", "text": "Up"}
+                },
+                "type": "value"
+              }
+            ]
+          }
+        },
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true
+              },
+              "renameByName": {
+                "job": "Service",
+                "Value": "Status"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "📊 Top Coffee Products",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "topk(5, sum by (product) (rate(coffee_orders_total[1h])))",
+            "legendFormat": "{{product}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24}
+      },
+      {
+        "id": 11,
+        "title": "🌍 Orders by Region",
+        "type": "geomap",
+        "targets": [
+          {
+            "expr": "sum by (region) (rate(coffee_orders_total[1h]))",
+            "legendFormat": "{{region}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "continuous-GrYlRd"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "environment",
+          "type": "query",
+          "query": "label_values(up{job=~\".*go-coffee.*\"}, environment)",
+          "current": {
+            "selected": false,
+            "text": "production",
+            "value": "production"
+          },
+          "options": [],
+          "refresh": 1,
+          "includeAll": false,
+          "multi": false
+        },
+        {
+          "name": "service",
+          "type": "query",
+          "query": "label_values(up{job=~\".*go-coffee.*\", environment=\"$environment\"}, job)",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          "options": [],
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "expr": "increase(deployment_created_total[1m])",
+          "iconColor": "blue",
+          "textFormat": "Deployment: {{service}}"
+        }
+      ]
+    }
+  }
+}

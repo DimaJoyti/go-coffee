@@ -1,0 +1,550 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/component: config
+data:
+  loki.yaml: |
+    # Loki configuration for Go Coffee log aggregation
+    
+    auth_enabled: false
+    
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9095
+      log_level: info
+      log_format: json
+    
+    common:
+      path_prefix: /loki
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+      replication_factor: 1
+      ring:
+        instance_addr: 127.0.0.1
+        kvstore:
+          store: inmemory
+    
+    query_range:
+      results_cache:
+        cache:
+          embedded_cache:
+            enabled: true
+            max_size_mb: 100
+    
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+    
+    ruler:
+      alertmanager_url: http://alertmanager.go-coffee-monitoring.svc.cluster.local:9093
+      storage:
+        type: local
+        local:
+          directory: /loki/rules
+      rule_path: /loki/rules
+      ring:
+        kvstore:
+          store: inmemory
+      enable_api: true
+      enable_alertmanager_v2: true
+    
+    # Limits configuration
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h  # 7 days
+      ingestion_rate_mb: 10
+      ingestion_burst_size_mb: 20
+      max_streams_per_user: 10000
+      max_line_size: 256000
+      max_entries_limit_per_query: 5000
+      max_global_streams_per_user: 5000
+      max_chunks_per_query: 2000000
+      max_query_length: 721h  # 30 days
+      max_query_parallelism: 32
+      cardinality_limit: 100000
+      max_streams_matchers_per_query: 1000
+      max_concurrent_tail_requests: 10
+      retention_period: 744h  # 31 days
+    
+    # Chunk store configuration
+    chunk_store_config:
+      max_look_back_period: 0s
+    
+    # Table manager configuration
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 744h  # 31 days
+    
+    # Compactor configuration
+    compactor:
+      working_directory: /loki/compactor
+      shared_store: filesystem
+      compaction_interval: 10m
+      retention_enabled: true
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+    
+    # Analytics configuration
+    analytics:
+      reporting_enabled: false
+
+  # Log parsing rules
+  rules.yaml: |
+    groups:
+    - name: go-coffee-logs
+      rules:
+      # High error rate from logs
+      - alert: GoCoffeeHighLogErrorRate
+        expr: |
+          (
+            sum(rate({namespace="go-coffee"} |= "ERROR" [5m])) /
+            sum(rate({namespace="go-coffee"} [5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High error rate in Go Coffee logs"
+          description: "Error rate in logs is {{ $value | humanizePercentage }}"
+      
+      # Payment service errors
+      - alert: GoCoffeePaymentErrors
+        expr: |
+          sum(rate({namespace="go-coffee", service="payment-service"} |= "ERROR" [5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: payment
+        annotations:
+          summary: "Payment service errors detected"
+          description: "Payment service is logging errors at {{ $value }} per second"
+      
+      # Web3 transaction failures
+      - alert: GoCoffeeWeb3TransactionErrors
+        expr: |
+          sum(rate({namespace="go-coffee", component=~"web3.*"} |= "transaction failed" [5m])) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          team: web3
+        annotations:
+          summary: "Web3 transaction failures detected"
+          description: "Web3 services are logging transaction failures at {{ $value }} per second"
+      
+      # AI model inference errors
+      - alert: GoCoffeeAIInferenceErrors
+        expr: |
+          sum(rate({namespace="go-coffee", component=~"ai.*"} |= "inference failed" [5m])) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI inference errors detected"
+          description: "AI services are logging inference failures at {{ $value }} per second"
+      
+      # Database connection errors
+      - alert: GoCoffeeDatabaseErrors
+        expr: |
+          sum(rate({namespace="go-coffee"} |~ "database.*error|connection.*failed" [5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection errors detected"
+          description: "Services are logging database errors at {{ $value }} per second"
+      
+      # Panic detection
+      - alert: GoCoffeePanicDetected
+        expr: |
+          sum(rate({namespace="go-coffee"} |= "panic" [1m])) > 0
+        for: 0s
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Application panic detected"
+          description: "A Go Coffee service has panicked"
+      
+      # Security alerts from logs
+      - alert: GoCoffeeSecurityAlert
+        expr: |
+          sum(rate({namespace="go-coffee"} |~ "unauthorized|forbidden|security.*violation" [5m])) > 0.1
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Security events detected in logs"
+          description: "Security-related events detected at {{ $value }} per second"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/component: server
+spec:
+  serviceName: loki-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/component: server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3100"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: loki
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+      - name: loki
+        image: grafana/loki:2.9.2
+        args:
+          - -config.file=/etc/loki/loki.yaml
+          - -target=all
+        ports:
+        - name: http
+          containerPort: 3100
+          protocol: TCP
+        - name: grpc
+          containerPort: 9095
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/loki
+          readOnly: true
+        - name: storage
+          mountPath: /loki
+        - name: rules
+          mountPath: /loki/rules
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 45
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 45
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: loki-config
+      - name: rules
+        configMap:
+          name: loki-config
+          items:
+          - key: rules.yaml
+            path: rules.yaml
+  volumeClaimTemplates:
+  - metadata:
+      name: storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 50Gi
+      storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/component: server
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3100"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 3100
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 9095
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/component: server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-headless
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/component: server
+spec:
+  clusterIP: None
+  ports:
+  - name: http
+    port: 3100
+    targetPort: http
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/component: server
+---
+# Fluent Bit configuration for log collection
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/component: config
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Daemon Off
+        Flush 1
+        Log_Level info
+        Parsers_File parsers.conf
+        Parsers_File custom_parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port 2020
+        Health_Check On
+
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*go-coffee*.log
+        multiline.parser docker, cri
+        Tag kube.*
+        Mem_Buf_Limit 50MB
+        Skip_Long_Lines On
+
+    [INPUT]
+        Name systemd
+        Tag host.*
+        Systemd_Filter _SYSTEMD_UNIT=kubelet.service
+        Read_From_Tail On
+
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Kube_URL https://kubernetes.default.svc:443
+        Kube_CA_File /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix kube.var.log.containers.
+        Merge_Log On
+        Merge_Log_Key log_processed
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude Off
+
+    [FILTER]
+        Name parser
+        Match kube.*
+        Key_Name log
+        Parser go-coffee-json
+        Reserve_Data On
+
+    [FILTER]
+        Name modify
+        Match kube.*
+        Add cluster go-coffee-cluster
+        Add environment production
+
+    [OUTPUT]
+        Name loki
+        Match kube.*
+        Host loki.go-coffee-monitoring.svc.cluster.local
+        Port 3100
+        Labels job=fluent-bit, cluster=go-coffee-cluster
+        Label_keys $kubernetes['namespace_name'],$kubernetes['pod_name'],$kubernetes['container_name']
+        Remove_keys kubernetes,stream
+        Line_format json
+        Auto_kubernetes_labels On
+
+  parsers.conf: |
+    [PARSER]
+        Name   apache
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   apache2
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   apache_error
+        Format regex
+        Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
+
+    [PARSER]
+        Name   nginx
+        Format regex
+        Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   json
+        Format json
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+
+    [PARSER]
+        Name cri
+        Format regex
+        Regex ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+  custom_parsers.conf: |
+    [PARSER]
+        Name go-coffee-json
+        Format json
+        Time_Key timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep On
+
+    [PARSER]
+        Name go-coffee-structured
+        Format regex
+        Regex ^(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z) (?<level>\w+) (?<service>\w+) (?<message>.*)$
+        Time_Key timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/component: log-collector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fluent-bit
+      app.kubernetes.io/component: log-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fluent-bit
+        app.kubernetes.io/component: log-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2020"
+        prometheus.io/path: "/api/v1/metrics/prometheus"
+    spec:
+      serviceAccountName: fluent-bit
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+      containers:
+      - name: fluent-bit
+        image: fluent/fluent-bit:2.2.0
+        ports:
+        - name: http
+          containerPort: 2020
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /fluent-bit/etc/
+          readOnly: true
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: etcmachineid
+          mountPath: /etc/machine-id
+          readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: fluent-bit-config
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: etcmachineid
+        hostPath:
+          path: /etc/machine-id
+          type: File

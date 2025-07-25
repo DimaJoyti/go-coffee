@@ -1,0 +1,524 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-orchestrator-config
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: agent-orchestrator
+    app.kubernetes.io/component: orchestration
+data:
+  # Orchestrator configuration
+  orchestrator-config.yaml: |
+    orchestrator:
+      name: "Go Coffee AI Agent Orchestrator"
+      version: "1.0.0"
+      description: "Central orchestration system for AI agents"
+      
+    agents:
+      beverage_inventor:
+        endpoint: "http://beverage-inventor.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["recipe_creation", "flavor_analysis", "innovation"]
+        priority: "high"
+        timeout: "30s"
+        retry_count: 3
+        
+      inventory_manager:
+        endpoint: "http://inventory-manager.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["demand_forecasting", "stock_optimization", "supplier_management"]
+        priority: "high"
+        timeout: "60s"
+        retry_count: 3
+        
+      task_manager:
+        endpoint: "http://task-manager.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["workflow_management", "task_scheduling", "resource_allocation"]
+        priority: "medium"
+        timeout: "30s"
+        retry_count: 2
+        
+      social_media_manager:
+        endpoint: "http://social-media-manager.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["content_creation", "social_posting", "engagement_analysis"]
+        priority: "medium"
+        timeout: "45s"
+        retry_count: 2
+        
+      customer_service:
+        endpoint: "http://customer-service.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["customer_support", "issue_resolution", "satisfaction_analysis"]
+        priority: "high"
+        timeout: "20s"
+        retry_count: 3
+        
+      financial_analyst:
+        endpoint: "http://financial-analyst.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["financial_analysis", "cost_optimization", "revenue_forecasting"]
+        priority: "medium"
+        timeout: "60s"
+        retry_count: 2
+        
+      marketing_specialist:
+        endpoint: "http://marketing-specialist.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["campaign_creation", "market_analysis", "customer_segmentation"]
+        priority: "medium"
+        timeout: "45s"
+        retry_count: 2
+        
+      quality_assurance:
+        endpoint: "http://quality-assurance.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["quality_monitoring", "compliance_checking", "process_improvement"]
+        priority: "high"
+        timeout: "30s"
+        retry_count: 3
+        
+      supply_chain_optimizer:
+        endpoint: "http://supply-chain-optimizer.go-coffee-ai.svc.cluster.local:8080"
+        capabilities: ["logistics_optimization", "supplier_coordination", "delivery_planning"]
+        priority: "medium"
+        timeout: "60s"
+        retry_count: 2
+    
+    workflows:
+      new_product_development:
+        description: "End-to-end new product development workflow"
+        agents: ["beverage_inventor", "inventory_manager", "marketing_specialist", "financial_analyst"]
+        steps:
+          - agent: "beverage_inventor"
+            action: "create_recipe"
+            inputs: ["market_trends", "seasonal_factors", "customer_preferences"]
+          - agent: "inventory_manager"
+            action: "analyze_ingredients"
+            inputs: ["recipe_ingredients", "supplier_availability"]
+          - agent: "financial_analyst"
+            action: "cost_analysis"
+            inputs: ["ingredient_costs", "production_volume"]
+          - agent: "marketing_specialist"
+            action: "market_positioning"
+            inputs: ["product_concept", "target_audience"]
+        
+      daily_operations:
+        description: "Daily operational optimization workflow"
+        agents: ["inventory_manager", "task_manager", "quality_assurance"]
+        schedule: "0 6 * * *"  # Daily at 6 AM
+        steps:
+          - agent: "inventory_manager"
+            action: "forecast_demand"
+            inputs: ["historical_sales", "weather_forecast", "events"]
+          - agent: "task_manager"
+            action: "optimize_staffing"
+            inputs: ["demand_forecast", "staff_availability"]
+          - agent: "quality_assurance"
+            action: "quality_check"
+            inputs: ["inventory_status", "equipment_status"]
+      
+      customer_issue_resolution:
+        description: "Automated customer issue resolution workflow"
+        agents: ["customer_service", "task_manager", "quality_assurance"]
+        trigger: "customer_complaint"
+        steps:
+          - agent: "customer_service"
+            action: "analyze_issue"
+            inputs: ["customer_message", "order_history", "preferences"]
+          - agent: "task_manager"
+            action: "create_resolution_task"
+            inputs: ["issue_analysis", "priority_level"]
+          - agent: "quality_assurance"
+            action: "process_improvement"
+            inputs: ["issue_pattern", "root_cause"]
+    
+    communication:
+      message_bus: "redis"
+      event_store: "postgresql"
+      metrics_backend: "prometheus"
+      tracing_backend: "jaeger"
+      
+    scaling:
+      auto_scaling: true
+      min_replicas: 2
+      max_replicas: 10
+      target_cpu_utilization: 70
+      target_memory_utilization: 80
+
+  # Workflow definitions
+  workflows.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: WorkflowTemplate
+    metadata:
+      name: new-product-development
+      namespace: go-coffee-ai
+    spec:
+      entrypoint: product-development
+      templates:
+      - name: product-development
+        dag:
+          tasks:
+          - name: create-recipe
+            template: beverage-inventor-task
+            arguments:
+              parameters:
+              - name: action
+                value: "create_recipe"
+              - name: inputs
+                value: "{{workflow.parameters.market_trends}}"
+          
+          - name: analyze-ingredients
+            template: inventory-manager-task
+            dependencies: [create-recipe]
+            arguments:
+              parameters:
+              - name: action
+                value: "analyze_ingredients"
+              - name: inputs
+                value: "{{tasks.create-recipe.outputs.result}}"
+          
+          - name: cost-analysis
+            template: financial-analyst-task
+            dependencies: [analyze-ingredients]
+            arguments:
+              parameters:
+              - name: action
+                value: "cost_analysis"
+              - name: inputs
+                value: "{{tasks.analyze-ingredients.outputs.result}}"
+          
+          - name: market-positioning
+            template: marketing-specialist-task
+            dependencies: [create-recipe]
+            arguments:
+              parameters:
+              - name: action
+                value: "market_positioning"
+              - name: inputs
+                value: "{{tasks.create-recipe.outputs.result}}"
+      
+      - name: beverage-inventor-task
+        inputs:
+          parameters:
+          - name: action
+          - name: inputs
+        container:
+          image: go-coffee/workflow-executor:v1.0.0
+          command: ["/bin/sh"]
+          args: ["-c", "curl -X POST http://beverage-inventor.go-coffee-ai.svc.cluster.local:8080/api/v1/{{inputs.parameters.action}} -d '{{inputs.parameters.inputs}}'"]
+      
+      - name: inventory-manager-task
+        inputs:
+          parameters:
+          - name: action
+          - name: inputs
+        container:
+          image: go-coffee/workflow-executor:v1.0.0
+          command: ["/bin/sh"]
+          args: ["-c", "curl -X POST http://inventory-manager.go-coffee-ai.svc.cluster.local:8080/api/v1/{{inputs.parameters.action}} -d '{{inputs.parameters.inputs}}'"]
+      
+      - name: financial-analyst-task
+        inputs:
+          parameters:
+          - name: action
+          - name: inputs
+        container:
+          image: go-coffee/workflow-executor:v1.0.0
+          command: ["/bin/sh"]
+          args: ["-c", "curl -X POST http://financial-analyst.go-coffee-ai.svc.cluster.local:8080/api/v1/{{inputs.parameters.action}} -d '{{inputs.parameters.inputs}}'"]
+      
+      - name: marketing-specialist-task
+        inputs:
+          parameters:
+          - name: action
+          - name: inputs
+        container:
+          image: go-coffee/workflow-executor:v1.0.0
+          command: ["/bin/sh"]
+          args: ["-c", "curl -X POST http://marketing-specialist.go-coffee-ai.svc.cluster.local:8080/api/v1/{{inputs.parameters.action}} -d '{{inputs.parameters.inputs}}'"]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-orchestrator
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: agent-orchestrator
+    app.kubernetes.io/component: orchestration
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-orchestrator
+      app.kubernetes.io/component: orchestration
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-orchestrator
+        app.kubernetes.io/component: orchestration
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Scheduling preferences
+      nodeSelector:
+        workload-type: ai-gpu
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      priorityClassName: ai-high-priority
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      serviceAccountName: agent-orchestrator
+      
+      containers:
+      - name: orchestrator
+        image: go-coffee/agent-orchestrator:v1.0.0
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        - name: websocket
+          containerPort: 8081
+          protocol: TCP
+        
+        env:
+        # Orchestrator configuration
+        - name: ORCHESTRATOR_NAME
+          value: "agent-orchestrator"
+        - name: ORCHESTRATOR_VERSION
+          value: "1.0.0"
+        - name: LOG_LEVEL
+          value: "info"
+        
+        # Message bus configuration
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-redis-secret
+              key: redis-url
+        - name: MESSAGE_BUS_TYPE
+          value: "redis"
+        
+        # Database configuration
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-db-secret
+              key: database-url
+        - name: EVENT_STORE_TYPE
+          value: "postgresql"
+        
+        # Monitoring configuration
+        - name: METRICS_BACKEND
+          value: "prometheus"
+        - name: TRACING_BACKEND
+          value: "jaeger"
+        - name: JAEGER_ENDPOINT
+          value: "http://jaeger-collector.go-coffee-monitoring.svc.cluster.local:14268"
+        
+        # Workflow engine
+        - name: WORKFLOW_ENGINE
+          value: "argo"
+        - name: ARGO_SERVER_URL
+          value: "http://argo-workflows-server.argo.svc.cluster.local:2746"
+        
+        # Volume mounts
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: workflows
+          mountPath: /app/workflows
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/cache
+        
+        # Resource requirements
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      
+      # Event processor sidecar
+      - name: event-processor
+        image: go-coffee/event-processor:v1.0.0
+        ports:
+        - name: events
+          containerPort: 8082
+          protocol: TCP
+        
+        env:
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-redis-secret
+              key: redis-url
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-db-secret
+              key: database-url
+        
+        volumeMounts:
+        - name: cache
+          mountPath: /app/cache
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: config
+        configMap:
+          name: agent-orchestrator-config
+          items:
+          - key: orchestrator-config.yaml
+            path: orchestrator-config.yaml
+      - name: workflows
+        configMap:
+          name: agent-orchestrator-config
+          items:
+          - key: workflows.yaml
+            path: workflows.yaml
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir:
+          sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-orchestrator
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: agent-orchestrator
+    app.kubernetes.io/component: orchestration
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 50051
+    targetPort: grpc
+    protocol: TCP
+  - name: websocket
+    port: 8081
+    targetPort: websocket
+    protocol: TCP
+  - name: events
+    port: 8082
+    targetPort: events
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: agent-orchestrator
+    app.kubernetes.io/component: orchestration
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-orchestrator
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: agent-orchestrator
+    app.kubernetes.io/component: orchestration
+---
+# RBAC for orchestrator to manage workflows
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee-ai
+  name: agent-orchestrator-role
+  labels:
+    app.kubernetes.io/name: agent-orchestrator
+    app.kubernetes.io/component: rbac
+rules:
+- apiGroups: ["argoproj.io"]
+  resources: ["workflows", "workflowtemplates"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-orchestrator-binding
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: agent-orchestrator
+    app.kubernetes.io/component: rbac
+subjects:
+- kind: ServiceAccount
+  name: agent-orchestrator
+  namespace: go-coffee-ai
+roleRef:
+  kind: Role
+  name: agent-orchestrator-role
+  apiGroup: rbac.authorization.k8s.io

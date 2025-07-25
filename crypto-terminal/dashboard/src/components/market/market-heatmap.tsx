@@ -173,11 +173,11 @@ export function MarketHeatmap() {
               <div className="flex items-center space-x-2">
                 <TrendingUp className="h-4 w-4 text-green-500" />
                 <span className="text-sm text-green-500">
-                  {heatmapItems.filter(item => item.change24h > 0).length} gaining
+                  {heatmapItems.filter((item: any) => item.change24h > 0).length} gaining
                 </span>
                 <TrendingDown className="h-4 w-4 text-red-500" />
                 <span className="text-sm text-red-500">
-                  {heatmapItems.filter(item => item.change24h < 0).length} losing
+                  {heatmapItems.filter((item: any) => item.change24h < 0).length} losing
                 </span>
               </div>
             </div>
@@ -189,7 +189,7 @@ export function MarketHeatmap() {
       <Card>
         <CardContent className="p-6">
           <div className="grid grid-cols-8 gap-2 h-96">
-            {heatmapItems.map((item) => {
+            {heatmapItems.map((item: any) => {
               const realtimeUpdate = priceUpdates[item.symbol]
               const currentChange = realtimeUpdate?.changePercent || item.change24h
               const isUpdated = !!realtimeUpdate
@@ -225,7 +225,7 @@ export function MarketHeatmap() {
                       {currentChange >= 0 ? '+' : ''}{formatPercent(currentChange)}
                     </div>
                     <div className="text-xs opacity-75">
-                      Vol: {formatCurrency(item.volume24h, 'USD', 0, 0)}
+                      Vol: {formatCurrency(item.volume24h, 'USD', 0)}
                     </div>
                   </div>
                 </div>
@@ -245,7 +245,7 @@ export function MarketHeatmap() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(heatmapItems.reduce((sum, item) => sum + item.marketCap, 0), 'USD', 0, 0)}
+              {formatCurrency(heatmapItems.reduce((sum: number, item: any) => sum + item.marketCap, 0), 'USD', 0)}
             </div>
             <div className="text-sm text-muted-foreground">
               Across {heatmapItems.length} assets
@@ -261,7 +261,7 @@ export function MarketHeatmap() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(heatmapItems.reduce((sum, item) => sum + item.volume24h, 0), 'USD', 0, 0)}
+              {formatCurrency(heatmapItems.reduce((sum: number, item: any) => sum + item.volume24h, 0), 'USD', 0)}
             </div>
             <div className="text-sm text-muted-foreground">
               Trading volume
@@ -277,7 +277,7 @@ export function MarketHeatmap() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">
-              {heatmapItems.filter(item => item.change24h > 0).length}
+              {heatmapItems.filter((item: any) => item.change24h > 0).length}
             </div>
             <div className="text-sm text-muted-foreground">
               Assets in green
@@ -293,7 +293,7 @@ export function MarketHeatmap() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-500">
-              {heatmapItems.filter(item => item.change24h < 0).length}
+              {heatmapItems.filter((item: any) => item.change24h < 0).length}
             </div>
             <div className="text-sm text-muted-foreground">
               Assets in red

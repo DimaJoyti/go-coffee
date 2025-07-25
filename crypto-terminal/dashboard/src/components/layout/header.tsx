@@ -40,7 +40,7 @@ export function Header() {
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">Market Cap:</span>
                 <span className="text-sm text-muted-foreground">
-                  {formatCurrency(marketOverview.totalMarketCap, 'USD', 0, 0)}
+                  {formatCurrency(marketOverview.totalMarketCap, 'USD', 0)}
                 </span>
                 {marketOverview.marketCapChange24h > 0 ? (
                   <TrendingUp className="h-4 w-4 text-profit" />
@@ -52,7 +52,7 @@ export function Header() {
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">24h Vol:</span>
                 <span className="text-sm text-muted-foreground">
-                  {formatCurrency(marketOverview.totalVolume24h, 'USD', 0, 0)}
+                  {formatCurrency(marketOverview.totalVolume24h, 'USD', 0)}
                 </span>
               </div>
 

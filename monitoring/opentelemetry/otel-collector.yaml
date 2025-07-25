@@ -1,0 +1,408 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/component: config
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      # OTLP receiver for traces, metrics, and logs
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+      
+      # Prometheus receiver for scraping metrics
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'go-coffee-services'
+              kubernetes_sd_configs:
+                - role: pod
+                  namespaces:
+                    names:
+                      - go-coffee
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  action: keep
+                  regex: true
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                  action: replace
+                  target_label: __metrics_path__
+                  regex: (.+)
+                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?;(\d+)
+                  replacement: $1:$2
+                  target_label: __address__
+                - action: labelmap
+                  regex: __meta_kubernetes_pod_label_(.+)
+                - source_labels: [__meta_kubernetes_namespace]
+                  action: replace
+                  target_label: kubernetes_namespace
+                - source_labels: [__meta_kubernetes_pod_name]
+                  action: replace
+                  target_label: kubernetes_pod_name
+      
+      # Jaeger receiver for legacy traces
+      jaeger:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:14250
+          thrift_http:
+            endpoint: 0.0.0.0:14268
+          thrift_compact:
+            endpoint: 0.0.0.0:6831
+          thrift_binary:
+            endpoint: 0.0.0.0:6832
+      
+      # Zipkin receiver
+      zipkin:
+        endpoint: 0.0.0.0:9411
+      
+      # Kubernetes cluster receiver for infrastructure metrics
+      k8s_cluster:
+        auth_type: serviceAccount
+        node_conditions_to_report: [Ready, MemoryPressure, DiskPressure, PIDPressure]
+        distribution: kubernetes
+        allocatable_types_to_report: [cpu, memory, storage]
+      
+      # Kubelet stats receiver
+      kubeletstats:
+        collection_interval: 20s
+        auth_type: serviceAccount
+        endpoint: ${env:K8S_NODE_NAME}:10250
+        insecure_skip_verify: true
+        metric_groups:
+          - node
+          - pod
+          - container
+          - volume
+
+    processors:
+      # Batch processor for performance
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+        send_batch_max_size: 2048
+      
+      # Memory limiter to prevent OOM
+      memory_limiter:
+        limit_mib: 512
+        spike_limit_mib: 128
+        check_interval: 5s
+      
+      # Resource processor to add/modify resource attributes
+      resource:
+        attributes:
+          - key: service.namespace
+            value: go-coffee
+            action: upsert
+          - key: deployment.environment
+            from_attribute: k8s.namespace.name
+            action: insert
+          - key: k8s.cluster.name
+            value: go-coffee-cluster
+            action: upsert
+      
+      # Attributes processor for trace enhancement
+      attributes:
+        actions:
+          - key: http.user_agent
+            action: delete
+          - key: http.request.header.authorization
+            action: delete
+          - key: environment
+            value: ${env:ENVIRONMENT}
+            action: upsert
+      
+      # Probabilistic sampler for traces
+      probabilistic_sampler:
+        sampling_percentage: 10.0
+      
+      # Span processor for trace enhancement
+      span:
+        name:
+          to_attributes:
+            rules:
+              - ^\/api\/v1\/(?P<service_name>.*)\/.*
+        include:
+          match_type: regexp
+          services: ["go-coffee-.*"]
+
+    exporters:
+      # Prometheus exporter
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        namespace: go_coffee
+        const_labels:
+          cluster: go-coffee-cluster
+        send_timestamps: true
+        metric_expiration: 180m
+        enable_open_metrics: true
+      
+      # Jaeger exporter for traces
+      jaeger:
+        endpoint: jaeger-collector.go-coffee-monitoring.svc.cluster.local:14250
+        tls:
+          insecure: true
+      
+      # OTLP exporter for external systems
+      otlp/external:
+        endpoint: ${env:OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:OTLP_API_KEY}
+        tls:
+          insecure: false
+      
+      # Logging exporter for debugging
+      logging:
+        loglevel: info
+        sampling_initial: 5
+        sampling_thereafter: 200
+      
+      # File exporter for backup
+      file:
+        path: /tmp/otel-data.json
+        rotation:
+          max_megabytes: 100
+          max_days: 3
+          max_backups: 3
+
+    extensions:
+      # Health check extension
+      health_check:
+        endpoint: 0.0.0.0:13133
+      
+      # pprof extension for profiling
+      pprof:
+        endpoint: 0.0.0.0:1777
+      
+      # zpages extension for debugging
+      zpages:
+        endpoint: 0.0.0.0:55679
+
+    service:
+      extensions: [health_check, pprof, zpages]
+      pipelines:
+        # Traces pipeline
+        traces:
+          receivers: [otlp, jaeger, zipkin]
+          processors: [memory_limiter, resource, attributes, probabilistic_sampler, span, batch]
+          exporters: [jaeger, otlp/external, logging]
+        
+        # Metrics pipeline
+        metrics:
+          receivers: [otlp, prometheus, k8s_cluster, kubeletstats]
+          processors: [memory_limiter, resource, batch]
+          exporters: [prometheus, otlp/external, logging]
+        
+        # Logs pipeline
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [logging, file]
+      
+      telemetry:
+        logs:
+          level: "info"
+        metrics:
+          address: 0.0.0.0:8888
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/component: collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+      app.kubernetes.io/component: collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opentelemetry-collector
+        app.kubernetes.io/component: collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8888"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: otel-collector
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector-contrib:0.89.0
+        command:
+          - "/otelcol-contrib"
+          - "--config=/conf/otel-collector-config.yaml"
+        env:
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: ENVIRONMENT
+          value: "production"
+        - name: OTLP_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: otel-secrets
+              key: otlp-endpoint
+              optional: true
+        - name: OTLP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: otel-secrets
+              key: otlp-api-key
+              optional: true
+        ports:
+        - name: otlp-grpc
+          containerPort: 4317
+          protocol: TCP
+        - name: otlp-http
+          containerPort: 4318
+          protocol: TCP
+        - name: jaeger-grpc
+          containerPort: 14250
+          protocol: TCP
+        - name: jaeger-thrift
+          containerPort: 14268
+          protocol: TCP
+        - name: jaeger-compact
+          containerPort: 6831
+          protocol: UDP
+        - name: jaeger-binary
+          containerPort: 6832
+          protocol: UDP
+        - name: zipkin
+          containerPort: 9411
+          protocol: TCP
+        - name: prometheus
+          containerPort: 8889
+          protocol: TCP
+        - name: health
+          containerPort: 13133
+          protocol: TCP
+        - name: pprof
+          containerPort: 1777
+          protocol: TCP
+        - name: zpages
+          containerPort: 55679
+          protocol: TCP
+        - name: metrics
+          containerPort: 8888
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /conf
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config
+        configMap:
+          name: otel-collector-config
+      - name: tmp
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: go-coffee-monitoring
+  labels:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/component: collector
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8888"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: otlp-grpc
+    protocol: TCP
+  - name: otlp-http
+    port: 4318
+    targetPort: otlp-http
+    protocol: TCP
+  - name: jaeger-grpc
+    port: 14250
+    targetPort: jaeger-grpc
+    protocol: TCP
+  - name: jaeger-thrift
+    port: 14268
+    targetPort: jaeger-thrift
+    protocol: TCP
+  - name: jaeger-compact
+    port: 6831
+    targetPort: jaeger-compact
+    protocol: UDP
+  - name: jaeger-binary
+    port: 6832
+    targetPort: jaeger-binary
+    protocol: UDP
+  - name: zipkin
+    port: 9411
+    targetPort: zipkin
+    protocol: TCP
+  - name: prometheus
+    port: 8889
+    targetPort: prometheus
+    protocol: TCP
+  - name: health
+    port: 13133
+    targetPort: health
+    protocol: TCP
+  - name: metrics
+    port: 8888
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/component: collector

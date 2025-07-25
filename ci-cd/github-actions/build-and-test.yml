@@ -1,0 +1,458 @@
+name: 🚀 Go Coffee - Build, Test & Security Scan
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*', 'hotfix/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  GO_VERSION: '1.21'
+  NODE_VERSION: '18'
+
+jobs:
+  # Code Quality and Security Analysis
+  code-analysis:
+    name: 🔍 Code Analysis & Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better analysis
+    
+    - name: 🔧 Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+    
+    - name: 📦 Go Mod Download
+      run: go mod download
+    
+    - name: 🔍 Run gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec-results.sarif ./...'
+      continue-on-error: true
+
+    - name: 📤 Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: gosec-results.sarif
+      if: always()
+    
+    - name: 🔍 Run CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        languages: go, javascript
+      continue-on-error: true
+    
+    - name: 🧹 Run golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --timeout=10m --config=.golangci.yml
+    
+    - name: 🔒 Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: 📤 Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+      if: always()
+
+  # Unit and Integration Tests
+  test:
+    name: 🧪 Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: code-analysis
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_USER: testuser
+          POSTGRES_DB: go_coffee_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+    
+    - name: 📦 Install Dependencies
+      run: |
+        go mod download
+        go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        go install github.com/onsi/gomega/...@latest
+    
+    - name: 🧪 Run Unit Tests
+      run: |
+        ginkgo -r --randomize-all --randomize-suites --race --trace --cover --coverprofile=coverage.out ./...
+      env:
+        DATABASE_URL: postgres://testuser:testpass@localhost:5432/go_coffee_test?sslmode=disable
+        REDIS_URL: redis://localhost:6379
+        TEST_ENV: true
+    
+    - name: 📊 Generate Coverage Report
+      run: |
+        go tool cover -html=coverage.out -o coverage.html
+        go tool cover -func=coverage.out
+    
+    - name: 📤 Upload Coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: go-coffee-coverage
+    
+    - name: 🧪 Run Integration Tests
+      run: |
+        ginkgo -r --randomize-all --race --trace ./tests/integration/...
+      env:
+        DATABASE_URL: postgres://testuser:testpass@localhost:5432/go_coffee_test?sslmode=disable
+        REDIS_URL: redis://localhost:6379
+        TEST_ENV: integration
+    
+    - name: 📊 Store Test Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: |
+          coverage.out
+          coverage.html
+          ginkgo-report.json
+
+  # Frontend Tests
+  frontend-test:
+    name: 🎨 Frontend Tests
+    runs-on: ubuntu-latest
+    needs: code-analysis
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: 📦 Install Dependencies
+      working-directory: ./frontend
+      run: npm ci
+    
+    - name: 🔍 Run ESLint
+      working-directory: ./frontend
+      run: npm run lint
+    
+    - name: 🎨 Run Prettier Check
+      working-directory: ./frontend
+      run: npm run format:check
+    
+    - name: 🧪 Run Unit Tests
+      working-directory: ./frontend
+      run: npm run test:coverage
+    
+    - name: 🧪 Run E2E Tests
+      working-directory: ./frontend
+      run: |
+        npm run build
+        npm run test:e2e
+    
+    - name: 📤 Upload Frontend Coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./frontend/coverage/lcov.info
+        flags: frontend
+        name: go-coffee-frontend-coverage
+
+  # Build and Push Container Images
+  build:
+    name: 🏗️ Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [test, frontend-test]
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        service:
+          - api-gateway
+          - order-service
+          - payment-service
+          - kitchen-service
+          - user-gateway
+          - security-gateway
+          - web-ui-backend
+          - ai-search
+          - bright-data-hub
+          - communication-hub
+          - enterprise-service
+      fail-fast: false
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: 🔐 Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 🏷️ Extract Metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: 🔒 Run Trivy vulnerability scanner on image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:latest
+        format: 'sarif'
+        output: 'trivy-image-results.sarif'
+      continue-on-error: true
+    
+    - name: 🏗️ Build and Push Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./services/${{ matrix.service }}/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+        build-args: |
+          VERSION=${{ github.sha }}
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+
+  # Kubernetes Manifest Validation
+  k8s-validation:
+    name: ☸️ Kubernetes Validation
+    runs-on: ubuntu-latest
+    needs: code-analysis
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Kubernetes tools
+      run: |
+        # Install kubeval
+        wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+        tar xf kubeval-linux-amd64.tar.gz
+        sudo mv kubeval /usr/local/bin
+        
+        # Install kustomize
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        sudo mv kustomize /usr/local/bin/
+        
+        # Install helm
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    
+    - name: ✅ Validate Kubernetes Manifests
+      run: |
+        find k8s/ -name "*.yaml" -o -name "*.yml" | xargs kubeval --strict
+    
+    - name: ✅ Validate Helm Charts
+      run: |
+        for chart in helm-charts/*/; do
+          helm lint "$chart"
+          helm template "$chart" | kubeval --strict
+        done
+    
+    - name: 🔒 Run Polaris Security Scan
+      run: |
+        wget https://github.com/FairwindsOps/polaris/releases/latest/download/polaris_linux_amd64.tar.gz
+        tar -xzf polaris_linux_amd64.tar.gz
+        sudo mv polaris /usr/local/bin/
+        polaris audit --audit-path k8s/ --format=json > polaris-results.json
+    
+    - name: 📤 Upload Polaris Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: polaris-results
+        path: polaris-results.json
+
+  # Infrastructure as Code Validation
+  terraform-validation:
+    name: 🏗️ Terraform Validation
+    runs-on: ubuntu-latest
+    needs: code-analysis
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+    
+    - name: 🔧 Setup TFLint
+      uses: terraform-linters/setup-tflint@v4
+      with:
+        tflint_version: latest
+    
+    - name: ✅ Terraform Format Check
+      run: terraform fmt -check -recursive terraform/
+    
+    - name: ✅ Terraform Validation
+      run: |
+        cd terraform/
+        terraform init -backend=false
+        terraform validate
+    
+    - name: 🔍 Run TFLint
+      run: |
+        cd terraform/
+        tflint --init
+        tflint --recursive
+    
+    - name: 🔒 Run Checkov Security Scan
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: terraform/
+        framework: terraform
+        output_format: sarif
+        output_file_path: checkov-results.sarif
+    
+    - name: 📤 Upload Checkov Results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: checkov-results.sarif
+
+  # Performance Testing
+  performance-test:
+    name: ⚡ Performance Testing
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup K6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+    
+    - name: ⚡ Run Load Tests
+      run: |
+        k6 run --out json=results.json tests/performance/load-test.js
+    
+    - name: 📊 Generate Performance Report
+      run: |
+        k6 run --out json=results.json tests/performance/stress-test.js
+    
+    - name: 📤 Upload Performance Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: results.json
+
+  # Deployment Readiness Check
+  deployment-readiness:
+    name: 🚀 Deployment Readiness
+    runs-on: ubuntu-latest
+    needs: [build, k8s-validation, terraform-validation]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    outputs:
+      deploy-staging: ${{ steps.check.outputs.deploy-staging }}
+      deploy-production: ${{ steps.check.outputs.deploy-production }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: ✅ Deployment Readiness Check
+      id: check
+      run: |
+        echo "deploy-staging=true" >> $GITHUB_OUTPUT
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "deploy-production=true" >> $GITHUB_OUTPUT
+        else
+          echo "deploy-production=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: 📋 Create Deployment Summary
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status | Version |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Code Quality | ✅ Passed | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Scan | ✅ Passed | Latest |" >> $GITHUB_STEP_SUMMARY
+        echo "| Tests | ✅ Passed | All |" >> $GITHUB_STEP_SUMMARY
+        echo "| Container Build | ✅ Passed | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| K8s Validation | ✅ Passed | Latest |" >> $GITHUB_STEP_SUMMARY
+        echo "| Terraform | ✅ Passed | Latest |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,644 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    name: argocd
+    app.kubernetes.io/name: argocd
+---
+# ArgoCD Application for Go Coffee Core Services
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-coffee-core
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: core
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: go-coffee
+  source:
+    repoURL: https://github.com/DimaJoyti/go-coffee.git
+    targetRevision: HEAD
+    path: k8s/overlays/production
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: go-coffee
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas
+  - group: ""
+    kind: Service
+    jsonPointers:
+    - /spec/clusterIP
+---
+# ArgoCD Application for AI Agent Stack
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-coffee-ai
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: go-coffee-ai
+    app.kubernetes.io/component: ai-stack
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: go-coffee
+  source:
+    repoURL: https://github.com/DimaJoyti/go-coffee.git
+    targetRevision: HEAD
+    path: ai-agents
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: go-coffee-ai
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
+  ignoreDifferences:
+  - group: apps
+    kind: StatefulSet
+    jsonPointers:
+    - /spec/replicas
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas
+---
+# ArgoCD Application for Monitoring Stack
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-coffee-monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: go-coffee-monitoring
+    app.kubernetes.io/component: monitoring
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: go-coffee
+  source:
+    repoURL: https://github.com/DimaJoyti/go-coffee.git
+    targetRevision: HEAD
+    path: monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: go-coffee-monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
+---
+# ArgoCD Application for Security Stack
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-coffee-security
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: go-coffee-security
+    app.kubernetes.io/component: security
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: go-coffee
+  source:
+    repoURL: https://github.com/DimaJoyti/go-coffee.git
+    targetRevision: HEAD
+    path: security
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: go-coffee-security
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
+---
+# ArgoCD Project for Go Coffee
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: go-coffee
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: project
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Go Coffee Platform Project
+  
+  # Source repositories
+  sourceRepos:
+  - https://github.com/DimaJoyti/go-coffee.git
+  - https://helm.ngc.nvidia.com/nvidia
+  - https://prometheus-community.github.io/helm-charts
+  - https://grafana.github.io/helm-charts
+  - https://argoproj.github.io/argo-helm
+  
+  # Destination clusters and namespaces
+  destinations:
+  - namespace: go-coffee
+    server: https://kubernetes.default.svc
+  - namespace: go-coffee-ai
+    server: https://kubernetes.default.svc
+  - namespace: go-coffee-monitoring
+    server: https://kubernetes.default.svc
+  - namespace: go-coffee-security
+    server: https://kubernetes.default.svc
+  - namespace: falco-system
+    server: https://kubernetes.default.svc
+  - namespace: sealed-secrets
+    server: https://kubernetes.default.svc
+  - namespace: gpu-operator
+    server: https://kubernetes.default.svc
+  - namespace: argo
+    server: https://kubernetes.default.svc
+  
+  # Cluster resource whitelist
+  clusterResourceWhitelist:
+  - group: ""
+    kind: Namespace
+  - group: ""
+    kind: ClusterRole
+  - group: ""
+    kind: ClusterRoleBinding
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+  - group: policy
+    kind: PodSecurityPolicy
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: storage.k8s.io
+    kind: StorageClass
+  - group: scheduling.k8s.io
+    kind: PriorityClass
+  
+  # Namespace resource whitelist
+  namespaceResourceWhitelist:
+  - group: ""
+    kind: ConfigMap
+  - group: ""
+    kind: Secret
+  - group: ""
+    kind: Service
+  - group: ""
+    kind: ServiceAccount
+  - group: ""
+    kind: PersistentVolumeClaim
+  - group: apps
+    kind: Deployment
+  - group: apps
+    kind: StatefulSet
+  - group: apps
+    kind: DaemonSet
+  - group: batch
+    kind: Job
+  - group: batch
+    kind: CronJob
+  - group: networking.k8s.io
+    kind: Ingress
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: autoscaling
+    kind: HorizontalPodAutoscaler
+  - group: policy
+    kind: PodDisruptionBudget
+  - group: monitoring.coreos.com
+    kind: ServiceMonitor
+  - group: monitoring.coreos.com
+    kind: PrometheusRule
+  - group: argoproj.io
+    kind: Workflow
+  - group: argoproj.io
+    kind: WorkflowTemplate
+  - group: bitnami.com
+    kind: SealedSecret
+  
+  # RBAC policies
+  roles:
+  # Developer role - read-only access
+  - name: developer
+    description: Read-only access for developers
+    policies:
+    - p, proj:go-coffee:developer, applications, get, go-coffee/*, allow
+    - p, proj:go-coffee:developer, applications, sync, go-coffee/*, deny
+    - p, proj:go-coffee:developer, repositories, get, *, allow
+    - p, proj:go-coffee:developer, repositories, create, *, deny
+    - p, proj:go-coffee:developer, repositories, update, *, deny
+    - p, proj:go-coffee:developer, repositories, delete, *, deny
+    groups:
+    - go-coffee:developers
+  
+  # DevOps role - full access
+  - name: devops
+    description: Full access for DevOps team
+    policies:
+    - p, proj:go-coffee:devops, applications, *, go-coffee/*, allow
+    - p, proj:go-coffee:devops, repositories, *, *, allow
+    - p, proj:go-coffee:devops, clusters, *, *, allow
+    groups:
+    - go-coffee:devops
+    - go-coffee:admins
+  
+  # Production role - limited production access
+  - name: production
+    description: Limited production access
+    policies:
+    - p, proj:go-coffee:production, applications, get, go-coffee/*, allow
+    - p, proj:go-coffee:production, applications, sync, go-coffee/go-coffee-core, allow
+    - p, proj:go-coffee:production, applications, sync, go-coffee/go-coffee-monitoring, allow
+    - p, proj:go-coffee:production, applications, action/*, go-coffee/*, deny
+    groups:
+    - go-coffee:production-operators
+  
+  # Sync windows for controlled deployments
+  syncWindows:
+  - kind: allow
+    schedule: '0 9-17 * * 1-5'  # Business hours, weekdays only
+    duration: 8h
+    applications:
+    - go-coffee-core
+    - go-coffee-ai
+    manualSync: true
+  - kind: deny
+    schedule: '0 18-8 * * *'     # Outside business hours
+    duration: 14h
+    applications:
+    - go-coffee-core
+    - go-coffee-ai
+    manualSync: false
+  - kind: deny
+    schedule: '0 0-23 * * 0,6'   # Weekends
+    duration: 24h
+    applications:
+    - go-coffee-core
+    - go-coffee-ai
+    manualSync: false
+  
+  # Signature keys for signed commits
+  signatureKeys:
+  - keyID: ABCDEF1234567890
+---
+# ArgoCD ApplicationSet for Multi-Environment Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-coffee-environments
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: applicationset
+spec:
+  generators:
+  - clusters:
+      selector:
+        matchLabels:
+          environment: staging
+      values:
+        environment: staging
+        revision: develop
+  - clusters:
+      selector:
+        matchLabels:
+          environment: production
+      values:
+        environment: production
+        revision: main
+  
+  template:
+    metadata:
+      name: 'go-coffee-{{values.environment}}'
+      labels:
+        environment: '{{values.environment}}'
+    spec:
+      project: go-coffee
+      source:
+        repoURL: https://github.com/DimaJoyti/go-coffee.git
+        targetRevision: '{{values.revision}}'
+        path: 'k8s/overlays/{{values.environment}}'
+      destination:
+        server: '{{server}}'
+        namespace: go-coffee
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+        - PrunePropagationPolicy=foreground
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+---
+# ArgoCD Rollout for Canary Deployments
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: go-coffee-api-gateway-rollout
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee-api-gateway
+    app.kubernetes.io/component: rollout
+spec:
+  replicas: 5
+  strategy:
+    canary:
+      maxSurge: "25%"
+      maxUnavailable: 0
+      analysis:
+        templates:
+        - templateName: success-rate
+        startingStep: 2
+        args:
+        - name: service-name
+          value: go-coffee-api-gateway
+      steps:
+      - setWeight: 10
+      - pause:
+          duration: 2m
+      - setWeight: 20
+      - pause:
+          duration: 2m
+      - setWeight: 40
+      - pause:
+          duration: 2m
+      - setWeight: 60
+      - pause:
+          duration: 2m
+      - setWeight: 80
+      - pause:
+          duration: 2m
+      trafficRouting:
+        istio:
+          virtualService:
+            name: go-coffee-api-gateway-vs
+            routes:
+            - primary
+          destinationRule:
+            name: go-coffee-api-gateway-dr
+            canarySubsetName: canary
+            stableSubsetName: stable
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: go-coffee-api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: go-coffee-api-gateway
+        app.kubernetes.io/component: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: ghcr.io/dimajoyti/go-coffee/api-gateway:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: ENVIRONMENT
+          value: production
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+# Analysis Template for Canary Deployments
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: analysis
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: success-rate
+    interval: 30s
+    count: 4
+    successCondition: result[0] >= 0.95
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: http://prometheus-kube-prometheus-prometheus.go-coffee-monitoring.svc.cluster.local:9090
+        query: |
+          sum(rate(http_requests_total{job="{{args.service-name}}",code!~"5.."}[2m])) /
+          sum(rate(http_requests_total{job="{{args.service-name}}"}[2m]))
+  - name: avg-response-time
+    interval: 30s
+    count: 4
+    successCondition: result[0] <= 0.5
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: http://prometheus-kube-prometheus-prometheus.go-coffee-monitoring.svc.cluster.local:9090
+        query: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="{{args.service-name}}"}[2m])) by (le)
+          )
+---
+# ArgoCD Notification Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-notifications
+    app.kubernetes.io/component: notifications
+data:
+  service.slack: |
+    token: $slack-token
+    username: ArgoCD
+    icon: ":argo:"
+  
+  service.email: |
+    host: smtp.gmail.com
+    port: 587
+    from: argocd@gocoffee.dev
+    username: $email-username
+    password: $email-password
+  
+  template.app-deployed: |
+    email:
+      subject: "🚀 Application {{.app.metadata.name}} deployed to {{.app.spec.destination.namespace}}"
+      body: |
+        Application {{.app.metadata.name}} has been successfully deployed to {{.app.spec.destination.namespace}}.
+        
+        Sync Status: {{.app.status.sync.status}}
+        Health Status: {{.app.status.health.status}}
+        Revision: {{.app.status.sync.revision}}
+        
+        View in ArgoCD: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+    slack:
+      attachments: |
+        [{
+          "title": "🚀 Application Deployed",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "#18be52",
+          "fields": [
+            {"title": "Application", "value": "{{.app.metadata.name}}", "short": true},
+            {"title": "Environment", "value": "{{.app.spec.destination.namespace}}", "short": true},
+            {"title": "Sync Status", "value": "{{.app.status.sync.status}}", "short": true},
+            {"title": "Health Status", "value": "{{.app.status.health.status}}", "short": true}
+          ]
+        }]
+  
+  template.app-health-degraded: |
+    email:
+      subject: "⚠️ Application {{.app.metadata.name}} health degraded"
+      body: |
+        Application {{.app.metadata.name}} health status has degraded.
+        
+        Health Status: {{.app.status.health.status}}
+        Health Message: {{.app.status.health.message}}
+        
+        Please investigate: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+    slack:
+      attachments: |
+        [{
+          "title": "⚠️ Application Health Degraded",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "#f4c430",
+          "fields": [
+            {"title": "Application", "value": "{{.app.metadata.name}}", "short": true},
+            {"title": "Health Status", "value": "{{.app.status.health.status}}", "short": true},
+            {"title": "Message", "value": "{{.app.status.health.message}}", "short": false}
+          ]
+        }]
+  
+  template.app-sync-failed: |
+    email:
+      subject: "❌ Application {{.app.metadata.name}} sync failed"
+      body: |
+        Application {{.app.metadata.name}} sync has failed.
+        
+        Sync Status: {{.app.status.sync.status}}
+        Sync Message: {{.app.status.operationState.message}}
+        
+        Please investigate: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+    slack:
+      attachments: |
+        [{
+          "title": "❌ Application Sync Failed",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "#E96D76",
+          "fields": [
+            {"title": "Application", "value": "{{.app.metadata.name}}", "short": true},
+            {"title": "Sync Status", "value": "{{.app.status.sync.status}}", "short": true},
+            {"title": "Message", "value": "{{.app.status.operationState.message}}", "short": false}
+          ]
+        }]
+  
+  trigger.on-deployed: |
+    - description: Application is synced and healthy
+      send:
+      - app-deployed
+      when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+  
+  trigger.on-health-degraded: |
+    - description: Application has degraded
+      send:
+      - app-health-degraded
+      when: app.status.health.status == 'Degraded'
+  
+  trigger.on-sync-failed: |
+    - description: Application sync is failed
+      send:
+      - app-sync-failed
+      when: app.status.operationState.phase in ['Error', 'Failed']
+  
+  subscriptions: |
+    - recipients:
+      - slack:go-coffee-deployments
+      - email:devops@gocoffee.dev
+      triggers:
+      - on-deployed
+      - on-health-degraded
+      - on-sync-failed

@@ -1,1 +1,7 @@
-{}
+{
+  "/portfolio/page": "app/portfolio/page.js",
+  "/markets/page": "app/markets/page.js",
+  "/arbitrage/page": "app/arbitrage/page.js",
+  "/strategies/page": "app/strategies/page.js",
+  "/page": "app/page.js"
+}

@@ -1,0 +1,522 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: falco-system
+  labels:
+    name: falco-system
+    security.gocoffee.dev/managed: "true"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: falco
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: security
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: falco
+  labels:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: security
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "namespaces", "pods", "replicationcontrollers", "services", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions"]
+  resources: ["daemonsets", "deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/healthz", "/healthz/*"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: falco
+  labels:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: falco
+subjects:
+- kind: ServiceAccount
+  name: falco
+  namespace: falco-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-config
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: config
+data:
+  falco.yaml: |
+    # Falco configuration for Go Coffee security monitoring
+    
+    # Rules configuration
+    rules_file:
+      - /etc/falco/falco_rules.yaml
+      - /etc/falco/falco_rules.local.yaml
+      - /etc/falco/k8s_audit_rules.yaml
+      - /etc/falco/go_coffee_rules.yaml
+    
+    # Time format for output
+    time_format_iso_8601: true
+    
+    # JSON output for better parsing
+    json_output: true
+    json_include_output_property: true
+    json_include_tags_property: true
+    
+    # Log level
+    log_level: info
+    log_stderr: true
+    log_syslog: false
+    
+    # Priority threshold
+    priority: debug
+    
+    # Buffered outputs
+    buffered_outputs: false
+    
+    # Outputs
+    outputs:
+      rate: 1
+      max_burst: 1000
+    
+    # Syscall event drops
+    syscall_event_drops:
+      actions:
+        - log
+        - alert
+      rate: 0.03333
+      max_burst: 10
+    
+    # File outputs
+    file_output:
+      enabled: true
+      keep_alive: false
+      filename: /var/log/falco/events.log
+    
+    # Program outputs
+    program_output:
+      enabled: false
+    
+    # HTTP output for webhook integration
+    http_output:
+      enabled: true
+      url: "http://falco-webhook.falco-system.svc.cluster.local:2801"
+      user_agent: "falco/go-coffee"
+    
+    # gRPC output
+    grpc_output:
+      enabled: false
+    
+    # gRPC server
+    grpc:
+      enabled: true
+      bind_address: "0.0.0.0:5060"
+      threadiness: 8
+    
+    # Webserver
+    webserver:
+      enabled: true
+      listen_port: 8765
+      k8s_healthz_endpoint: /healthz
+      ssl_enabled: false
+      ssl_certificate: /etc/ssl/falco/falco.pem
+    
+    # Kubernetes audit log support
+    k8s_audit_endpoint: /k8s-audit
+    
+    # Metadata download
+    metadata_download:
+      max_mb: 100
+      chunk_wait_us: 1000
+      watch_freq_sec: 1
+
+  go_coffee_rules.yaml: |
+    # Go Coffee specific security rules
+    
+    - rule: Go Coffee Unauthorized API Access
+      desc: Detect unauthorized access to Go Coffee APIs
+      condition: >
+        k8s_audit and
+        ka.target.namespace="go-coffee" and
+        ka.verb in (create, update, delete) and
+        not ka.user.name in (system:serviceaccount:go-coffee:go-coffee-api-gateway,
+                             system:serviceaccount:go-coffee:go-coffee-order-service,
+                             system:serviceaccount:go-coffee:go-coffee-payment-service)
+      output: >
+        Unauthorized API access detected in Go Coffee namespace
+        (user=%ka.user.name verb=%ka.verb target=%ka.target.name)
+      priority: WARNING
+      tags: [go-coffee, security, api]
+    
+    - rule: Go Coffee Payment Service Anomaly
+      desc: Detect suspicious activity in payment service
+      condition: >
+        spawned_process and
+        k8s.ns.name="go-coffee" and
+        k8s.pod.label.app.kubernetes.io/component="payment-service" and
+        (proc.name in (nc, netcat, wget, curl, python, python3, sh, bash) or
+         proc.cmdline contains "rm -rf" or
+         proc.cmdline contains "/tmp" or
+         proc.cmdline contains "chmod +x")
+      output: >
+        Suspicious process in Go Coffee payment service
+        (pod=%k8s.pod.name process=%proc.name cmdline=%proc.cmdline)
+      priority: CRITICAL
+      tags: [go-coffee, payment, security, pci-dss]
+    
+    - rule: Go Coffee Database Access Violation
+      desc: Detect unauthorized database access attempts
+      condition: >
+        outbound and
+        k8s.ns.name="go-coffee" and
+        fd.sport!=5432 and
+        fd.dport=5432 and
+        not k8s.pod.label.security.gocoffee.dev/database-access="true"
+      output: >
+        Unauthorized database access attempt from Go Coffee service
+        (pod=%k8s.pod.name dest_port=%fd.dport src_port=%fd.sport)
+      priority: CRITICAL
+      tags: [go-coffee, database, security]
+    
+    - rule: Go Coffee Web3 Private Key Access
+      desc: Detect access to Web3 private keys
+      condition: >
+        open_read and
+        k8s.ns.name="go-coffee" and
+        (fd.name contains "private" or
+         fd.name contains "wallet" or
+         fd.name contains "keystore" or
+         fd.name endswith ".key")
+      output: >
+        Potential Web3 private key access in Go Coffee
+        (pod=%k8s.pod.name file=%fd.name process=%proc.name)
+      priority: CRITICAL
+      tags: [go-coffee, web3, crypto, security]
+    
+    - rule: Go Coffee AI Model Tampering
+      desc: Detect unauthorized AI model file modifications
+      condition: >
+        open_write and
+        k8s.ns.name="go-coffee" and
+        k8s.pod.label.security.gocoffee.dev/ai-service="true" and
+        (fd.name contains ".model" or
+         fd.name contains ".weights" or
+         fd.name contains ".onnx" or
+         fd.name contains ".pkl" or
+         fd.name contains ".pt" or
+         fd.name contains ".h5") and
+        not proc.name in (python, python3, ollama, transformers)
+      output: >
+        Potential AI model tampering detected in Go Coffee
+        (pod=%k8s.pod.name file=%fd.name process=%proc.name)
+      priority: WARNING
+      tags: [go-coffee, ai, model, security]
+    
+    - rule: Go Coffee Secret Access
+      desc: Detect access to sensitive secret files
+      condition: >
+        open_read and
+        k8s.ns.name="go-coffee" and
+        (fd.name startswith "/var/run/secrets" or
+         fd.name contains "secret" or
+         fd.name contains "token" or
+         fd.name contains "password" or
+         fd.name contains "key") and
+        not proc.name in (go-coffee-api-gateway, go-coffee-order-service, 
+                          go-coffee-payment-service, go-coffee-kitchen-service,
+                          go-coffee-user-gateway, go-coffee-security-gateway)
+      output: >
+        Unauthorized secret access in Go Coffee
+        (pod=%k8s.pod.name file=%fd.name process=%proc.name)
+      priority: WARNING
+      tags: [go-coffee, secrets, security]
+    
+    - rule: Go Coffee Network Anomaly
+      desc: Detect unusual network connections from Go Coffee services
+      condition: >
+        outbound and
+        k8s.ns.name="go-coffee" and
+        not fd.dport in (80, 443, 5432, 6379, 8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088, 8089, 8090, 50051) and
+        not fd.dip in (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+      output: >
+        Unusual outbound connection from Go Coffee service
+        (pod=%k8s.pod.name dest_ip=%fd.dip dest_port=%fd.dport)
+      priority: WARNING
+      tags: [go-coffee, network, security]
+    
+    - rule: Go Coffee Container Escape Attempt
+      desc: Detect potential container escape attempts
+      condition: >
+        spawned_process and
+        k8s.ns.name="go-coffee" and
+        (proc.name in (docker, kubectl, crictl, runc, ctr) or
+         proc.cmdline contains "nsenter" or
+         proc.cmdline contains "chroot" or
+         proc.cmdline contains "/proc/1/root" or
+         proc.cmdline contains "mount" and proc.cmdline contains "proc")
+      output: >
+        Potential container escape attempt in Go Coffee
+        (pod=%k8s.pod.name process=%proc.name cmdline=%proc.cmdline)
+      priority: CRITICAL
+      tags: [go-coffee, container, escape, security]
+    
+    - rule: Go Coffee Privilege Escalation
+      desc: Detect privilege escalation attempts
+      condition: >
+        spawned_process and
+        k8s.ns.name="go-coffee" and
+        (proc.name in (sudo, su, passwd, chsh, chfn) or
+         proc.cmdline contains "chmod 777" or
+         proc.cmdline contains "chmod +s" or
+         proc.cmdline contains "setuid" or
+         proc.cmdline contains "setgid")
+      output: >
+        Privilege escalation attempt in Go Coffee
+        (pod=%k8s.pod.name process=%proc.name cmdline=%proc.cmdline)
+      priority: CRITICAL
+      tags: [go-coffee, privilege, escalation, security]
+    
+    - rule: Go Coffee Crypto Mining Detection
+      desc: Detect potential cryptocurrency mining activity
+      condition: >
+        spawned_process and
+        k8s.ns.name="go-coffee" and
+        (proc.name in (xmrig, cpuminer, cgminer, bfgminer, sgminer) or
+         proc.cmdline contains "stratum" or
+         proc.cmdline contains "mining" or
+         proc.cmdline contains "hashrate" or
+         proc.cmdline contains "pool.") and
+        not k8s.pod.label.security.gocoffee.dev/web3-service="true"
+      output: >
+        Potential cryptocurrency mining detected in Go Coffee
+        (pod=%k8s.pod.name process=%proc.name cmdline=%proc.cmdline)
+      priority: CRITICAL
+      tags: [go-coffee, crypto, mining, security]
+
+  falco_rules.local.yaml: |
+    # Local customizations for Go Coffee
+    
+    # Whitelist legitimate Go Coffee processes
+    - list: go_coffee_allowed_processes
+      items: [
+        go-coffee-api-gateway, go-coffee-order-service, go-coffee-payment-service,
+        go-coffee-kitchen-service, go-coffee-user-gateway, go-coffee-security-gateway,
+        go-coffee-web-ui-backend, go-coffee-ai-search, go-coffee-bright-data-hub,
+        go-coffee-communication-hub, go-coffee-enterprise-service
+      ]
+    
+    # Whitelist Go Coffee service accounts
+    - list: go_coffee_service_accounts
+      items: [
+        system:serviceaccount:go-coffee:go-coffee-api-gateway,
+        system:serviceaccount:go-coffee:go-coffee-order-service,
+        system:serviceaccount:go-coffee:go-coffee-payment-service,
+        system:serviceaccount:go-coffee:go-coffee-kitchen-service,
+        system:serviceaccount:go-coffee:go-coffee-user-gateway,
+        system:serviceaccount:go-coffee:go-coffee-security-gateway
+      ]
+    
+    # Override default rules for Go Coffee namespace
+    - rule: Terminal shell in container
+      condition: >
+        spawned_process and container and
+        proc.name in (shell_binaries) and
+        not k8s.ns.name="go-coffee"
+      append: false
+    
+    # Disable noisy rules for Go Coffee development
+    - rule: Write below etc
+      condition: >
+        open_write and fd.name startswith /etc and
+        not k8s.ns.name="go-coffee"
+      append: false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: falco
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: security
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: falco
+      app.kubernetes.io/component: security
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: falco
+        app.kubernetes.io/component: security
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8765"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: falco
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: falco
+        image: falcosecurity/falco-no-driver:0.36.2
+        args:
+          - /usr/bin/falco
+          - --cri=/run/containerd/containerd.sock
+          - --cri=/run/crio/crio.sock
+          - -K=/var/run/secrets/kubernetes.io/serviceaccount/token
+          - -k=https://kubernetes.default
+          - --k8s-node=$(FALCO_K8S_NODE_NAME)
+          - -pk
+        env:
+        - name: FALCO_K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: FALCO_GRPC_BIND_ADDRESS
+          value: "0.0.0.0:5060"
+        - name: FALCO_GRPC_THREADINESS
+          value: "8"
+        ports:
+        - name: grpc
+          containerPort: 5060
+          protocol: TCP
+        - name: http
+          containerPort: 8765
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/falco
+          readOnly: true
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: boot
+          mountPath: /host/boot
+          readOnly: true
+        - name: lib-modules
+          mountPath: /host/lib/modules
+          readOnly: true
+        - name: usr
+          mountPath: /host/usr
+          readOnly: true
+        - name: etc
+          mountPath: /host/etc
+          readOnly: true
+        - name: dev
+          mountPath: /host/dev
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: run-containerd
+          mountPath: /run/containerd
+          readOnly: true
+        - name: var-run
+          mountPath: /var/run
+          readOnly: true
+        - name: logs
+          mountPath: /var/log/falco
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        securityContext:
+          privileged: true
+      volumes:
+      - name: config
+        configMap:
+          name: falco-config
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: boot
+        hostPath:
+          path: /boot
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+      - name: usr
+        hostPath:
+          path: /usr
+      - name: etc
+        hostPath:
+          path: /etc
+      - name: dev
+        hostPath:
+          path: /dev
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: run-containerd
+        hostPath:
+          path: /run/containerd
+      - name: var-run
+        hostPath:
+          path: /var/run
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: falco
+  namespace: falco-system
+  labels:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: security
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8765"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: grpc
+    port: 5060
+    targetPort: grpc
+    protocol: TCP
+  - name: http
+    port: 8765
+    targetPort: http
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: security

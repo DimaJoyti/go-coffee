@@ -14,6 +14,10 @@ const buttonVariants = cva(
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
+        epic: 'relative overflow-hidden bg-gradient-epic text-primary-foreground font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 hover:scale-105 active:scale-95',
+        bull: 'bg-bull text-white hover:bg-bull/90 shadow-lg',
+        bear: 'bg-bear text-white hover:bg-bear/90 shadow-lg',
+        glass: 'glass text-foreground hover:bg-white/20 dark:hover:bg-black/20',
         coffee: 'coffee-gradient text-white hover:opacity-90',
         profit: 'bg-profit text-white hover:bg-profit/90',
         loss: 'bg-loss text-white hover:bg-loss/90',
@@ -22,6 +26,7 @@ const buttonVariants = cva(
         default: 'h-10 px-4 py-2',
         sm: 'h-9 rounded-md px-3',
         lg: 'h-11 rounded-md px-8',
+        xl: 'h-12 rounded-lg px-10 text-base',
         icon: 'h-10 w-10',
       },
     },
@@ -39,14 +44,20 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button'
+
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size, className }), variant === 'epic' && 'group')}
         ref={ref}
         {...props}
-      />
+      >
+        {variant === 'epic' && (
+          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] transition-transform duration-700 group-hover:translate-x-[100%]" />
+        )}
+        <span className="relative z-10">{children}</span>
+      </Comp>
     )
   }
 )

@@ -4,7 +4,6 @@ import type {
   Portfolio,
   CoffeeStrategy,
   MarketData,
-  Trade,
   PriceUpdate,
   SignalAlert,
   TradeExecution,
@@ -130,7 +129,7 @@ const initialState: TradingState = {
 
 export const useTradingStore = create<TradingStore>()(
   devtools(
-    subscribeWithSelector((set, get) => ({
+    subscribeWithSelector((set) => ({
       ...initialState,
 
       // Portfolio actions
@@ -177,22 +176,46 @@ export const useTradingStore = create<TradingStore>()(
       setMarketLoading: (loading) => set({ marketLoading: loading }),
       setMarketError: (error) => set({ marketError: error }),
       updatePrice: (priceUpdate) => {
-        set((state) => ({
-          priceUpdates: {
-            ...state.priceUpdates,
-            [priceUpdate.symbol]: priceUpdate,
-          },
-          marketData: {
-            ...state.marketData,
-            [priceUpdate.symbol]: {
-              ...state.marketData[priceUpdate.symbol],
-              currentPrice: priceUpdate.price,
-              change24h: priceUpdate.changePercent,
-              volume24h: priceUpdate.volume,
-              lastUpdated: priceUpdate.timestamp,
+        set((state) => {
+          const existingMarketData = state.marketData[priceUpdate.symbol]
+
+          return {
+            priceUpdates: {
+              ...state.priceUpdates,
+              [priceUpdate.symbol]: priceUpdate,
             },
-          },
-        }))
+            marketData: {
+              ...state.marketData,
+              [priceUpdate.symbol]: existingMarketData ? {
+                ...existingMarketData,
+                currentPrice: priceUpdate.price,
+                change24h: priceUpdate.changePercent,
+                volume24h: priceUpdate.volume,
+                lastUpdated: priceUpdate.timestamp,
+              } : {
+                symbol: priceUpdate.symbol,
+                name: priceUpdate.symbol.replace('USDT', ''),
+                currentPrice: priceUpdate.price,
+                marketCap: 0,
+                marketCapRank: 0,
+                volume24h: priceUpdate.volume,
+                change24h: priceUpdate.changePercent,
+                change7d: 0,
+                change30d: 0,
+                high24h: priceUpdate.price,
+                low24h: priceUpdate.price,
+                circulatingSupply: 0,
+                totalSupply: 0,
+                maxSupply: 0,
+                ath: priceUpdate.price,
+                athDate: priceUpdate.timestamp,
+                atl: priceUpdate.price,
+                atlDate: priceUpdate.timestamp,
+                lastUpdated: priceUpdate.timestamp,
+              },
+            },
+          }
+        })
       },
 
       // Strategy actions

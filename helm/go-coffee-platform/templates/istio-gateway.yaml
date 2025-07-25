@@ -1,0 +1,255 @@
+{{- if .Values.serviceMesh.istio.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ include "go-coffee-platform.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" . | nindent 4 }}
+spec:
+  selector:
+    istio: gateway
+  servers:
+  # HTTP server (redirect to HTTPS in production)
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    {{- range .Values.serviceMesh.istio.gateway.hosts }}
+    - {{ . | quote }}
+    {{- end }}
+    {{- if eq .Values.global.environment "prod" }}
+    tls:
+      httpsRedirect: true
+    {{- end }}
+  # HTTPS server
+  {{- if .Values.global.tls.enabled }}
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    {{- range .Values.serviceMesh.istio.gateway.hosts }}
+    - {{ . | quote }}
+    {{- end }}
+    tls:
+      mode: SIMPLE
+      credentialName: {{ .Values.global.tls.secretName }}
+  {{- end }}
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "go-coffee-platform.fullname" . }}-vs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" . | nindent 4 }}
+spec:
+  hosts:
+  {{- range .Values.serviceMesh.istio.gateway.hosts }}
+  - {{ . | quote }}
+  {{- end }}
+  gateways:
+  - {{ include "go-coffee-platform.fullname" . }}-gateway
+  http:
+  # API Gateway routes
+  - match:
+    - uri:
+        prefix: "/api/v1/"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "api-gateway" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.apiGateway.service.port }}
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: gateway-error,connect-failure,refused-stream
+    headers:
+      request:
+        add:
+          x-forwarded-proto: https
+          x-request-id: "%REQ(x-request-id)%"
+      response:
+        add:
+          x-content-type-options: nosniff
+          x-frame-options: DENY
+          x-xss-protection: "1; mode=block"
+  
+  # Web UI Backend routes
+  {{- if .Values.services.webUiBackend.enabled }}
+  - match:
+    - uri:
+        prefix: "/api/ui/"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "web-ui-backend" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.webUiBackend.service.port }}
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+  {{- end }}
+  
+  # AI Search routes
+  {{- if .Values.services.aiSearch.enabled }}
+  - match:
+    - uri:
+        prefix: "/api/ai/"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "ai-search" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.aiSearch.service.port }}
+    timeout: 60s
+    retries:
+      attempts: 2
+      perTryTimeout: 30s
+  {{- end }}
+  
+  # Bright Data Hub routes
+  {{- if .Values.services.brightDataHub.enabled }}
+  - match:
+    - uri:
+        prefix: "/api/bright-data/"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "bright-data-hub" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.brightDataHub.service.port }}
+    timeout: 120s
+    retries:
+      attempts: 2
+      perTryTimeout: 60s
+  {{- end }}
+  
+  # Security Gateway routes
+  {{- if .Values.services.securityGateway.enabled }}
+  - match:
+    - uri:
+        prefix: "/api/security/"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "security-gateway" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.securityGateway.service.port }}
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+  {{- end }}
+  
+  # Enterprise Service routes
+  {{- if .Values.services.enterpriseService.enabled }}
+  - match:
+    - uri:
+        prefix: "/api/enterprise/"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "enterprise-service" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.enterpriseService.service.port }}
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+  {{- end }}
+  
+  # Communication Hub routes (WebSocket support)
+  {{- if .Values.services.communicationHub.enabled }}
+  - match:
+    - uri:
+        prefix: "/api/ws/"
+    - headers:
+        upgrade:
+          exact: websocket
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "communication-hub" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.communicationHub.service.port }}
+    timeout: 0s  # No timeout for WebSocket connections
+  {{- end }}
+  
+  # Health check routes
+  - match:
+    - uri:
+        exact: "/health"
+    - uri:
+        exact: "/healthz"
+    - uri:
+        exact: "/ready"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "api-gateway" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.apiGateway.service.port }}
+    timeout: 5s
+  
+  # Metrics routes (protected)
+  - match:
+    - uri:
+        prefix: "/metrics"
+    route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "api-gateway" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: 9090
+    headers:
+      request:
+        add:
+          x-metrics-access: "internal"
+  
+  # Default route (fallback to API Gateway)
+  - route:
+    - destination:
+        host: {{ include "go-coffee-platform.serviceName" (dict "component" "api-gateway" "Values" .Values "Chart" .Chart "Release" .Release) }}
+        port:
+          number: {{ .Values.services.apiGateway.service.port }}
+    timeout: 30s
+---
+{{- range $service := list "api-gateway" "order-service" "payment-service" "kitchen-service" "user-gateway" "security-gateway" "web-ui-backend" "ai-search" "bright-data-hub" "communication-hub" "enterprise-service" }}
+{{- $serviceConfig := index $.Values.services (printf "%sService" ($service | replace "-" "")) | default (index $.Values.services $service) }}
+{{- if $serviceConfig.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{ include "go-coffee-platform.fullname" $ }}-{{ $service }}-dr
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" $ | nindent 4 }}
+spec:
+  host: {{ include "go-coffee-platform.serviceName" (dict "component" $service "Values" $.Values "Chart" $.Chart "Release" $.Release) }}
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: {{ $.Values.serviceMesh.istio.destinationRule.connectionPool.maxConnections | default 100 }}
+      http:
+        http1MaxPendingRequests: {{ $.Values.serviceMesh.istio.destinationRule.connectionPool.http1MaxPendingRequests | default 50 }}
+        http2MaxRequests: {{ $.Values.serviceMesh.istio.destinationRule.connectionPool.http2MaxRequests | default 100 }}
+        maxRequestsPerConnection: {{ $.Values.serviceMesh.istio.destinationRule.connectionPool.maxRequestsPerConnection | default 10 }}
+        maxRetries: {{ $.Values.serviceMesh.istio.destinationRule.connectionPool.maxRetries | default 3 }}
+        consecutiveGatewayErrors: {{ $.Values.serviceMesh.istio.destinationRule.outlierDetection.consecutiveGatewayErrors | default 5 }}
+        interval: {{ $.Values.serviceMesh.istio.destinationRule.outlierDetection.interval | default "30s" }}
+        baseEjectionTime: {{ $.Values.serviceMesh.istio.destinationRule.outlierDetection.baseEjectionTime | default "30s" }}
+    circuitBreaker:
+      consecutiveGatewayErrors: {{ $.Values.serviceMesh.istio.destinationRule.circuitBreaker.consecutiveGatewayErrors | default 5 }}
+      interval: {{ $.Values.serviceMesh.istio.destinationRule.circuitBreaker.interval | default "30s" }}
+      baseEjectionTime: {{ $.Values.serviceMesh.istio.destinationRule.circuitBreaker.baseEjectionTime | default "30s" }}
+      maxEjectionPercent: {{ $.Values.serviceMesh.istio.destinationRule.circuitBreaker.maxEjectionPercent | default 50 }}
+    loadBalancer:
+      simple: {{ $.Values.serviceMesh.istio.destinationRule.loadBalancer.simple | default "LEAST_CONN" }}
+  {{- if $.Values.serviceMesh.istio.mtls.enabled }}
+  portLevelSettings:
+  - port:
+      number: {{ $serviceConfig.service.port | default 8080 }}
+    tls:
+      mode: ISTIO_MUTUAL
+  {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

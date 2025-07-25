@@ -10,8 +10,6 @@ import { formatCurrency, formatPercent, getPriceChangeColor } from '@/lib/utils'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 import {
   Wallet,
-  TrendingUp,
-  TrendingDown,
   RefreshCw,
   Eye,
   MoreHorizontal,
@@ -20,10 +18,10 @@ import {
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#f97316']
 
 export function PortfolioSummary() {
-  const { portfolios, selectedPortfolioId, setSelectedPortfolioId } = useTradingStore()
+  const { portfolios, selectedPortfolioId } = useTradingStore()
 
   // Fetch portfolios
-  const { data: portfolioData, isLoading, refetch } = useQuery({
+  const { isLoading, refetch } = useQuery({
     queryKey: ['portfolios'],
     queryFn: portfolioApi.getPortfolios,
     refetchInterval: 30000,
@@ -208,7 +206,7 @@ export function PortfolioSummary() {
                     />
                     <Bar
                       dataKey="pnlPercent"
-                      fill={(entry: any) => entry > 0 ? '#10b981' : '#ef4444'}
+                      fill="#10b981"
                     />
                   </BarChart>
                 </ResponsiveContainer>

@@ -1,0 +1,227 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "go-coffee-platform.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" . | nindent 4 }}
+data:
+  # Application configuration
+  app.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8080
+      readTimeout: 30s
+      writeTimeout: 30s
+      idleTimeout: 120s
+      
+    logging:
+      level: {{ .Values.global.logLevel | default "info" }}
+      format: {{ .Values.global.logFormat | default "json" }}
+      
+    metrics:
+      enabled: {{ .Values.global.metrics.enabled | default true }}
+      port: {{ .Values.global.metrics.port | default 9090 }}
+      path: {{ .Values.global.metrics.path | default "/metrics" }}
+      
+    tracing:
+      enabled: {{ .Values.global.tracing.enabled | default true }}
+      jaegerEndpoint: {{ .Values.global.tracing.jaegerEndpoint | quote }}
+      samplingRate: {{ .Values.global.tracing.samplingRate | default 0.1 }}
+      
+    security:
+      cors:
+        enabled: true
+        allowedOrigins: ["*"]
+        allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        allowedHeaders: ["*"]
+        allowCredentials: true
+      rateLimit:
+        enabled: true
+        requestsPerSecond: 100
+        burst: 200
+        
+  # Database configuration
+  database.yaml: |
+    postgresql:
+      host: {{ .Values.postgresql.host | default (printf "%s-postgresql" (include "go-coffee-platform.fullname" .)) }}
+      port: {{ .Values.postgresql.port | default 5432 }}
+      database: {{ .Values.postgresql.database | default "go_coffee" }}
+      sslMode: {{ .Values.postgresql.sslMode | default "require" }}
+      maxOpenConns: {{ .Values.postgresql.maxOpenConns | default 25 }}
+      maxIdleConns: {{ .Values.postgresql.maxIdleConns | default 5 }}
+      connMaxLifetime: {{ .Values.postgresql.connMaxLifetime | default "5m" }}
+      
+  # Redis configuration
+  redis.yaml: |
+    redis:
+      host: {{ .Values.redis.host | default (printf "%s-redis-master" (include "go-coffee-platform.fullname" .)) }}
+      port: {{ .Values.redis.port | default 6379 }}
+      database: {{ .Values.redis.database | default 0 }}
+      maxRetries: {{ .Values.redis.maxRetries | default 3 }}
+      poolSize: {{ .Values.redis.poolSize | default 10 }}
+      minIdleConns: {{ .Values.redis.minIdleConns | default 5 }}
+      
+  # Kafka configuration
+  kafka.yaml: |
+    kafka:
+      brokers: {{ .Values.kafka.brokers | default (printf "%s-kafka:9092" (include "go-coffee-platform.fullname" .)) | quote }}
+      topics:
+        orders: {{ .Values.kafka.topics.orders | default "coffee_orders" | quote }}
+        processedOrders: {{ .Values.kafka.topics.processedOrders | default "processed_orders" | quote }}
+        aiEvents: {{ .Values.kafka.topics.aiEvents | default "ai_events" | quote }}
+        notifications: {{ .Values.kafka.topics.notifications | default "notifications" | quote }}
+      consumer:
+        groupId: {{ .Values.kafka.consumer.groupId | default "go-coffee-consumer-group" | quote }}
+        autoOffsetReset: {{ .Values.kafka.consumer.autoOffsetReset | default "earliest" | quote }}
+        enableAutoCommit: {{ .Values.kafka.consumer.enableAutoCommit | default true }}
+      producer:
+        acks: {{ .Values.kafka.producer.acks | default "all" | quote }}
+        retries: {{ .Values.kafka.producer.retries | default 3 }}
+        batchSize: {{ .Values.kafka.producer.batchSize | default 16384 }}
+        
+  # AI Services configuration
+  ai.yaml: |
+    ai:
+      providers:
+        gemini:
+          enabled: {{ .Values.ai.providers.gemini.enabled | default true }}
+          model: {{ .Values.ai.providers.gemini.model | default "gemini-pro" | quote }}
+          maxTokens: {{ .Values.ai.providers.gemini.maxTokens | default 2048 }}
+        ollama:
+          enabled: {{ .Values.ai.providers.ollama.enabled | default true }}
+          baseUrl: {{ .Values.ai.providers.ollama.baseUrl | default "http://ollama:11434" | quote }}
+          model: {{ .Values.ai.providers.ollama.model | default "llama2" | quote }}
+      agents:
+        beverageInventor:
+          enabled: {{ .Values.ai.agents.beverageInventor.enabled | default true }}
+          maxRecipesPerDay: {{ .Values.ai.agents.beverageInventor.maxRecipesPerDay | default 10 }}
+        inventoryManager:
+          enabled: {{ .Values.ai.agents.inventoryManager.enabled | default true }}
+          checkInterval: {{ .Values.ai.agents.inventoryManager.checkInterval | default "1h" | quote }}
+        taskManager:
+          enabled: {{ .Values.ai.agents.taskManager.enabled | default true }}
+          clickupIntegration: {{ .Values.ai.agents.taskManager.clickupIntegration | default true }}
+          
+  # Web3 configuration
+  web3.yaml: |
+    web3:
+      networks:
+        ethereum:
+          enabled: {{ .Values.web3.networks.ethereum.enabled | default true }}
+          chainId: {{ .Values.web3.networks.ethereum.chainId | default 1 }}
+          rpcUrl: {{ .Values.web3.networks.ethereum.rpcUrl | default "https://mainnet.infura.io/v3/YOUR_KEY" | quote }}
+        bsc:
+          enabled: {{ .Values.web3.networks.bsc.enabled | default true }}
+          chainId: {{ .Values.web3.networks.bsc.chainId | default 56 }}
+          rpcUrl: {{ .Values.web3.networks.bsc.rpcUrl | default "https://bsc-dataseed.binance.org/" | quote }}
+        polygon:
+          enabled: {{ .Values.web3.networks.polygon.enabled | default true }}
+          chainId: {{ .Values.web3.networks.polygon.chainId | default 137 }}
+          rpcUrl: {{ .Values.web3.networks.polygon.rpcUrl | default "https://polygon-rpc.com/" | quote }}
+        solana:
+          enabled: {{ .Values.web3.networks.solana.enabled | default true }}
+          cluster: {{ .Values.web3.networks.solana.cluster | default "mainnet-beta" | quote }}
+          rpcUrl: {{ .Values.web3.networks.solana.rpcUrl | default "https://api.mainnet-beta.solana.com" | quote }}
+      defi:
+        protocols:
+          uniswap:
+            enabled: {{ .Values.web3.defi.protocols.uniswap.enabled | default true }}
+            version: {{ .Values.web3.defi.protocols.uniswap.version | default "v3" | quote }}
+            factory: {{ .Values.web3.defi.protocols.uniswap.factory | default "0x1F98431c8aD98523631AE4a59f267346ea31F984" | quote }}
+          aave:
+            enabled: {{ .Values.web3.defi.protocols.aave.enabled | default true }}
+            version: {{ .Values.web3.defi.protocols.aave.version | default "v3" | quote }}
+            lendingPool: {{ .Values.web3.defi.protocols.aave.lendingPool | default "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9" | quote }}
+      trading:
+        strategies:
+          arbitrage:
+            enabled: {{ .Values.web3.trading.strategies.arbitrage.enabled | default true }}
+            minProfitThreshold: {{ .Values.web3.trading.strategies.arbitrage.minProfitThreshold | default 0.01 }}
+          yieldFarming:
+            enabled: {{ .Values.web3.trading.strategies.yieldFarming.enabled | default true }}
+            autoCompound: {{ .Values.web3.trading.strategies.yieldFarming.autoCompound | default true }}
+          gridTrading:
+            enabled: {{ .Values.web3.trading.strategies.gridTrading.enabled | default true }}
+            gridSize: {{ .Values.web3.trading.strategies.gridTrading.gridSize | default 10 }}
+            
+  # Monitoring configuration
+  monitoring.yaml: |
+    monitoring:
+      prometheus:
+        enabled: {{ .Values.monitoring.prometheus.enabled | default true }}
+        scrapeInterval: {{ .Values.monitoring.prometheus.scrapeInterval | default "15s" | quote }}
+        evaluationInterval: {{ .Values.monitoring.prometheus.evaluationInterval | default "15s" | quote }}
+      grafana:
+        enabled: {{ .Values.monitoring.grafana.enabled | default true }}
+        adminUser: {{ .Values.monitoring.grafana.adminUser | default "admin" | quote }}
+      alerting:
+        enabled: {{ .Values.monitoring.alerting.enabled | default true }}
+        slack:
+          enabled: {{ .Values.monitoring.alerting.slack.enabled | default false }}
+          webhook: {{ .Values.monitoring.alerting.slack.webhook | default "" | quote }}
+        email:
+          enabled: {{ .Values.monitoring.alerting.email.enabled | default false }}
+          smtpHost: {{ .Values.monitoring.alerting.email.smtpHost | default "" | quote }}
+          
+  # Security configuration
+  security.yaml: |
+    security:
+      authentication:
+        jwt:
+          issuer: {{ .Values.security.authentication.jwt.issuer | default "go-coffee" | quote }}
+          audience: {{ .Values.security.authentication.jwt.audience | default "go-coffee-api" | quote }}
+          expirationTime: {{ .Values.security.authentication.jwt.expirationTime | default "24h" | quote }}
+        oauth2:
+          enabled: {{ .Values.security.authentication.oauth2.enabled | default false }}
+          providers: {{ .Values.security.authentication.oauth2.providers | default "[]" }}
+      authorization:
+        rbac:
+          enabled: {{ .Values.security.authorization.rbac.enabled | default true }}
+        casbin:
+          enabled: {{ .Values.security.authorization.casbin.enabled | default false }}
+      encryption:
+        algorithm: {{ .Values.security.encryption.algorithm | default "AES-256-GCM" | quote }}
+        keyRotation: {{ .Values.security.encryption.keyRotation | default "30d" | quote }}
+        
+  # Feature flags
+  features.yaml: |
+    features:
+      web3Integration: {{ .Values.features.web3Integration | default true }}
+      aiAgents: {{ .Values.features.aiAgents | default true }}
+      cryptoPayments: {{ .Values.features.cryptoPayments | default true }}
+      defiTrading: {{ .Values.features.defiTrading | default true }}
+      socialMediaIntegration: {{ .Values.features.socialMediaIntegration | default true }}
+      multiLanguageSupport: {{ .Values.features.multiLanguageSupport | default false }}
+      advancedAnalytics: {{ .Values.features.advancedAnalytics | default true }}
+      realTimeNotifications: {{ .Values.features.realTimeNotifications | default true }}
+      
+  # Environment-specific overrides
+  environment.yaml: |
+    environment: {{ .Values.global.environment | quote }}
+    debug: {{ eq .Values.global.environment "dev" }}
+    production: {{ eq .Values.global.environment "prod" }}
+    staging: {{ eq .Values.global.environment "staging" }}
+    development: {{ eq .Values.global.environment "dev" }}
+    
+    # Environment-specific settings
+    {{- if eq .Values.global.environment "dev" }}
+    cors:
+      allowedOrigins: ["*"]
+    logging:
+      level: debug
+    metrics:
+      detailed: true
+    {{- else if eq .Values.global.environment "staging" }}
+    cors:
+      allowedOrigins: ["https://staging.gocoffee.dev"]
+    logging:
+      level: info
+    {{- else if eq .Values.global.environment "prod" }}
+    cors:
+      allowedOrigins: ["https://gocoffee.dev", "https://app.gocoffee.dev"]
+    logging:
+      level: warn
+    security:
+      strictMode: true
+    {{- end }}

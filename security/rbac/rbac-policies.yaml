@@ -1,0 +1,457 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-coffee-security
+  labels:
+    name: go-coffee-security
+    security.gocoffee.dev/managed: "true"
+---
+# Service Account for Go Coffee Security Controller
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: go-coffee-security-controller
+  namespace: go-coffee-security
+  labels:
+    app.kubernetes.io/name: go-coffee-security
+    app.kubernetes.io/component: controller
+---
+# Cluster Role for Security Operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: go-coffee-security-operator
+  labels:
+    app.kubernetes.io/name: go-coffee-security
+    app.kubernetes.io/component: rbac
+rules:
+# Security policy management
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["policy"]
+  resources: ["podsecuritypolicies", "poddisruptionbudgets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+# Security scanning and compliance
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+  verbs: ["get", "list", "watch"]
+# Security events and audit
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+# Cluster Role Binding for Security Controller
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: go-coffee-security-operator
+  labels:
+    app.kubernetes.io/name: go-coffee-security
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: go-coffee-security-operator
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-security-controller
+  namespace: go-coffee-security
+---
+# Role for Go Coffee Application Services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee
+  name: go-coffee-application
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+rules:
+# Allow reading own configuration
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+  resourceNames: ["go-coffee-config", "go-coffee-*-config"]
+# Allow reading secrets (limited)
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+  resourceNames: ["go-coffee-db-secret", "go-coffee-redis-secret", "go-coffee-api-keys"]
+# Allow creating events for audit
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+# Allow reading service information
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+---
+# Role Binding for Application Services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-application
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-api-gateway
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-order-service
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-payment-service
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-kitchen-service
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-user-gateway
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-security-gateway
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-web-ui-backend
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-search
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-bright-data-hub
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-communication-hub
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-enterprise-service
+  namespace: go-coffee
+roleRef:
+  kind: Role
+  name: go-coffee-application
+  apiGroup: rbac.authorization.k8s.io
+---
+# Restricted Role for Payment Service (Enhanced Security)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee
+  name: go-coffee-payment-restricted
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/high-security: "true"
+rules:
+# Minimal configuration access
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get"]
+  resourceNames: ["go-coffee-payment-config"]
+# Restricted secret access
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+  resourceNames: ["go-coffee-payment-secrets", "go-coffee-payment-keys"]
+# Audit events only
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+---
+# Role Binding for Payment Service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-payment-restricted
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/high-security: "true"
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-payment-service
+  namespace: go-coffee
+roleRef:
+  kind: Role
+  name: go-coffee-payment-restricted
+  apiGroup: rbac.authorization.k8s.io
+---
+# Role for AI Services (Enhanced Permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee
+  name: go-coffee-ai-services
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/ai-service: "true"
+rules:
+# AI configuration access
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+  resourceNames: ["go-coffee-ai-config", "go-coffee-models-config"]
+# AI secrets access
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+  resourceNames: ["go-coffee-ai-keys", "go-coffee-model-secrets"]
+# Allow creating and updating AI-specific resources
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "create", "update"]
+# Events for AI operations
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+---
+# Role Binding for AI Services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-ai-services
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/ai-service: "true"
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-ai-search
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-beverage-inventor
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-inventory-manager
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-task-manager
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-social-media
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-customer-service
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-financial-analyst
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-marketing
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-quality-assurance
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-ai-supply-chain
+  namespace: go-coffee
+roleRef:
+  kind: Role
+  name: go-coffee-ai-services
+  apiGroup: rbac.authorization.k8s.io
+---
+# Role for Web3 Services (Blockchain Access)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee
+  name: go-coffee-web3-services
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/web3-service: "true"
+rules:
+# Web3 configuration access
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+  resourceNames: ["go-coffee-web3-config", "go-coffee-blockchain-config"]
+# Blockchain secrets access
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+  resourceNames: ["go-coffee-web3-keys", "go-coffee-wallet-secrets", "go-coffee-defi-keys"]
+# Events for blockchain operations
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create"]
+---
+# Role Binding for Web3 Services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-web3-services
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/web3-service: "true"
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-web3-gateway
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-defi-trader
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-nft-marketplace
+  namespace: go-coffee
+- kind: ServiceAccount
+  name: go-coffee-crypto-payments
+  namespace: go-coffee
+roleRef:
+  kind: Role
+  name: go-coffee-web3-services
+  apiGroup: rbac.authorization.k8s.io
+---
+# Admin Role for Go Coffee Platform
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee
+  name: go-coffee-admin
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/admin: "true"
+rules:
+# Full access to Go Coffee resources
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["policy"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+# Role Binding for Go Coffee Admins
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-admin
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/admin: "true"
+subjects:
+- kind: User
+  name: admin@gocoffee.dev
+  apiGroup: rbac.authorization.k8s.io
+- kind: Group
+  name: go-coffee:admins
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: go-coffee-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+# Developer Role for Go Coffee Platform
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee
+  name: go-coffee-developer
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/developer: "true"
+rules:
+# Read access to most resources
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+# Limited write access
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create", "update", "patch"]
+  resourceNames: ["go-coffee-dev-*"]
+# No access to secrets
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+  resourceNames: ["go-coffee-dev-secrets"]
+---
+# Role Binding for Go Coffee Developers
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-developer
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/developer: "true"
+subjects:
+- kind: Group
+  name: go-coffee:developers
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: go-coffee-developer
+  apiGroup: rbac.authorization.k8s.io
+---
+# Read-Only Role for Go Coffee Viewers
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee
+  name: go-coffee-viewer
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/viewer: "true"
+rules:
+# Read-only access to non-sensitive resources
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies", "ingresses"]
+  verbs: ["get", "list", "watch"]
+# No access to secrets
+---
+# Role Binding for Go Coffee Viewers
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-viewer
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: rbac
+    security.gocoffee.dev/viewer: "true"
+subjects:
+- kind: Group
+  name: go-coffee:viewers
+  apiGroup: rbac.authorization.k8s.io
+- kind: Group
+  name: go-coffee:business-users
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: go-coffee-viewer
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,405 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-coffee
+  labels:
+    # Pod Security Standards enforcement
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    # Security labels
+    security.gocoffee.dev/security-level: high
+    security.gocoffee.dev/compliance: pci-dss
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-coffee-monitoring
+  labels:
+    # Slightly relaxed for monitoring tools
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    security.gocoffee.dev/security-level: medium
+---
+# ValidatingAdmissionWebhook for custom security policies
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionWebhook
+metadata:
+  name: go-coffee-security-webhook
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+webhooks:
+- name: pod-security.gocoffee.dev
+  clientConfig:
+    service:
+      name: go-coffee-security-webhook
+      namespace: go-coffee-system
+      path: "/validate-pods"
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]
+  namespaceSelector:
+    matchLabels:
+      security.gocoffee.dev/enforce: "true"
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+---
+# NetworkPolicy for restricted communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-default-deny
+  namespace: go-coffee
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  egress:
+  # Allow DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS to external services
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+---
+# Namespace for payment services with ultra-restricted security
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-coffee-payment
+  labels:
+    # Ultra-restricted Pod Security Standards for PCI-DSS compliance
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    # PCI-DSS compliance labels
+    security.gocoffee.dev/security-level: ultra-high
+    security.gocoffee.dev/compliance: pci-dss
+    security.gocoffee.dev/pci-dss: "true"
+    security.gocoffee.dev/enforce: "true"
+---
+# NetworkPolicy for payment services - ultra-restricted
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-payment-isolation
+  namespace: go-coffee-payment
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/pci-dss: "true"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: payment
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Only allow traffic from API gateway
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/component: api-gateway
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS to payment processors only
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+---
+# Namespace for AI services with GPU access
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-coffee-ai
+  labels:
+    # Baseline security for AI workloads (relaxed for GPU access)
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    # AI service labels
+    security.gocoffee.dev/security-level: medium
+    security.gocoffee.dev/ai-service: "true"
+    security.gocoffee.dev/gpu-access: "true"
+---
+# ResourceQuota for AI namespace to prevent resource abuse
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: go-coffee-ai-quota
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 64Gi
+    requests.nvidia.com/gpu: "4"
+    limits.cpu: "40"
+    limits.memory: 128Gi
+    limits.nvidia.com/gpu: "4"
+    persistentvolumeclaims: "10"
+    pods: "20"
+---
+# NetworkPolicy for AI services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-ai-network-policy
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from main go-coffee namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS for model downloads
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow communication within AI namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-ai
+---
+# ClusterRole for security webhook
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: go-coffee-security-webhook
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["validatingadmissionwebhooks"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+# ServiceAccount for security webhook
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: go-coffee-security-webhook
+  namespace: go-coffee-system
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+---
+# ClusterRoleBinding for security webhook
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: go-coffee-security-webhook
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+roleRef:
+  kind: ClusterRole
+  name: go-coffee-security-webhook
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-security-webhook
+  namespace: go-coffee-system
+---
+# Role for payment service access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee-payment
+  name: go-coffee-payment-service
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/pci-dss: "true"
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+# RoleBinding for payment service
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-payment-service
+  namespace: go-coffee-payment
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/pci-dss: "true"
+roleRef:
+  kind: Role
+  name: go-coffee-payment-service
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-payment-service
+  namespace: go-coffee-payment
+---
+# Role for AI services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: go-coffee-ai
+  name: go-coffee-ai-services
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/ai-service: "true"
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+# RoleBinding for AI services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-coffee-ai-services
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+    security.gocoffee.dev/ai-service: "true"
+roleRef:
+  kind: Role
+  name: go-coffee-ai-services
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-ai-search
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-beverage-inventor
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-inventory-manager
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-task-manager
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-social-media
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-customer-service
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-financial-analyst
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-marketing
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-quality-assurance
+  namespace: go-coffee-ai
+- kind: ServiceAccount
+  name: go-coffee-ai-supply-chain
+  namespace: go-coffee-ai
+---
+# Security Context Constraints for OpenShift (if applicable)
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: go-coffee-restricted-scc
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+- ALL
+allowedFlexVolumes: []
+fsGroup:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+readOnlyRootFilesystem: true
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+volumes:
+- configMap
+- downwardAPI
+- emptyDir
+- persistentVolumeClaim
+- projected
+- secret
+users: []
+groups: []
+priority: 10

@@ -1,0 +1,411 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ollama-config
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: model-serving
+data:
+  # Ollama configuration
+  ollama.env: |
+    OLLAMA_HOST=0.0.0.0:11434
+    OLLAMA_ORIGINS=*
+    OLLAMA_MODELS=/models
+    OLLAMA_KEEP_ALIVE=24h
+    OLLAMA_MAX_LOADED_MODELS=5
+    OLLAMA_NUM_PARALLEL=4
+    OLLAMA_MAX_QUEUE=512
+    OLLAMA_DEBUG=false
+    OLLAMA_FLASH_ATTENTION=true
+    OLLAMA_GPU_OVERHEAD=0.1
+    OLLAMA_LOAD_TIMEOUT=5m
+    OLLAMA_REQUEST_TIMEOUT=5m
+
+  # Model configuration
+  models.yaml: |
+    models:
+      # Code generation and analysis
+      - name: codellama:13b-instruct
+        description: "Code generation and programming assistance"
+        use_case: "AI development agent"
+        memory_requirement: "8Gi"
+        gpu_requirement: "1"
+        
+      # General purpose reasoning
+      - name: llama2:13b-chat
+        description: "General purpose conversational AI"
+        use_case: "Customer service and general tasks"
+        memory_requirement: "8Gi"
+        gpu_requirement: "1"
+        
+      # Specialized business model
+      - name: mistral:7b-instruct
+        description: "Fast inference for business logic"
+        use_case: "Business analysis and decision making"
+        memory_requirement: "4Gi"
+        gpu_requirement: "0.5"
+        
+      # Creative and marketing
+      - name: neural-chat:7b
+        description: "Creative content generation"
+        use_case: "Marketing and social media content"
+        memory_requirement: "4Gi"
+        gpu_requirement: "0.5"
+        
+      # Embedding model for search
+      - name: nomic-embed-text
+        description: "Text embeddings for semantic search"
+        use_case: "AI search and recommendations"
+        memory_requirement: "2Gi"
+        gpu_requirement: "0.25"
+
+  # Model initialization script
+  init-models.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "🤖 Initializing Ollama models for Go Coffee AI..."
+    
+    # Wait for Ollama to be ready
+    until curl -f http://localhost:11434/api/tags; do
+      echo "Waiting for Ollama to be ready..."
+      sleep 5
+    done
+    
+    # Pull required models
+    echo "📥 Pulling AI models..."
+    
+    # Code generation model
+    ollama pull codellama:13b-instruct
+    
+    # General purpose model
+    ollama pull llama2:13b-chat
+    
+    # Business logic model
+    ollama pull mistral:7b-instruct
+    
+    # Creative content model
+    ollama pull neural-chat:7b
+    
+    # Embedding model
+    ollama pull nomic-embed-text
+    
+    echo "✅ All models initialized successfully!"
+    
+    # Keep container running
+    tail -f /dev/null
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ollama
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: model-serving
+    app.kubernetes.io/version: "0.1.17"
+spec:
+  serviceName: ollama-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/component: model-serving
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ollama
+        app.kubernetes.io/component: model-serving
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "11434"
+        prometheus.io/path: "/metrics"
+    spec:
+      # GPU node scheduling
+      nodeSelector:
+        workload-type: ai-gpu
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      # Priority and scheduling
+      priorityClassName: ai-high-priority
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      
+      # Service account
+      serviceAccountName: ollama
+      
+      # Init container for model downloading
+      initContainers:
+      - name: model-downloader
+        image: ollama/ollama:0.1.17
+        command: ["/bin/bash", "/scripts/init-models.sh"]
+        env:
+        - name: OLLAMA_HOST
+          value: "0.0.0.0:11434"
+        volumeMounts:
+        - name: models
+          mountPath: /root/.ollama
+        - name: scripts
+          mountPath: /scripts
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: 2000m
+            memory: 8Gi
+        securityContext:
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: false
+          runAsNonRoot: false
+          runAsUser: 0
+          runAsGroup: 0
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+            - SYS_ADMIN
+      
+      containers:
+      - name: ollama
+        image: ollama/ollama:0.1.17
+        ports:
+        - name: http
+          containerPort: 11434
+          protocol: TCP
+        
+        # Environment configuration
+        envFrom:
+        - configMapRef:
+            name: ollama-config
+        
+        env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility"
+        
+        # Volume mounts
+        volumeMounts:
+        - name: models
+          mountPath: /root/.ollama
+        - name: tmp
+          mountPath: /tmp
+        
+        # Resource requirements
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 4Gi
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: 4000m
+            memory: 16Gi
+            nvidia.com/gpu: "1"
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /api/tags
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /api/tags
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: false
+          runAsNonRoot: false
+          runAsUser: 0
+          runAsGroup: 0
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - CHOWN
+            - SETUID
+            - SETGID
+            - NET_BIND_SERVICE
+            - SYS_ADMIN
+      
+      # Monitoring sidecar
+      - name: metrics-exporter
+        image: prom/node-exporter:v1.7.0
+        args:
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+        ports:
+        - name: metrics
+          containerPort: 9100
+          protocol: TCP
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+      
+      volumes:
+      - name: scripts
+        configMap:
+          name: ollama-config
+          items:
+          - key: init-models.sh
+            path: init-models.sh
+            mode: 0755
+      - name: tmp
+        emptyDir: {}
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+  
+  # Persistent volume claim template
+  volumeClaimTemplates:
+  - metadata:
+      name: models
+      labels:
+        app.kubernetes.io/name: ollama
+        app.kubernetes.io/component: storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: ai-model-storage
+      resources:
+        requests:
+          storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: model-serving
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "11434"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 11434
+    targetPort: http
+    protocol: TCP
+  - name: metrics
+    port: 9100
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: model-serving
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-headless
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: model-serving
+spec:
+  clusterIP: None
+  ports:
+  - name: http
+    port: 11434
+    targetPort: http
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: model-serving
+---
+# Service Account for Ollama
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ollama
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: model-serving
+---
+# Horizontal Pod Autoscaler for Ollama
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ollama-hpa
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: ollama
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60

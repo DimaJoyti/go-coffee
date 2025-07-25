@@ -1,0 +1,418 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: beverage-inventor-config
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: ai-agent
+data:
+  # Agent configuration
+  agent-config.yaml: |
+    agent:
+      name: "Beverage Inventor"
+      version: "1.0.0"
+      description: "AI agent for creating innovative coffee beverages and recipes"
+      
+    capabilities:
+      - recipe_creation
+      - flavor_profiling
+      - ingredient_analysis
+      - nutritional_calculation
+      - seasonal_recommendations
+      - trend_analysis
+      
+    models:
+      primary: "codellama:13b-instruct"
+      fallback: "mistral:7b-instruct"
+      embedding: "nomic-embed-text"
+      
+    parameters:
+      creativity_level: 0.8
+      safety_threshold: 0.9
+      max_ingredients: 15
+      dietary_restrictions_support: true
+      allergen_awareness: true
+      
+    integrations:
+      - inventory_service
+      - nutrition_api
+      - trend_analysis_service
+      - customer_preferences
+
+  # Prompts and templates
+  prompts.yaml: |
+    system_prompt: |
+      You are the Beverage Inventor, an expert AI barista and food scientist specializing in creating innovative coffee beverages. Your role is to:
+      
+      1. Create unique, delicious, and feasible coffee recipes
+      2. Consider seasonal ingredients and trends
+      3. Ensure nutritional balance and dietary accommodations
+      4. Analyze flavor profiles and ingredient compatibility
+      5. Provide detailed brewing instructions
+      6. Consider cost and availability of ingredients
+      
+      Always prioritize:
+      - Food safety and allergen awareness
+      - Taste and quality
+      - Innovation while maintaining coffee as the base
+      - Practical implementation in a coffee shop
+      - Customer dietary preferences and restrictions
+      
+      Respond with detailed recipes including ingredients, measurements, instructions, nutritional information, and flavor notes.
+    
+    recipe_creation_prompt: |
+      Create a new coffee beverage recipe based on the following criteria:
+      - Season: {season}
+      - Flavor profile: {flavor_profile}
+      - Dietary restrictions: {dietary_restrictions}
+      - Available ingredients: {available_ingredients}
+      - Target price range: {price_range}
+      - Inspiration: {inspiration}
+      
+      Provide a complete recipe with:
+      1. Recipe name and description
+      2. Ingredient list with measurements
+      3. Step-by-step preparation instructions
+      4. Nutritional information
+      5. Flavor notes and tasting profile
+      6. Suggested presentation and garnish
+      7. Cost analysis
+      8. Allergen information
+    
+    flavor_analysis_prompt: |
+      Analyze the flavor compatibility of these ingredients for a coffee beverage:
+      {ingredients}
+      
+      Provide:
+      1. Flavor harmony score (1-10)
+      2. Dominant flavor notes
+      3. Potential flavor conflicts
+      4. Suggestions for improvement
+      5. Complementary ingredients
+      6. Brewing method recommendations
+
+  # Recipe templates
+  recipe-templates.yaml: |
+    templates:
+      seasonal_latte:
+        base: "espresso"
+        milk_type: "steamed_milk"
+        seasonal_element: "{seasonal_ingredient}"
+        sweetener: "natural_sweetener"
+        garnish: "seasonal_garnish"
+        
+      cold_brew_creation:
+        base: "cold_brew_concentrate"
+        liquid_base: "filtered_water"
+        flavor_enhancer: "{flavor_profile}"
+        texture_modifier: "optional"
+        serving_style: "over_ice"
+        
+      specialty_mocha:
+        base: "espresso"
+        chocolate_component: "premium_chocolate"
+        milk_component: "steamed_milk"
+        unique_element: "{innovation_factor}"
+        topping: "artisan_topping"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beverage-inventor
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: ai-agent
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: beverage-inventor
+      app.kubernetes.io/component: ai-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: beverage-inventor
+        app.kubernetes.io/component: ai-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Scheduling preferences
+      nodeSelector:
+        workload-type: ai-gpu
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      priorityClassName: ai-high-priority
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      serviceAccountName: beverage-inventor
+      
+      containers:
+      - name: beverage-inventor
+        image: go-coffee/beverage-inventor:v1.0.0
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        
+        env:
+        # Agent configuration
+        - name: AGENT_NAME
+          value: "beverage-inventor"
+        - name: AGENT_VERSION
+          value: "1.0.0"
+        - name: LOG_LEVEL
+          value: "info"
+        
+        # Ollama connection
+        - name: OLLAMA_HOST
+          value: "ollama.go-coffee-ai.svc.cluster.local:11434"
+        - name: PRIMARY_MODEL
+          value: "codellama:13b-instruct"
+        - name: FALLBACK_MODEL
+          value: "mistral:7b-instruct"
+        - name: EMBEDDING_MODEL
+          value: "nomic-embed-text"
+        
+        # Service connections
+        - name: INVENTORY_SERVICE_URL
+          value: "http://go-coffee-inventory-service.go-coffee.svc.cluster.local:8080"
+        - name: NUTRITION_API_URL
+          value: "https://api.nutritionix.com/v1_1"
+        - name: CUSTOMER_PREFERENCES_URL
+          value: "http://go-coffee-user-gateway.go-coffee.svc.cluster.local:8080"
+        
+        # API keys from secrets
+        - name: NUTRITION_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: beverage-inventor-secrets
+              key: nutrition-api-key
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-ai-keys
+              key: openai-api-key
+              optional: true
+        
+        # Database connection
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-db-secret
+              key: database-url
+        
+        # Redis connection
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-redis-secret
+              key: redis-url
+        
+        # Volume mounts
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: prompts
+          mountPath: /app/prompts
+          readOnly: true
+        - name: templates
+          mountPath: /app/templates
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/cache
+        
+        # Resource requirements
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+            nvidia.com/gpu: "0.25"
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            nvidia.com/gpu: "0.5"
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: config
+        configMap:
+          name: beverage-inventor-config
+          items:
+          - key: agent-config.yaml
+            path: agent-config.yaml
+      - name: prompts
+        configMap:
+          name: beverage-inventor-config
+          items:
+          - key: prompts.yaml
+            path: prompts.yaml
+      - name: templates
+        configMap:
+          name: beverage-inventor-config
+          items:
+          - key: recipe-templates.yaml
+            path: recipe-templates.yaml
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir:
+          sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: beverage-inventor
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: ai-agent
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 50051
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: ai-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: beverage-inventor
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: ai-agent
+---
+# Secrets for Beverage Inventor Agent
+apiVersion: v1
+kind: Secret
+metadata:
+  name: beverage-inventor-secrets
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: secrets
+type: Opaque
+stringData:
+  nutrition-api-key: "your-nutritionix-api-key"
+  spoonacular-api-key: "your-spoonacular-api-key"
+  edamam-api-key: "your-edamam-api-key"
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: beverage-inventor-hpa
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: beverage-inventor
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: beverage-inventor-pdb
+  namespace: go-coffee-ai
+  labels:
+    app.kubernetes.io/name: beverage-inventor
+    app.kubernetes.io/component: availability
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: beverage-inventor
+      app.kubernetes.io/component: ai-agent

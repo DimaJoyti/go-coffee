@@ -1,0 +1,257 @@
+{{- if .Values.monitoring.enabled }}
+# ServiceMonitor for Prometheus to scrape Go Coffee services
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "go-coffee-platform.fullname" . }}-servicemonitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "go-coffee-platform.selectorLabels" . | nindent 6 }}
+  endpoints:
+  - port: metrics
+    interval: {{ .Values.monitoring.prometheus.scrapeInterval | default "30s" }}
+    path: {{ .Values.monitoring.prometheus.metricsPath | default "/metrics" }}
+    honorLabels: true
+    scrapeTimeout: {{ .Values.monitoring.prometheus.scrapeTimeout | default "10s" }}
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'go_.*'
+      targetLabel: __tmp_go_metric
+    - sourceLabels: [__tmp_go_metric]
+      regex: 'go_(gc_duration_seconds|memstats_.*|goroutines)'
+      action: keep
+  namespaceSelector:
+    matchNames:
+    - {{ .Release.Namespace }}
+---
+# PrometheusRule for Go Coffee alerting rules
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "go-coffee-platform.fullname" . }}-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "go-coffee-platform.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+spec:
+  groups:
+  - name: go-coffee.rules
+    interval: {{ .Values.monitoring.prometheus.evaluationInterval | default "30s" }}
+    rules:
+    # High-level service availability alerts
+    - alert: GoCoffeeServiceDown
+      expr: up{job=~".*go-coffee.*"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: "{{ "{{ $labels.job }}" }}"
+      annotations:
+        summary: "Go Coffee service {{ "{{ $labels.job }}" }} is down"
+        description: "Service {{ "{{ $labels.job }}" }} has been down for more than 1 minute."
+        runbook_url: "https://runbooks.gocoffee.dev/service-down"
+    
+    # High error rate alerts
+    - alert: GoCoffeeHighErrorRate
+      expr: |
+        (
+          rate(http_requests_total{job=~".*go-coffee.*",code=~"5.."}[5m]) /
+          rate(http_requests_total{job=~".*go-coffee.*"}[5m])
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+        service: "{{ "{{ $labels.job }}" }}"
+      annotations:
+        summary: "High error rate on {{ "{{ $labels.job }}" }}"
+        description: "Error rate is {{ "{{ $value | humanizePercentage }}" }} for service {{ "{{ $labels.job }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/high-error-rate"
+    
+    # High latency alerts
+    - alert: GoCoffeeHighLatency
+      expr: |
+        histogram_quantile(0.95,
+          rate(http_request_duration_seconds_bucket{job=~".*go-coffee.*"}[5m])
+        ) > 1
+      for: 5m
+      labels:
+        severity: warning
+        service: "{{ "{{ $labels.job }}" }}"
+      annotations:
+        summary: "High latency on {{ "{{ $labels.job }}" }}"
+        description: "95th percentile latency is {{ "{{ $value }}s" }} for service {{ "{{ $labels.job }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/high-latency"
+    
+    # Database connection alerts
+    - alert: GoCoffeeDatabaseConnectionHigh
+      expr: |
+        (
+          go_sql_open_connections{job=~".*go-coffee.*"} /
+          go_sql_max_open_connections{job=~".*go-coffee.*"}
+        ) > 0.8
+      for: 5m
+      labels:
+        severity: warning
+        service: "{{ "{{ $labels.job }}" }}"
+      annotations:
+        summary: "High database connection usage on {{ "{{ $labels.job }}" }}"
+        description: "Database connection usage is {{ "{{ $value | humanizePercentage }}" }} for service {{ "{{ $labels.job }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/database-connections"
+    
+    # Memory usage alerts
+    - alert: GoCoffeeHighMemoryUsage
+      expr: |
+        (
+          container_memory_working_set_bytes{pod=~".*go-coffee.*"} /
+          container_spec_memory_limit_bytes{pod=~".*go-coffee.*"}
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        pod: "{{ "{{ $labels.pod }}" }}"
+      annotations:
+        summary: "High memory usage on {{ "{{ $labels.pod }}" }}"
+        description: "Memory usage is {{ "{{ $value | humanizePercentage }}" }} for pod {{ "{{ $labels.pod }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/high-memory-usage"
+    
+    # CPU usage alerts
+    - alert: GoCoffeeHighCPUUsage
+      expr: |
+        (
+          rate(container_cpu_usage_seconds_total{pod=~".*go-coffee.*"}[5m]) /
+          container_spec_cpu_quota{pod=~".*go-coffee.*"} * container_spec_cpu_period{pod=~".*go-coffee.*"}
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        pod: "{{ "{{ $labels.pod }}" }}"
+      annotations:
+        summary: "High CPU usage on {{ "{{ $labels.pod }}" }}"
+        description: "CPU usage is {{ "{{ $value | humanizePercentage }}" }} for pod {{ "{{ $labels.pod }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/high-cpu-usage"
+    
+    # Kafka lag alerts
+    - alert: GoCoffeeKafkaConsumerLag
+      expr: kafka_consumer_lag_sum{job=~".*go-coffee.*"} > 1000
+      for: 2m
+      labels:
+        severity: warning
+        consumer_group: "{{ "{{ $labels.consumer_group }}" }}"
+      annotations:
+        summary: "High Kafka consumer lag for {{ "{{ $labels.consumer_group }}" }}"
+        description: "Consumer lag is {{ "{{ $value }}" }} messages for group {{ "{{ $labels.consumer_group }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/kafka-lag"
+    
+    # Redis connection alerts
+    - alert: GoCoffeeRedisConnectionHigh
+      expr: redis_connected_clients{job=~".*redis.*"} > 100
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High Redis connection count"
+        description: "Redis has {{ "{{ $value }}" }} connected clients."
+        runbook_url: "https://runbooks.gocoffee.dev/redis-connections"
+    
+    # AI service specific alerts
+    - alert: GoCoffeeAIServiceResponseTime
+      expr: |
+        histogram_quantile(0.95,
+          rate(ai_request_duration_seconds_bucket{job=~".*ai.*"}[5m])
+        ) > 30
+      for: 5m
+      labels:
+        severity: warning
+        service: "{{ "{{ $labels.job }}" }}"
+      annotations:
+        summary: "AI service {{ "{{ $labels.job }}" }} slow response time"
+        description: "95th percentile response time is {{ "{{ $value }}s" }} for AI service {{ "{{ $labels.job }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/ai-slow-response"
+    
+    # Web3 transaction alerts
+    - alert: GoCoffeeWeb3TransactionFailure
+      expr: |
+        (
+          rate(web3_transaction_total{status="failed"}[5m]) /
+          rate(web3_transaction_total[5m])
+        ) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High Web3 transaction failure rate"
+        description: "Web3 transaction failure rate is {{ "{{ $value | humanizePercentage }}" }}."
+        runbook_url: "https://runbooks.gocoffee.dev/web3-failures"
+    
+    # DeFi trading alerts
+    - alert: GoCoffeeDeFiTradingLoss
+      expr: defi_trading_pnl_total < -1000
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "DeFi trading losses detected"
+        description: "Total P&L is {{ "{{ $value }}" }} USD."
+        runbook_url: "https://runbooks.gocoffee.dev/defi-losses"
+    
+    # Certificate expiration alerts
+    - alert: GoCoffeeCertificateExpiringSoon
+      expr: |
+        (
+          cert_exporter_not_after - time()
+        ) / 86400 < 30
+      for: 1h
+      labels:
+        severity: warning
+        domain: "{{ "{{ $labels.domain }}" }}"
+      annotations:
+        summary: "Certificate expiring soon for {{ "{{ $labels.domain }}" }}"
+        description: "Certificate for {{ "{{ $labels.domain }}" }} expires in {{ "{{ $value }}" }} days."
+        runbook_url: "https://runbooks.gocoffee.dev/cert-expiration"
+
+  # Business metrics rules
+  - name: go-coffee.business.rules
+    interval: 1m
+    rules:
+    - record: go_coffee:orders_per_minute
+      expr: rate(coffee_orders_total[1m]) * 60
+    
+    - record: go_coffee:revenue_per_minute
+      expr: rate(coffee_revenue_total[1m]) * 60
+    
+    - record: go_coffee:average_order_value
+      expr: |
+        rate(coffee_revenue_total[5m]) /
+        rate(coffee_orders_total[5m])
+    
+    - record: go_coffee:customer_satisfaction_score
+      expr: |
+        (
+          rate(customer_feedback_total{rating="5"}[1h]) * 5 +
+          rate(customer_feedback_total{rating="4"}[1h]) * 4 +
+          rate(customer_feedback_total{rating="3"}[1h]) * 3 +
+          rate(customer_feedback_total{rating="2"}[1h]) * 2 +
+          rate(customer_feedback_total{rating="1"}[1h]) * 1
+        ) /
+        rate(customer_feedback_total[1h])
+    
+    - record: go_coffee:ai_agent_efficiency
+      expr: |
+        rate(ai_agent_tasks_completed_total[1h]) /
+        rate(ai_agent_tasks_created_total[1h])
+    
+    - record: go_coffee:web3_transaction_success_rate
+      expr: |
+        rate(web3_transaction_total{status="success"}[5m]) /
+        rate(web3_transaction_total[5m])
+    
+    - record: go_coffee:defi_trading_profit_rate
+      expr: |
+        rate(defi_trading_profit_total[1h]) /
+        rate(defi_trading_volume_total[1h])
+
+{{- end }}
