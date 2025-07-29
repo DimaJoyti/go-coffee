@@ -29,12 +29,12 @@ type SecurityGatewayService struct {
 
 // GatewayConfig represents gateway configuration
 type GatewayConfig struct {
-	Services          map[string]string `yaml:"services"`
-	Timeout           time.Duration     `yaml:"timeout" default:"30s"`
-	MaxRetries        int               `yaml:"max_retries" default:"3"`
-	RetryDelay        time.Duration     `yaml:"retry_delay" default:"1s"`
-	EnableCircuitBreaker bool           `yaml:"enable_circuit_breaker" default:"true"`
-	EnableLoadBalancing  bool           `yaml:"enable_load_balancing" default:"false"`
+	Services             map[string]string `yaml:"services"`
+	Timeout              time.Duration     `yaml:"timeout" default:"30s"`
+	MaxRetries           int               `yaml:"max_retries" default:"3"`
+	RetryDelay           time.Duration     `yaml:"retry_delay" default:"1s"`
+	EnableCircuitBreaker bool              `yaml:"enable_circuit_breaker" default:"true"`
+	EnableLoadBalancing  bool              `yaml:"enable_load_balancing" default:"false"`
 }
 
 // NewSecurityGatewayService creates a new security gateway service
@@ -63,10 +63,10 @@ func NewSecurityGatewayService(
 		if targetURL, err := url.Parse(serviceURL); err == nil {
 			service.proxies[serviceName] = httputil.NewSingleHostReverseProxy(targetURL)
 		} else {
-			logger.WithError(err).Error("Failed to parse service URL", map[string]any{
+			logger.WithError(err).WithFields(map[string]interface{}{
 				"service": serviceName,
 				"url":     serviceURL,
-			})
+			}).Error("Failed to parse service URL")
 		}
 	}
 
@@ -184,7 +184,7 @@ func (s *SecurityGatewayService) ProxyRequest(serviceName string, w http.Respons
 
 func (s *SecurityGatewayService) performRateLimitCheck(ctx context.Context, req *domain.SecurityRequest) (*domain.SecurityCheck, error) {
 	startTime := time.Now()
-	
+
 	check := &domain.SecurityCheck{
 		Name:     "rate_limit",
 		Type:     domain.SecurityCheckTypeRateLimit,
@@ -211,7 +211,7 @@ func (s *SecurityGatewayService) performRateLimitCheck(ctx context.Context, req 
 		check.Status = domain.SecurityCheckStatusFailed
 		check.Result = domain.SecurityCheckResultBlock
 		check.Message = "Rate limit exceeded"
-		
+
 		// Log security event
 		s.logSecurityEvent(ctx, req, domain.SecurityEventTypeMaliciousActivity, domain.SeverityMedium, "Rate limit exceeded")
 	}
@@ -222,7 +222,7 @@ func (s *SecurityGatewayService) performRateLimitCheck(ctx context.Context, req 
 
 func (s *SecurityGatewayService) performWAFCheck(ctx context.Context, req *domain.SecurityRequest) (*domain.SecurityCheck, error) {
 	startTime := time.Now()
-	
+
 	check := &domain.SecurityCheck{
 		Name:     "waf",
 		Type:     domain.SecurityCheckTypeWAF,
@@ -249,7 +249,7 @@ func (s *SecurityGatewayService) performWAFCheck(ctx context.Context, req *domai
 		check.Status = domain.SecurityCheckStatusFailed
 		check.Result = domain.SecurityCheckResultBlock
 		check.Message = wafResult.Reason
-		
+
 		// Log security event
 		s.logSecurityEvent(ctx, req, domain.SecurityEventTypeMaliciousActivity, domain.SeverityHigh, fmt.Sprintf("WAF block: %s", wafResult.Reason))
 	}
@@ -260,7 +260,7 @@ func (s *SecurityGatewayService) performWAFCheck(ctx context.Context, req *domai
 
 func (s *SecurityGatewayService) performValidationCheck(ctx context.Context, req *domain.SecurityRequest) (*domain.SecurityCheck, error) {
 	startTime := time.Now()
-	
+
 	check := &domain.SecurityCheck{
 		Name:     "input_validation",
 		Type:     domain.SecurityCheckTypeValidation,
@@ -278,10 +278,10 @@ func (s *SecurityGatewayService) performValidationCheck(ctx context.Context, req
 		check.Metadata = map[string]interface{}{
 			"url_validation": urlResult,
 		}
-		
+
 		// Log security event
 		s.logSecurityEvent(ctx, req, domain.SecurityEventTypeMaliciousActivity, domain.SeverityMedium, "URL validation failed")
-		
+
 		check.Duration = time.Since(startTime)
 		return check, nil
 	}
@@ -297,10 +297,10 @@ func (s *SecurityGatewayService) performValidationCheck(ctx context.Context, req
 				"header_validation": headerResult,
 				"header_name":       name,
 			}
-			
+
 			// Log security event
 			s.logSecurityEvent(ctx, req, domain.SecurityEventTypeMaliciousActivity, domain.SeverityMedium, fmt.Sprintf("Header validation failed: %s", name))
-			
+
 			check.Duration = time.Since(startTime)
 			return check, nil
 		}
@@ -316,10 +316,10 @@ func (s *SecurityGatewayService) performValidationCheck(ctx context.Context, req
 			check.Metadata = map[string]interface{}{
 				"body_validation": bodyResult,
 			}
-			
+
 			// Log security event
 			s.logSecurityEvent(ctx, req, domain.SecurityEventTypeMaliciousActivity, domain.SeverityHigh, "Request body validation failed")
-			
+
 			check.Duration = time.Since(startTime)
 			return check, nil
 		}
@@ -336,7 +336,7 @@ func (s *SecurityGatewayService) performAuthenticationCheck(ctx context.Context,
 	}
 
 	startTime := time.Now()
-	
+
 	check := &domain.SecurityCheck{
 		Name:     "authentication",
 		Type:     domain.SecurityCheckTypeAuthentication,
@@ -351,10 +351,10 @@ func (s *SecurityGatewayService) performAuthenticationCheck(ctx context.Context,
 		check.Status = domain.SecurityCheckStatusFailed
 		check.Result = domain.SecurityCheckResultBlock
 		check.Message = "Missing authorization header"
-		
+
 		// Log security event
 		s.logSecurityEvent(ctx, req, domain.SecurityEventTypeAuthentication, domain.SeverityMedium, "Missing authorization header")
-		
+
 		check.Duration = time.Since(startTime)
 		return check, nil
 	}
@@ -365,7 +365,7 @@ func (s *SecurityGatewayService) performAuthenticationCheck(ctx context.Context,
 		check.Status = domain.SecurityCheckStatusFailed
 		check.Result = domain.SecurityCheckResultBlock
 		check.Message = "Invalid authorization token"
-		
+
 		// Log security event
 		s.logSecurityEvent(ctx, req, domain.SecurityEventTypeAuthentication, domain.SeverityMedium, "Invalid authorization token")
 	}
@@ -381,7 +381,7 @@ func (s *SecurityGatewayService) performAuthorizationCheck(ctx context.Context, 
 	}
 
 	startTime := time.Now()
-	
+
 	check := &domain.SecurityCheck{
 		Name:     "authorization",
 		Type:     domain.SecurityCheckTypeAuthorization,
@@ -401,9 +401,9 @@ func (s *SecurityGatewayService) performAuthorizationCheck(ctx context.Context, 
 
 func (s *SecurityGatewayService) createBlockedResponse(req *domain.SecurityRequest, reason string, checks []domain.SecurityCheck, startTime time.Time) *domain.SecurityResponse {
 	return &domain.SecurityResponse{
-		RequestID:      req.ID,
-		StatusCode:     http.StatusForbidden,
-		Headers:        map[string]string{
+		RequestID:  req.ID,
+		StatusCode: http.StatusForbidden,
+		Headers: map[string]string{
 			"X-Request-ID":     req.ID,
 			"X-Correlation-ID": req.CorrelationID,
 			"X-Block-Reason":   reason,

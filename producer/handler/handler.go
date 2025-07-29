@@ -43,12 +43,15 @@ func NewHandler(kafkaProducer kafka.Producer, config *config.Config, orderStore 
 	}
 }
 
-// PlaceOrder handles the order placement
+// PlaceOrder handles the order placement with optimized async processing
 func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Check for async flag in query parameters for high-throughput mode
+	asyncMode := r.URL.Query().Get("async") == "true"
 
 	// 1. Parse request body into order request
 	orderReq := new(OrderRequest)
@@ -113,20 +116,33 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 5. Send the order to Kafka
-	err = h.kafkaProducer.PushToQueue(h.config.Kafka.Topic, orderJSON)
-	if err != nil {
-		log.Println(err)
+	// 5. Send the order to Kafka - use async mode for better performance
+	var kafkaErr error
+	if asyncMode {
+		// Use async producer for high-throughput scenarios
+		kafkaErr = h.kafkaProducer.PushToQueueAsync(h.config.Kafka.Topic, orderJSON)
+	} else {
+		// Use sync producer for guaranteed delivery
+		kafkaErr = h.kafkaProducer.PushToQueue(h.config.Kafka.Topic, orderJSON)
+	}
+
+	if kafkaErr != nil {
+		log.Println(kafkaErr)
 		// Remove the order from the store if we can't send it to Kafka
 		h.orderStore.Delete(order.ID)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, kafkaErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// 6. Respond back to the user
+	message := "Order for " + order.CustomerName + " placed successfully!"
+	if asyncMode {
+		message += " (Processing asynchronously for faster response)"
+	}
+
 	response := OrderResponse{
 		Success: true,
-		Message: "Order for " + order.CustomerName + " placed successfully!",
+		Message: message,
 		Order:   order,
 	}
 

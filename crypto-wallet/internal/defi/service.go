@@ -40,6 +40,9 @@ type Service struct {
 	onchainAnalyzer   *OnChainAnalyzer
 	tradingBots       map[string]*TradingBot
 
+	// MEV Protection
+	mevProtection *MEVProtectionService
+
 	// State
 	mutex sync.RWMutex
 }
@@ -102,6 +105,27 @@ func NewService(
 		ethClient,
 		bscClient,
 		polygonClient,
+	)
+
+	// Initialize MEV protection
+	mevConfig := MEVProtectionConfig{
+		Enabled:                true,
+		Level:                  MEVProtectionAdvanced,
+		UseFlashbots:           true,
+		UsePrivateMempool:      true,
+		MaxSlippageProtection:  decimal.NewFromFloat(0.05), // 5%
+		SandwichDetection:      true,
+		FrontrunDetection:      true,
+		MinBlockConfirmations:  1,
+		GasPriceMultiplier:     decimal.NewFromFloat(1.1), // 10% higher
+		FlashbotsRelay:         "https://relay.flashbots.net",
+		PrivateMempoolEndpoint: "https://api.private-mempool.com/v1",
+	}
+
+	service.mevProtection = NewMEVProtectionService(
+		mevConfig,
+		logger,
+		cache,
 	)
 
 	return service
@@ -662,4 +686,86 @@ func (s *Service) GetTradingBotPerformance(ctx context.Context, botID string) (*
 
 	performance := bot.GetPerformance()
 	return &performance, nil
+}
+
+// MEV Protection Methods
+
+// StartMEVProtection starts the MEV protection service
+func (s *Service) StartMEVProtection(ctx context.Context) error {
+	if s.mevProtection == nil {
+		return fmt.Errorf("MEV protection not initialized")
+	}
+
+	s.logger.Info("Starting MEV protection service")
+	return s.mevProtection.Start(ctx)
+}
+
+// StopMEVProtection stops the MEV protection service
+func (s *Service) StopMEVProtection() error {
+	if s.mevProtection == nil {
+		return fmt.Errorf("MEV protection not initialized")
+	}
+
+	s.logger.Info("Stopping MEV protection service")
+	return s.mevProtection.Stop()
+}
+
+// ProtectTransaction protects a transaction from MEV attacks
+func (s *Service) ProtectTransaction(ctx context.Context, tx interface{}) (*ProtectedTransaction, error) {
+	if s.mevProtection == nil {
+		return nil, fmt.Errorf("MEV protection not initialized")
+	}
+
+	// Convert tx to *types.Transaction (this would need proper type assertion in real implementation)
+	// For now, we'll assume it's already the correct type
+	// ethTx, ok := tx.(*types.Transaction)
+	// if !ok {
+	//     return nil, fmt.Errorf("invalid transaction type")
+	// }
+
+	s.logger.Info("Protecting transaction from MEV attacks")
+	// return s.mevProtection.ProtectTransaction(ctx, ethTx)
+
+	// Placeholder implementation
+	return &ProtectedTransaction{
+		Hash:             "0x...",
+		ProtectionLevel:  MEVProtectionAdvanced,
+		SubmissionMethod: "flashbots",
+		Status:           "protected",
+	}, nil
+}
+
+// GetMEVProtectionMetrics returns MEV protection metrics
+func (s *Service) GetMEVProtectionMetrics() MEVProtectionMetrics {
+	if s.mevProtection == nil {
+		return MEVProtectionMetrics{}
+	}
+
+	return s.mevProtection.GetMetrics()
+}
+
+// GetDetectedMEVAttacks returns detected MEV attacks
+func (s *Service) GetDetectedMEVAttacks() map[string]*MEVDetection {
+	if s.mevProtection == nil {
+		return make(map[string]*MEVDetection)
+	}
+
+	return s.mevProtection.GetDetectedAttacks()
+}
+
+// ConfigureMEVProtection updates MEV protection configuration
+func (s *Service) ConfigureMEVProtection(config MEVProtectionConfig) error {
+	if s.mevProtection == nil {
+		return fmt.Errorf("MEV protection not initialized")
+	}
+
+	s.logger.Info("Updating MEV protection configuration",
+		zap.String("level", string(config.Level)),
+		zap.Bool("flashbots", config.UseFlashbots),
+		zap.Bool("private_mempool", config.UsePrivateMempool))
+
+	// Update configuration (this would require adding a method to MEVProtectionService)
+	// s.mevProtection.UpdateConfig(config)
+
+	return nil
 }

@@ -244,49 +244,193 @@ func (w *Worker) processProcessedOrder(msg *sarama.ConsumerMessage) {
 		w.id, processedOrder.CoffeeType, processedOrder.CustomerName)
 }
 
-// WorkerPool represents a pool of workers
+// WorkerPool represents a pool of workers with dynamic scaling
 type WorkerPool struct {
-	jobQueue      chan *sarama.ConsumerMessage
-	workers       []*Worker
-	workerPool    int
-	wg            sync.WaitGroup
-	activeWorkers int
-	mu            sync.RWMutex
+	jobQueue         chan *sarama.ConsumerMessage
+	workers          []*Worker
+	minWorkers       int
+	maxWorkers       int
+	currentWorkers   int
+	wg               sync.WaitGroup
+	activeWorkers    int
+	mu               sync.RWMutex
+	ctx              context.Context
+	cancel           context.CancelFunc
+	scalingTicker    *time.Ticker
+	metrics          *WorkerPoolMetrics
+	backpressureMode bool
 }
 
-// NewWorkerPool creates a new worker pool
+// WorkerPoolMetrics tracks pool performance metrics
+type WorkerPoolMetrics struct {
+	mu                sync.RWMutex
+	processedMessages int64
+	failedMessages    int64
+	queueSize         int64
+	avgProcessingTime time.Duration
+	lastScaleTime     time.Time
+}
+
+// NewWorkerPool creates a new worker pool with dynamic scaling
 func NewWorkerPool(workerPool int) *WorkerPool {
-	return &WorkerPool{
-		jobQueue:   make(chan *sarama.ConsumerMessage, 100),
-		workerPool: workerPool,
+	ctx, cancel := context.WithCancel(context.Background())
+	
+	pool := &WorkerPool{
+		jobQueue:       make(chan *sarama.ConsumerMessage, 1000), // Increased buffer size
+		minWorkers:     workerPool,
+		maxWorkers:     workerPool * 3, // Allow scaling up to 3x
+		currentWorkers: 0,
+		ctx:            ctx,
+		cancel:         cancel,
+		scalingTicker:  time.NewTicker(30 * time.Second), // Check scaling every 30s
+		metrics: &WorkerPoolMetrics{
+			lastScaleTime: time.Now(),
+		},
 	}
+	
+	// Start scaling monitor
+	go pool.monitorAndScale()
+	
+	return pool
 }
 
 // Start starts the worker pool
 func (wp *WorkerPool) Start() {
-	// Create and start workers
-	wp.workers = make([]*Worker, wp.workerPool)
-	for i := 0; i < wp.workerPool; i++ {
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+	
+	// Start with minimum number of workers
+	wp.workers = make([]*Worker, wp.maxWorkers) // Pre-allocate for max capacity
+	wp.startWorkers(wp.minWorkers)
+	wp.currentWorkers = wp.minWorkers
+}
+
+// startWorkers starts the specified number of workers
+func (wp *WorkerPool) startWorkers(count int) {
+	for i := wp.currentWorkers; i < wp.currentWorkers+count && i < wp.maxWorkers; i++ {
 		wp.wg.Add(1)
-		wp.workers[i] = NewWorker(i, wp.jobQueue, &wp.wg, wp.workerPool)
-		wp.workers[i].Start()
+		wp.workers[i] = NewWorker(i, wp.jobQueue, &wp.wg, wp.maxWorkers)
+		wp.workers[i].Start(wp.ctx)
 		log.Printf("Worker %d started", i)
+	}
+}
+
+// stopWorkers stops the specified number of workers
+func (wp *WorkerPool) stopWorkers(count int) {
+	for i := wp.currentWorkers - 1; i >= wp.currentWorkers-count && i >= wp.minWorkers; i-- {
+		if wp.workers[i] != nil {
+			wp.workers[i].Stop()
+			wp.workers[i] = nil
+			log.Printf("Worker %d stopped", i)
+		}
+	}
+}
+
+// monitorAndScale monitors queue size and scales workers accordingly
+func (wp *WorkerPool) monitorAndScale() {
+	defer wp.scalingTicker.Stop()
+	
+	for {
+		select {
+		case <-wp.scalingTicker.C:
+			wp.checkAndScale()
+		case <-wp.ctx.Done():
+			return
+		}
+	}
+}
+
+// checkAndScale decides whether to scale up or down
+func (wp *WorkerPool) checkAndScale() {
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+	
+	queueSize := len(wp.jobQueue)
+	queueCapacity := cap(wp.jobQueue)
+	
+	// Update metrics
+	wp.metrics.mu.Lock()
+	wp.metrics.queueSize = int64(queueSize)
+	wp.metrics.mu.Unlock()
+	
+	// Scale up if queue is > 80% full and we can add more workers
+	if queueSize > int(float64(queueCapacity)*0.8) && wp.currentWorkers < wp.maxWorkers {
+		scaleUp := min(2, wp.maxWorkers-wp.currentWorkers) // Scale up by 2 or remaining capacity
+		wp.startWorkers(scaleUp)
+		wp.currentWorkers += scaleUp
+		log.Printf("Scaled up by %d workers due to high queue pressure (%d/%d)", scaleUp, queueSize, queueCapacity)
+		wp.metrics.lastScaleTime = time.Now()
+	}
+	
+	// Scale down if queue is < 20% full and we have more than minimum workers
+	if queueSize < int(float64(queueCapacity)*0.2) && wp.currentWorkers > wp.minWorkers {
+		// Only scale down if it's been at least 2 minutes since last scaling
+		if time.Since(wp.metrics.lastScaleTime) > 2*time.Minute {
+			scaleDown := min(1, wp.currentWorkers-wp.minWorkers) // Scale down conservatively
+			wp.stopWorkers(scaleDown)
+			wp.currentWorkers -= scaleDown
+			log.Printf("Scaled down by %d workers due to low queue pressure (%d/%d)", scaleDown, queueSize, queueCapacity)
+			wp.metrics.lastScaleTime = time.Now()
+		}
+	}
+	
+	// Enable backpressure mode if queue is > 95% full
+	wp.backpressureMode = queueSize > int(float64(queueCapacity)*0.95)
+	if wp.backpressureMode {
+		log.Printf("Backpressure mode enabled - queue nearly full (%d/%d)", queueSize, queueCapacity)
 	}
 }
 
 // Stop stops the worker pool
 func (wp *WorkerPool) Stop() {
-	// Stop workers
-	for i := 0; i < wp.workerPool; i++ {
-		wp.workers[i].Stop()
+	wp.cancel()
+	
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+	
+	// Stop all workers
+	for i := 0; i < wp.currentWorkers; i++ {
+		if wp.workers[i] != nil {
+			wp.workers[i].Stop()
+		}
 	}
+	
 	wp.wg.Wait()
 	close(wp.jobQueue)
 }
 
-// Submit submits a message to the worker pool
+// Submit submits a message to the worker pool with backpressure handling
 func (wp *WorkerPool) Submit(msg *sarama.ConsumerMessage) {
-	wp.jobQueue <- msg
+	select {
+	case wp.jobQueue <- msg:
+		// Successfully queued
+		wp.metrics.mu.Lock()
+		wp.metrics.processedMessages++
+		wp.metrics.mu.Unlock()
+	default:
+		// Queue is full - apply backpressure
+		if wp.backpressureMode {
+			log.Printf("Dropping message due to backpressure - queue full")
+			wp.metrics.mu.Lock()
+			wp.metrics.failedMessages++
+			wp.metrics.mu.Unlock()
+			return
+		}
+		
+		// Try with timeout
+		timeout := time.After(100 * time.Millisecond)
+		select {
+		case wp.jobQueue <- msg:
+			wp.metrics.mu.Lock()
+			wp.metrics.processedMessages++
+			wp.metrics.mu.Unlock()
+		case <-timeout:
+			log.Printf("Message submission timed out - queue congested")
+			wp.metrics.mu.Lock()
+			wp.metrics.failedMessages++
+			wp.metrics.mu.Unlock()
+		}
+	}
 }
 
 // QueueSize returns the current size of the job queue
@@ -294,9 +438,36 @@ func (wp *WorkerPool) QueueSize() int {
 	return len(wp.jobQueue)
 }
 
+// QueueCapacity returns the capacity of the job queue
+func (wp *WorkerPool) QueueCapacity() int {
+	return cap(wp.jobQueue)
+}
+
 // ActiveWorkers returns the current number of active workers
 func (wp *WorkerPool) ActiveWorkers() int {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
-	return wp.activeWorkers
+	return wp.currentWorkers
+}
+
+// GetMetrics returns current pool metrics
+func (wp *WorkerPool) GetMetrics() WorkerPoolMetrics {
+	wp.metrics.mu.RLock()
+	defer wp.metrics.mu.RUnlock()
+	
+	return WorkerPoolMetrics{
+		processedMessages: wp.metrics.processedMessages,
+		failedMessages:    wp.metrics.failedMessages,
+		queueSize:         wp.metrics.queueSize,
+		avgProcessingTime: wp.metrics.avgProcessingTime,
+		lastScaleTime:     wp.metrics.lastScaleTime,
+	}
+}
+
+// Helper function for minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -26,7 +26,7 @@ type RateLimitConfig struct {
 	BurstSize         int           `yaml:"burst_size"`
 	CleanupInterval   time.Duration `yaml:"cleanup_interval"`
 	WindowSize        time.Duration `yaml:"window_size" default:"1m"`
-	
+
 	// Different limits for different types
 	Limits map[string]RateLimit `yaml:"limits"`
 }
@@ -94,13 +94,13 @@ func (r *RateLimitService) CheckRateLimit(ctx context.Context, key string) (bool
 
 	// Get rate limit configuration for this key type
 	limitConfig := r.getRateLimitConfig(key)
-	
+
 	// Use sliding window rate limiting with Redis
 	allowed, info, err := r.slidingWindowRateLimit(ctx, key, limitConfig)
 	if err != nil {
-		r.logger.WithError(err).Error("Rate limit check failed", map[string]any{
+		r.logger.WithError(err).WithFields(map[string]interface{}{
 			"key": key,
-		})
+		}).Error("Rate limit check failed")
 		// In case of error, allow the request but log it
 		return true, &domain.RateLimitInfo{
 			Limit:     limitConfig.RequestsPerMinute,
@@ -121,14 +121,14 @@ func (r *RateLimitService) CheckMultipleRateLimits(ctx context.Context, req *dom
 	}
 
 	var infos []*domain.RateLimitInfo
-	
+
 	// Check IP-based rate limit
 	ipAllowed, ipInfo, err := r.CheckRateLimit(ctx, fmt.Sprintf("ip:%s", req.IPAddress))
 	if err != nil {
 		return false, nil, err
 	}
 	infos = append(infos, ipInfo)
-	
+
 	if !ipAllowed {
 		return false, infos, nil
 	}
@@ -140,7 +140,7 @@ func (r *RateLimitService) CheckMultipleRateLimits(ctx context.Context, req *dom
 			return false, infos, err
 		}
 		infos = append(infos, userInfo)
-		
+
 		if !userAllowed {
 			return false, infos, nil
 		}
@@ -153,7 +153,7 @@ func (r *RateLimitService) CheckMultipleRateLimits(ctx context.Context, req *dom
 		return false, infos, err
 	}
 	infos = append(infos, endpointInfo)
-	
+
 	if !endpointAllowed {
 		return false, infos, nil
 	}
@@ -172,49 +172,49 @@ func (r *RateLimitService) CheckMultipleRateLimits(ctx context.Context, req *dom
 func (r *RateLimitService) slidingWindowRateLimit(ctx context.Context, key string, config RateLimit) (bool, *domain.RateLimitInfo, error) {
 	now := time.Now()
 	windowStart := now.Add(-config.WindowSize)
-	
+
 	// Redis key for this rate limit
 	redisKey := fmt.Sprintf("rate_limit:%s", key)
-	
+
 	// Use Redis pipeline for atomic operations
 	pipe := r.redisClient.Pipeline()
-	
+
 	// Remove expired entries
 	pipe.ZRemRangeByScore(ctx, redisKey, "0", strconv.FormatInt(windowStart.UnixNano(), 10))
-	
+
 	// Count current requests in window
 	countCmd := pipe.ZCard(ctx, redisKey)
-	
+
 	// Add current request
 	pipe.ZAdd(ctx, redisKey, &redis.Z{
 		Score:  float64(now.UnixNano()),
 		Member: fmt.Sprintf("%d", now.UnixNano()),
 	})
-	
+
 	// Set expiration
 	pipe.Expire(ctx, redisKey, config.WindowSize*2)
-	
+
 	// Execute pipeline
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to execute rate limit pipeline: %w", err)
 	}
-	
+
 	// Get current count
 	currentCount := countCmd.Val()
-	
+
 	// Calculate remaining requests
 	remaining := int64(config.RequestsPerMinute) - currentCount
 	if remaining < 0 {
 		remaining = 0
 	}
-	
+
 	// Calculate reset time
 	resetTime := now.Add(config.WindowSize)
-	
+
 	// Check if request is allowed
 	allowed := currentCount <= int64(config.RequestsPerMinute)
-	
+
 	info := &domain.RateLimitInfo{
 		Limit:     config.RequestsPerMinute,
 		Remaining: int(remaining),
@@ -222,16 +222,16 @@ func (r *RateLimitService) slidingWindowRateLimit(ctx context.Context, key strin
 		Window:    config.WindowSize,
 		Blocked:   !allowed,
 	}
-	
+
 	if !allowed {
-		r.logger.Warn("Rate limit exceeded", map[string]any{
+		r.logger.WithFields(map[string]interface{}{
 			"key":           key,
 			"current_count": currentCount,
 			"limit":         config.RequestsPerMinute,
 			"window":        config.WindowSize,
-		})
+		}).Warn("Rate limit exceeded")
 	}
-	
+
 	return allowed, info, nil
 }
 
@@ -239,7 +239,7 @@ func (r *RateLimitService) slidingWindowRateLimit(ctx context.Context, key strin
 func (r *RateLimitService) tokenBucketRateLimit(ctx context.Context, key string, config RateLimit) (bool, *domain.RateLimitInfo, error) {
 	now := time.Now()
 	redisKey := fmt.Sprintf("token_bucket:%s", key)
-	
+
 	// Lua script for atomic token bucket operations
 	luaScript := `
 		local key = KEYS[1]
@@ -269,21 +269,21 @@ func (r *RateLimitService) tokenBucketRateLimit(ctx context.Context, key string,
 		
 		return {allowed and 1 or 0, current_tokens}
 	`
-	
-	result, err := r.redisClient.Eval(ctx, luaScript, []string{redisKey}, 
-		config.BurstSize, 
-		config.RequestsPerMinute, 
-		config.WindowSize.Seconds(), 
+
+	result, err := r.redisClient.Eval(ctx, luaScript, []string{redisKey},
+		config.BurstSize,
+		config.RequestsPerMinute,
+		config.WindowSize.Seconds(),
 		now.Unix()).Result()
-	
+
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to execute token bucket script: %w", err)
 	}
-	
+
 	resultSlice := result.([]interface{})
 	allowed := resultSlice[0].(int64) == 1
 	remaining := int(resultSlice[1].(int64))
-	
+
 	info := &domain.RateLimitInfo{
 		Limit:     config.RequestsPerMinute,
 		Remaining: remaining,
@@ -291,7 +291,7 @@ func (r *RateLimitService) tokenBucketRateLimit(ctx context.Context, key string,
 		Window:    config.WindowSize,
 		Blocked:   !allowed,
 	}
-	
+
 	return allowed, info, nil
 }
 
@@ -307,12 +307,12 @@ func (r *RateLimitService) getRateLimitConfig(key string) RateLimit {
 			}
 		}
 	}
-	
+
 	// Get specific configuration or fall back to default
 	if config, exists := r.config.Limits[keyType]; exists {
 		return config
 	}
-	
+
 	// Return default configuration
 	return RateLimit{
 		RequestsPerMinute: r.config.RequestsPerMinute,
@@ -325,33 +325,33 @@ func (r *RateLimitService) getRateLimitConfig(key string) RateLimit {
 func (r *RateLimitService) cleanupExpiredKeys() {
 	ticker := time.NewTicker(r.config.CleanupInterval)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		ctx := context.Background()
-		
+
 		// Find all rate limit keys
 		keys, err := r.redisClient.Keys(ctx, "rate_limit:*").Result()
 		if err != nil {
 			r.logger.WithError(err).Error("Failed to get rate limit keys for cleanup")
 			continue
 		}
-		
+
 		// Check each key and remove if expired
 		for _, key := range keys {
 			ttl, err := r.redisClient.TTL(ctx, key).Result()
 			if err != nil {
 				continue
 			}
-			
+
 			// If TTL is -1 (no expiration) or very small, set a reasonable expiration
 			if ttl == -1 || ttl < time.Minute {
 				r.redisClient.Expire(ctx, key, r.config.WindowSize*2)
 			}
 		}
-		
-		r.logger.Debug("Rate limit cleanup completed", map[string]any{
+
+		r.logger.WithFields(map[string]interface{}{
 			"keys_checked": len(keys),
-		})
+		}).Debug("Rate limit cleanup completed")
 	}
 }
 
@@ -366,27 +366,27 @@ func (r *RateLimitService) GetRateLimitStatus(ctx context.Context, key string) (
 			Blocked:   false,
 		}, nil
 	}
-	
+
 	config := r.getRateLimitConfig(key)
 	redisKey := fmt.Sprintf("rate_limit:%s", key)
-	
+
 	now := time.Now()
 	windowStart := now.Add(-config.WindowSize)
-	
+
 	// Count current requests in window
-	count, err := r.redisClient.ZCount(ctx, redisKey, 
-		strconv.FormatInt(windowStart.UnixNano(), 10), 
+	count, err := r.redisClient.ZCount(ctx, redisKey,
+		strconv.FormatInt(windowStart.UnixNano(), 10),
 		strconv.FormatInt(now.UnixNano(), 10)).Result()
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rate limit status: %w", err)
 	}
-	
+
 	remaining := int64(config.RequestsPerMinute) - count
 	if remaining < 0 {
 		remaining = 0
 	}
-	
+
 	return &domain.RateLimitInfo{
 		Limit:     config.RequestsPerMinute,
 		Remaining: int(remaining),
@@ -399,15 +399,15 @@ func (r *RateLimitService) GetRateLimitStatus(ctx context.Context, key string) (
 // ResetRateLimit resets the rate limit for a specific key
 func (r *RateLimitService) ResetRateLimit(ctx context.Context, key string) error {
 	redisKey := fmt.Sprintf("rate_limit:%s", key)
-	
+
 	err := r.redisClient.Del(ctx, redisKey).Err()
 	if err != nil {
 		return fmt.Errorf("failed to reset rate limit: %w", err)
 	}
-	
-	r.logger.Info("Rate limit reset", map[string]any{
+
+	r.logger.WithFields(map[string]interface{}{
 		"key": key,
-	})
-	
+	}).Info("Rate limit reset")
+
 	return nil
 }

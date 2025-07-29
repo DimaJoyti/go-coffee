@@ -17,33 +17,33 @@ import (
 
 // Service provides Reddit content collection and analysis
 type Service struct {
-	config    config.RedditConfig
-	logger    *logger.Logger
-	client    *Client
-	analyzer  *content.Analyzer
-	cache     redis.Client
-	producer  kafka.Producer
-	
+	config   config.RedditConfig
+	logger   *logger.Logger
+	client   *Client
+	analyzer *content.Analyzer
+	cache    redis.Client
+	producer kafka.Producer
+
 	// State management
-	mutex     sync.RWMutex
-	running   bool
-	stopChan  chan struct{}
-	
+	mutex    sync.RWMutex
+	running  bool
+	stopChan chan struct{}
+
 	// Statistics
-	stats     ServiceStats
+	stats ServiceStats
 }
 
 // ServiceStats represents service statistics
 type ServiceStats struct {
-	PostsCollected    int64     `json:"posts_collected"`
-	CommentsCollected int64     `json:"comments_collected"`
-	PostsAnalyzed     int64     `json:"posts_analyzed"`
-	CommentsAnalyzed  int64     `json:"comments_analyzed"`
-	ErrorsCount       int64     `json:"errors_count"`
-	LastCollectionAt  time.Time `json:"last_collection_at"`
-	LastAnalysisAt    time.Time `json:"last_analysis_at"`
+	PostsCollected    int64         `json:"posts_collected"`
+	CommentsCollected int64         `json:"comments_collected"`
+	PostsAnalyzed     int64         `json:"posts_analyzed"`
+	CommentsAnalyzed  int64         `json:"comments_analyzed"`
+	ErrorsCount       int64         `json:"errors_count"`
+	LastCollectionAt  time.Time     `json:"last_collection_at"`
+	LastAnalysisAt    time.Time     `json:"last_analysis_at"`
 	Uptime            time.Duration `json:"uptime"`
-	StartedAt         time.Time `json:"started_at"`
+	StartedAt         time.Time     `json:"started_at"`
 }
 
 // NewService creates a new Reddit service
@@ -166,7 +166,9 @@ func (s *Service) collectAndProcessSubreddit(ctx context.Context, subreddit stri
 		case <-s.stopChan:
 			return nil
 		default:
-			if err := s.processPost(ctx, &post); err != nil {
+			// Convert reddit.RedditPost to common.RedditPost
+			commonPost := s.convertToCommonPost(&post)
+			if err := s.processPost(ctx, commonPost); err != nil {
 				s.logger.Error(fmt.Sprintf("Error processing post %s: %v", post.ID, err))
 				continue
 			}
@@ -239,7 +241,9 @@ func (s *Service) collectPostComments(ctx context.Context, post *common.RedditPo
 	}
 
 	for _, comment := range comments {
-		if err := s.processComment(ctx, &comment, post.ID); err != nil {
+		// Convert reddit.RedditComment to common.RedditComment
+		commonComment := s.convertToCommonComment(&comment)
+		if err := s.processComment(ctx, commonComment, post.ID); err != nil {
 			s.logger.Error(fmt.Sprintf("Error processing comment %s: %v", comment.ID, err))
 			continue
 		}
@@ -410,4 +414,58 @@ func (s *Service) incrementErrorCount() {
 // generateTrendID generates a unique trend analysis ID
 func generateTrendID() string {
 	return fmt.Sprintf("trend_%d", time.Now().UnixNano())
+}
+
+// convertToCommonPost converts reddit.RedditPost to common.RedditPost
+func (s *Service) convertToCommonPost(post *RedditPost) *common.RedditPost {
+	return &common.RedditPost{
+		ID:              post.ID,
+		Title:           post.Title,
+		Content:         post.Content,
+		Author:          post.Author,
+		Subreddit:       post.Subreddit,
+		URL:             post.URL,
+		Score:           post.Score,
+		UpvoteRatio:     post.UpvoteRatio,
+		NumComments:     post.NumComments,
+		CreatedUTC:      post.CreatedUTC,
+		IsVideo:         post.IsVideo,
+		IsSelf:          post.IsSelf,
+		Permalink:       post.Permalink,
+		Flair:           post.Flair,
+		NSFW:            post.NSFW,
+		Spoiler:         post.Spoiler,
+		Locked:          post.Locked,
+		Stickied:        post.Stickied,
+		Metadata:        make(map[string]string),
+		ProcessedAt:     time.Time{}, // Will be set during processing
+		Classification:  "",          // Will be set during analysis
+		Sentiment:       "",          // Will be set during analysis
+		Topics:          []string{},  // Will be set during analysis
+		Confidence:      0.0,         // Will be set during analysis
+		EmbeddingVector: []float64{}, // Will be set during analysis
+	}
+}
+
+// convertToCommonComment converts reddit.RedditComment to common.RedditComment
+func (s *Service) convertToCommonComment(comment *RedditComment) *common.RedditComment {
+	return &common.RedditComment{
+		ID:              comment.ID,
+		PostID:          comment.PostID,
+		ParentID:        comment.ParentID,
+		Content:         comment.Content,
+		Author:          comment.Author,
+		Score:           comment.Score,
+		CreatedUTC:      comment.CreatedUTC,
+		IsSubmitter:     false, // Will need to be determined from context
+		Depth:           0,     // Will need to be calculated
+		Permalink:       "",    // Will need to be constructed
+		Metadata:        make(map[string]string),
+		ProcessedAt:     time.Time{}, // Will be set during processing
+		Classification:  "",          // Will be set during analysis
+		Sentiment:       "",          // Will be set during analysis
+		Topics:          []string{},  // Will be set during analysis
+		Confidence:      0.0,         // Will be set during analysis
+		EmbeddingVector: []float64{}, // Will be set during analysis
+	}
 }

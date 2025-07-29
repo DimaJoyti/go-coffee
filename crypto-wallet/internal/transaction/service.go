@@ -21,13 +21,13 @@ import (
 
 // Service provides transaction operations
 type Service struct {
-	repo           Repository
-	walletRepo     wallet.Repository
-	ethClient      *blockchain.EthereumClient
-	bscClient      *blockchain.EthereumClient
-	polygonClient  *blockchain.EthereumClient
-	keyManager     *cryptoUtil.KeyManager
-	logger         *logger.Logger
+	repo          Repository
+	walletRepo    wallet.Repository
+	ethClient     *blockchain.EthereumClient
+	bscClient     *blockchain.EthereumClient
+	polygonClient *blockchain.EthereumClient
+	keyManager    *cryptoUtil.KeyManager
+	logger        *logger.Logger
 }
 
 // NewService creates a new transaction service
@@ -404,6 +404,29 @@ func (s *Service) GetTransactionReceipt(ctx context.Context, req *models.GetTran
 		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
 	}
 
+	// Get transaction details for From and To addresses
+	tx, _, err := client.GetTransactionByHash(ctx, req.Hash)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to get transaction details: %v", err))
+		return nil, fmt.Errorf("failed to get transaction details: %w", err)
+	}
+
+	// Extract From address from transaction
+	var fromAddress string
+	if sender, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx); err == nil {
+		fromAddress = sender.Hex()
+	} else {
+		fromAddress = "" // Unable to determine sender
+	}
+
+	// Extract To address from transaction
+	var toAddress string
+	if tx.To() != nil {
+		toAddress = tx.To().Hex()
+	} else {
+		toAddress = "" // Contract creation transaction
+	}
+
 	// Convert logs
 	logs := make([]models.Log, len(receipt.Logs))
 	for i, log := range receipt.Logs {
@@ -433,10 +456,10 @@ func (s *Service) GetTransactionReceipt(ctx context.Context, req *models.GetTran
 		BlockNumber:       receipt.BlockNumber.Uint64(),
 		ContractAddress:   receipt.ContractAddress.Hex(),
 		CumulativeGasUsed: receipt.CumulativeGasUsed,
-		From:              receipt.From.Hex(),
+		From:              fromAddress,
 		GasUsed:           receipt.GasUsed,
 		Status:            receipt.Status == 1,
-		To:                receipt.To.Hex(),
+		To:                toAddress,
 		TransactionHash:   receipt.TxHash.Hex(),
 		TransactionIndex:  receipt.TransactionIndex,
 		Logs:              logs,

@@ -157,17 +157,8 @@ func (s *SolanaIntegrationTestSuite) TestSolanaBalanceQuery() {
 	wallet := &models.Wallet{
 		ID:      "test-wallet-1",
 		Address: "11111111111111111111111111111112", // System program address
-		Chain:   string(models.ChainSolana),
+		Chain:   models.ChainSolana,
 	}
-
-	// Get balance request
-	req := &models.GetBalanceRequest{
-		WalletID: wallet.ID,
-	}
-
-	// Mock the repository to return our test wallet
-	mockRepo := s.walletService.(*wallet.Service)
-	// Note: In a real test, you'd need to properly mock the repository
 
 	// Get balance (this might fail if the address has no funds, but should not error on format)
 	balance, err := s.solanaClient.GetBalance(s.ctx, wallet.Address)
@@ -176,7 +167,7 @@ func (s *SolanaIntegrationTestSuite) TestSolanaBalanceQuery() {
 		s.Assert().NotContains(err.Error(), "invalid address")
 		s.T().Skipf("Network error: %v", err)
 	} else {
-		s.Assert().True(balance.GreaterThanOrEqual(decimal.Zero))
+		s.Assert().True(balance.Cmp(decimal.Zero.BigInt()) >= 0)
 	}
 }
 
@@ -255,7 +246,7 @@ func (s *SolanaIntegrationTestSuite) TestSolanaNetworkOperations() {
 	if err != nil {
 		s.T().Skipf("Network error: %v", err)
 	} else {
-		s.Assert().NotEmpty(blockhash.String())
+		s.Assert().NotEmpty(blockhash)
 	}
 
 	// Test getting minimum balance for rent exemption
@@ -321,12 +312,12 @@ func (m *MockWalletRepository) GetWallet(ctx context.Context, id string) (*model
 	return &models.Wallet{
 		ID:      id,
 		Address: "11111111111111111111111111111112",
-		Chain:   string(models.ChainSolana),
+		Chain:   models.ChainSolana,
 	}, nil
 }
 
-func (m *MockWalletRepository) ListWallets(ctx context.Context, userID, chain, walletType string, limit, offset int) ([]*models.Wallet, int, error) {
-	return []*models.Wallet{}, 0, nil
+func (m *MockWalletRepository) ListWallets(ctx context.Context, userID, chain, walletType string, limit, offset int) ([]models.Wallet, int, error) {
+	return []models.Wallet{}, 0, nil
 }
 
 func (m *MockWalletRepository) UpdateWallet(ctx context.Context, wallet *models.Wallet) error {

@@ -1,40 +1,26 @@
 {
   "pages": {
-    "/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
+    "/_not-found/page": [
+      "static/chunks/webpack-8658fdbc42bfbbae.js",
+      "static/chunks/fd9d1056-749e5812300142af.js",
+      "static/chunks/117-984bf8b120959215.js",
+      "static/chunks/main-app-1ea6ef7a283b30b9.js",
+      "static/chunks/app/_not-found/page-eaa53ae320539b27.js"
     ],
     "/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/layout.css",
-      "static/chunks/app/layout.js"
+      "static/chunks/webpack-8658fdbc42bfbbae.js",
+      "static/chunks/fd9d1056-749e5812300142af.js",
+      "static/chunks/117-984bf8b120959215.js",
+      "static/chunks/main-app-1ea6ef7a283b30b9.js",
+      "static/css/a9e2597b9e73ec06.css",
+      "static/chunks/app/layout-cb62e99bfeebdf8c.js"
     ],
-    "/portfolio/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/portfolio/page.js"
-    ],
-    "/markets/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/markets/page.js"
-    ],
-    "/arbitrage/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/arbitrage/page.js"
-    ],
-    "/strategies/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/strategies/page.js"
-    ],
-    "/_not-found/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+    "/page": [
+      "static/chunks/webpack-8658fdbc42bfbbae.js",
+      "static/chunks/fd9d1056-749e5812300142af.js",
+      "static/chunks/117-984bf8b120959215.js",
+      "static/chunks/main-app-1ea6ef7a283b30b9.js",
+      "static/chunks/app/page-0a8b9a7b052e6eac.js"
     ]
   }
 }

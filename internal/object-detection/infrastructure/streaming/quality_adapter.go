@@ -23,27 +23,27 @@ type QualityAdapter struct {
 
 // QualityAdapterConfig configures the quality adapter
 type QualityAdapterConfig struct {
-	EnableAdaptation       bool          // Enable adaptive quality
-	MonitoringInterval     time.Duration // How often to check network conditions
-	QualityLevels          []QualityLevel // Available quality levels
-	DefaultQualityLevel    int           // Default quality level index
-	AdaptationSensitivity  float64       // How quickly to adapt (0.1-1.0)
-	MinStabilityPeriod     time.Duration // Minimum time before quality changes
-	BandwidthSmoothingWindow int         // Window size for bandwidth smoothing
-	LatencySmoothingWindow   int         // Window size for latency smoothing
-	EnablePredictiveScaling  bool        // Enable predictive quality scaling
+	EnableAdaptation         bool           // Enable adaptive quality
+	MonitoringInterval       time.Duration  // How often to check network conditions
+	QualityLevels            []QualityLevel // Available quality levels
+	DefaultQualityLevel      int            // Default quality level index
+	AdaptationSensitivity    float64        // How quickly to adapt (0.1-1.0)
+	MinStabilityPeriod       time.Duration  // Minimum time before quality changes
+	BandwidthSmoothingWindow int            // Window size for bandwidth smoothing
+	LatencySmoothingWindow   int            // Window size for latency smoothing
+	EnablePredictiveScaling  bool           // Enable predictive quality scaling
 }
 
 // QualityLevel defines a streaming quality configuration
 type QualityLevel struct {
-	Name           string  `json:"name"`
-	Level          int     `json:"level"`
-	MaxFrameRate   float64 `json:"max_frame_rate"`
-	JpegQuality    int     `json:"jpeg_quality"`
-	MaxResolution  Resolution `json:"max_resolution"`
-	MaxBitrate     int64   `json:"max_bitrate"`     // bits per second
-	MinBandwidth   int64   `json:"min_bandwidth"`   // required bandwidth
-	Description    string  `json:"description"`
+	Name          string     `json:"name"`
+	Level         int        `json:"level"`
+	MaxFrameRate  float64    `json:"max_frame_rate"`
+	JpegQuality   int        `json:"jpeg_quality"`
+	MaxResolution Resolution `json:"max_resolution"`
+	MaxBitrate    int64      `json:"max_bitrate"`   // bits per second
+	MinBandwidth  int64      `json:"min_bandwidth"` // required bandwidth
+	Description   string     `json:"description"`
 }
 
 // Resolution represents video resolution
@@ -54,37 +54,37 @@ type Resolution struct {
 
 // ClientQualityProfile tracks quality metrics for a specific client
 type ClientQualityProfile struct {
-	ClientID           string
+	ClientID            string
 	CurrentQualityLevel int
 	TargetQualityLevel  int
-	NetworkMetrics     *NetworkMetrics
-	QualityHistory     []QualityChange
-	LastAdaptation     time.Time
-	AdaptationCount    int64
-	StabilityScore     float64
-	mutex              sync.RWMutex
+	NetworkMetrics      *NetworkMetrics
+	QualityHistory      []QualityChange
+	LastAdaptation      time.Time
+	AdaptationCount     int64
+	StabilityScore      float64
+	mutex               sync.RWMutex
 }
 
 // NetworkMetrics tracks network performance for a client
 type NetworkMetrics struct {
-	Bandwidth          int64         // Current bandwidth (bits/sec)
-	Latency            time.Duration // Round-trip latency
-	PacketLoss         float64       // Packet loss percentage (0-100)
-	Jitter             time.Duration // Network jitter
-	ConnectionQuality  float64       // Overall quality score (0-1)
-	LastUpdated        time.Time
-	BandwidthHistory   []int64       // Historical bandwidth measurements
-	LatencyHistory     []time.Duration // Historical latency measurements
-	mutex              sync.RWMutex
+	Bandwidth         int64         // Current bandwidth (bits/sec)
+	Latency           time.Duration // Round-trip latency
+	PacketLoss        float64       // Packet loss percentage (0-100)
+	Jitter            time.Duration // Network jitter
+	ConnectionQuality float64       // Overall quality score (0-1)
+	LastUpdated       time.Time
+	BandwidthHistory  []int64         // Historical bandwidth measurements
+	LatencyHistory    []time.Duration // Historical latency measurements
+	mutex             sync.RWMutex
 }
 
 // QualityChange represents a quality level change event
 type QualityChange struct {
-	Timestamp     time.Time
-	FromLevel     int
-	ToLevel       int
-	Reason        string
-	NetworkState  NetworkMetrics
+	Timestamp    time.Time
+	FromLevel    int
+	ToLevel      int
+	Reason       string
+	NetworkState *NetworkMetrics
 }
 
 // QualityAdapterStats tracks adapter performance
@@ -118,8 +118,8 @@ func DefaultQualityAdapterConfig() QualityAdapterConfig {
 				MaxFrameRate:  5.0,
 				JpegQuality:   30,
 				MaxResolution: Resolution{Width: 320, Height: 240},
-				MaxBitrate:    100000,   // 100 Kbps
-				MinBandwidth:  150000,   // 150 Kbps required
+				MaxBitrate:    100000, // 100 Kbps
+				MinBandwidth:  150000, // 150 Kbps required
 				Description:   "Low quality for poor connections",
 			},
 			{
@@ -128,8 +128,8 @@ func DefaultQualityAdapterConfig() QualityAdapterConfig {
 				MaxFrameRate:  10.0,
 				JpegQuality:   50,
 				MaxResolution: Resolution{Width: 480, Height: 360},
-				MaxBitrate:    300000,   // 300 Kbps
-				MinBandwidth:  450000,   // 450 Kbps required
+				MaxBitrate:    300000, // 300 Kbps
+				MinBandwidth:  450000, // 450 Kbps required
 				Description:   "Medium-low quality for limited bandwidth",
 			},
 			{
@@ -138,8 +138,8 @@ func DefaultQualityAdapterConfig() QualityAdapterConfig {
 				MaxFrameRate:  15.0,
 				JpegQuality:   70,
 				MaxResolution: Resolution{Width: 640, Height: 480},
-				MaxBitrate:    800000,   // 800 Kbps
-				MinBandwidth:  1200000,  // 1.2 Mbps required
+				MaxBitrate:    800000,  // 800 Kbps
+				MinBandwidth:  1200000, // 1.2 Mbps required
 				Description:   "Medium quality for standard connections",
 			},
 			{
@@ -148,8 +148,8 @@ func DefaultQualityAdapterConfig() QualityAdapterConfig {
 				MaxFrameRate:  25.0,
 				JpegQuality:   85,
 				MaxResolution: Resolution{Width: 1280, Height: 720},
-				MaxBitrate:    2000000,  // 2 Mbps
-				MinBandwidth:  3000000,  // 3 Mbps required
+				MaxBitrate:    2000000, // 2 Mbps
+				MinBandwidth:  3000000, // 3 Mbps required
 				Description:   "High quality for good connections",
 			},
 			{
@@ -158,8 +158,8 @@ func DefaultQualityAdapterConfig() QualityAdapterConfig {
 				MaxFrameRate:  30.0,
 				JpegQuality:   95,
 				MaxResolution: Resolution{Width: 1920, Height: 1080},
-				MaxBitrate:    5000000,  // 5 Mbps
-				MinBandwidth:  7500000,  // 7.5 Mbps required
+				MaxBitrate:    5000000, // 5 Mbps
+				MinBandwidth:  7500000, // 7.5 Mbps required
 				Description:   "Ultra quality for excellent connections",
 			},
 		},
@@ -248,9 +248,9 @@ func (qa *QualityAdapter) RegisterClient(clientID string) {
 			BandwidthHistory:  make([]int64, 0, qa.config.BandwidthSmoothingWindow),
 			LatencyHistory:    make([]time.Duration, 0, qa.config.LatencySmoothingWindow),
 		},
-		QualityHistory:  make([]QualityChange, 0),
-		LastAdaptation:  time.Now(),
-		StabilityScore:  1.0,
+		QualityHistory: make([]QualityChange, 0),
+		LastAdaptation: time.Now(),
+		StabilityScore: 1.0,
 	}
 
 	qa.clients[clientID] = profile
@@ -424,7 +424,7 @@ func (qa *QualityAdapter) adaptClientQuality(clientID string, profile *ClientQua
 	// Apply adaptation sensitivity
 	levelDiff := optimalLevel - profile.CurrentQualityLevel
 	adaptedDiff := int(float64(levelDiff) * qa.config.AdaptationSensitivity)
-	
+
 	if adaptedDiff == 0 {
 		if levelDiff > 0 {
 			adaptedDiff = 1
@@ -461,7 +461,7 @@ func (qa *QualityAdapter) calculateOptimalQualityLevel(metrics *NetworkMetrics) 
 	// Find the highest quality level that fits the bandwidth
 	for i := len(qa.config.QualityLevels) - 1; i >= 0; i-- {
 		level := qa.config.QualityLevels[i]
-		
+
 		// Check bandwidth requirement
 		if smoothedBandwidth >= level.MinBandwidth {
 			// Additional checks for latency and packet loss
@@ -486,7 +486,7 @@ func (qa *QualityAdapter) getSmoothedBandwidth(metrics *NetworkMetrics) int64 {
 
 	// Calculate weighted average (more recent values have higher weight)
 	var weightedSum, totalWeight float64
-	
+
 	for i, bandwidth := range metrics.BandwidthHistory {
 		weight := float64(i+1) / float64(len(metrics.BandwidthHistory))
 		weightedSum += float64(bandwidth) * weight
@@ -522,7 +522,7 @@ func (qa *QualityAdapter) calculateConnectionQuality(metrics *NetworkMetrics) fl
 
 	// Weighted average
 	quality := (bandwidthScore*0.4 + latencyScore*0.3 + packetLossScore*0.2 + jitterScore*0.1)
-	
+
 	return math.Max(0, math.Min(1, quality))
 }
 
@@ -540,7 +540,7 @@ func (qa *QualityAdapter) applyQualityChange(clientID string, profile *ClientQua
 		FromLevel:    oldLevel,
 		ToLevel:      newLevel,
 		Reason:       reason,
-		NetworkState: *profile.NetworkMetrics,
+		NetworkState: profile.NetworkMetrics,
 	}
 	profile.QualityHistory = append(profile.QualityHistory, change)
 
@@ -568,7 +568,7 @@ func (qa *QualityAdapter) updateStabilityScore(profile *ClientQualityProfile) {
 	// Calculate stability based on recent adaptations
 	recentChanges := 0
 	cutoff := time.Now().Add(-5 * time.Minute)
-	
+
 	for _, change := range profile.QualityHistory {
 		if change.Timestamp.After(cutoff) {
 			recentChanges++
@@ -607,7 +607,7 @@ func (qa *QualityAdapter) GetStats() *QualityAdapterStats {
 
 	qa.mutex.RLock()
 	clientsMonitored := len(qa.clients)
-	
+
 	// Calculate average quality level
 	var totalQuality float64
 	for _, profile := range qa.clients {

@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/defi"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/blockchain"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 	"github.com/shopspring/decimal"
 )
 
@@ -23,10 +25,10 @@ func main() {
 	cache := &mockRedisClient{}
 
 	// Створення blockchain клієнтів (mock для прикладу)
-	ethClient := &mockEthereumClient{}
-	bscClient := &mockEthereumClient{}
-	polygonClient := &mockEthereumClient{}
-	solanaClient := &mockSolanaClient{}
+	ethClient := (*blockchain.EthereumClient)(nil)
+	bscClient := (*blockchain.EthereumClient)(nil)
+	polygonClient := (*blockchain.EthereumClient)(nil)
+	solanaClient := (*blockchain.SolanaClient)(nil)
 
 	// Конфігурація DeFi
 	defiConfig := config.DeFiConfig{
@@ -375,10 +377,51 @@ func demonstrateTradingBots(ctx context.Context, service *defi.Service) {
 // Mock types for compilation
 type mockRedisClient struct{}
 
-func (m *mockRedisClient) Get(key string) (string, error)                        { return "", nil }
-func (m *mockRedisClient) Set(key, value string, expiration time.Duration) error { return nil }
-func (m *mockRedisClient) Del(keys ...string) error                              { return nil }
-func (m *mockRedisClient) Close() error                                          { return nil }
+func (m *mockRedisClient) Get(ctx context.Context, key string) (string, error) { return "", nil }
+func (m *mockRedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	return nil
+}
+func (m *mockRedisClient) Del(ctx context.Context, keys ...string) error            { return nil }
+func (m *mockRedisClient) Exists(ctx context.Context, keys ...string) (bool, error) { return true, nil }
+func (m *mockRedisClient) Incr(ctx context.Context, key string) (int64, error)      { return 1, nil }
+func (m *mockRedisClient) HGet(ctx context.Context, key, field string) (string, error) {
+	return "", nil
+}
+func (m *mockRedisClient) HSet(ctx context.Context, key string, values ...interface{}) error {
+	return nil
+}
+func (m *mockRedisClient) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	return nil, nil
+}
+func (m *mockRedisClient) HDel(ctx context.Context, key string, fields ...string) error { return nil }
+func (m *mockRedisClient) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	return nil
+}
+func (m *mockRedisClient) Pipeline() redis.Pipeline       { return &mockPipeline{} }
+func (m *mockRedisClient) Close() error                   { return nil }
+func (m *mockRedisClient) Ping(ctx context.Context) error { return nil }
+
+type mockPipeline struct{}
+
+func (m *mockPipeline) Get(ctx context.Context, key string) redis.StringCmd { return nil }
+func (m *mockPipeline) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) redis.StatusCmd {
+	return nil
+}
+func (m *mockPipeline) Del(ctx context.Context, keys ...string) redis.IntCmd        { return nil }
+func (m *mockPipeline) Exists(ctx context.Context, keys ...string) redis.IntCmd     { return nil }
+func (m *mockPipeline) Incr(ctx context.Context, key string) redis.IntCmd           { return nil }
+func (m *mockPipeline) HGet(ctx context.Context, key, field string) redis.StringCmd { return nil }
+func (m *mockPipeline) HSet(ctx context.Context, key string, values ...interface{}) redis.IntCmd {
+	return nil
+}
+func (m *mockPipeline) HGetAll(ctx context.Context, key string) redis.StringStringMapCmd { return nil }
+func (m *mockPipeline) HDel(ctx context.Context, key string, fields ...string) redis.IntCmd {
+	return nil
+}
+func (m *mockPipeline) Expire(ctx context.Context, key string, expiration time.Duration) redis.BoolCmd {
+	return nil
+}
+func (m *mockPipeline) Exec(ctx context.Context) ([]redis.Cmder, error) { return nil, nil }
 
 type mockEthereumClient struct{}
 type mockSolanaClient struct{}

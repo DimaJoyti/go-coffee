@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/gagliardetto/solana-go"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 )
 
 func TestNewRaydiumClient(t *testing.T) {
@@ -58,7 +58,7 @@ func TestRaydiumClient_GetSwapQuote(t *testing.T) {
 	ctx := context.Background()
 
 	// Test SOL -> USDC swap
-	inputToken := "So11111111111111111111111111111111111111112"  // SOL
+	inputToken := "So11111111111111111111111111111111111111112"   // SOL
 	outputToken := "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC
 	inputAmount := decimal.NewFromFloat(1.0)
 
@@ -84,7 +84,7 @@ func TestRaydiumClient_GetSwapQuote_ReverseSwap(t *testing.T) {
 	ctx := context.Background()
 
 	// Test USDC -> SOL swap
-	inputToken := "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  // USDC
+	inputToken := "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC
 	outputToken := "So11111111111111111111111111111111111111112" // SOL
 	inputAmount := decimal.NewFromFloat(50.0)
 
@@ -248,15 +248,15 @@ func TestRaydiumClient_SwapQuote_PriceCalculation(t *testing.T) {
 
 		// Calculate price ratio
 		ratio := quote.OutputAmount.Div(quote.InputAmount)
-		
+
 		if i > 0 {
 			// Price should be relatively stable (within reasonable bounds)
 			diff := ratio.Sub(previousRatio).Abs()
 			maxDiff := previousRatio.Mul(decimal.NewFromFloat(0.1)) // 10% tolerance
-			assert.True(t, diff.LessThanOrEqual(maxDiff), 
+			assert.True(t, diff.LessThanOrEqual(maxDiff),
 				"Price ratio should be relatively stable across different amounts")
 		}
-		
+
 		previousRatio = ratio
 	}
 }
@@ -269,7 +269,7 @@ func TestRaydiumClient_SwapQuote_FeeCalculation(t *testing.T) {
 	ctx := context.Background()
 
 	// Get quote
-	quote, err := client.GetSwapQuote(ctx, 
+	quote, err := client.GetSwapQuote(ctx,
 		"So11111111111111111111111111111111111111112",
 		"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 		decimal.NewFromFloat(1.0))
@@ -277,7 +277,7 @@ func TestRaydiumClient_SwapQuote_FeeCalculation(t *testing.T) {
 
 	// Fee should be reasonable (less than 1% of output)
 	maxFee := quote.OutputAmount.Mul(decimal.NewFromFloat(0.01))
-	assert.True(t, quote.Fee.LessThanOrEqual(maxFee), 
+	assert.True(t, quote.Fee.LessThanOrEqual(maxFee),
 		"Fee should be reasonable (less than 1% of output)")
 
 	// Fee should be positive
@@ -292,8 +292,18 @@ func createTestRaydiumClient(t *testing.T) *RaydiumClient {
 	return client
 }
 
+// Helper function to create test client for benchmarks
+func createBenchmarkRaydiumClient(b *testing.B) *RaydiumClient {
+	logger := logger.New("benchmark")
+	client, err := NewRaydiumClient("https://api.devnet.solana.com", logger)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return client
+}
+
 func BenchmarkRaydiumClient_GetPools(b *testing.B) {
-	client := createTestRaydiumClient(b)
+	client := createBenchmarkRaydiumClient(b)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -308,7 +318,7 @@ func BenchmarkRaydiumClient_GetPools(b *testing.B) {
 }
 
 func BenchmarkRaydiumClient_GetSwapQuote(b *testing.B) {
-	client := createTestRaydiumClient(b)
+	client := createBenchmarkRaydiumClient(b)
 	defer client.Close()
 
 	ctx := context.Background()

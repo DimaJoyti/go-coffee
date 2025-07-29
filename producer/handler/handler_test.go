@@ -14,8 +14,10 @@ import (
 
 // MockProducer is a mock implementation of the kafka.Producer interface
 type MockProducer struct {
-	PushToQueueFunc func(topic string, message []byte) error
-	CloseFunc       func() error
+	PushToQueueFunc      func(topic string, message []byte) error
+	PushToQueueAsyncFunc func(topic string, message []byte) error
+	CloseFunc            func() error
+	FlushFunc            func() error
 }
 
 func (m *MockProducer) PushToQueue(topic string, message []byte) error {
@@ -25,9 +27,23 @@ func (m *MockProducer) PushToQueue(topic string, message []byte) error {
 	return nil
 }
 
+func (m *MockProducer) PushToQueueAsync(topic string, message []byte) error {
+	if m.PushToQueueAsyncFunc != nil {
+		return m.PushToQueueAsyncFunc(topic, message)
+	}
+	return nil
+}
+
 func (m *MockProducer) Close() error {
 	if m.CloseFunc != nil {
 		return m.CloseFunc()
+	}
+	return nil
+}
+
+func (m *MockProducer) Flush() error {
+	if m.FlushFunc != nil {
+		return m.FlushFunc()
 	}
 	return nil
 }
@@ -95,10 +111,10 @@ func (m *MockOrderStore) ListByCustomer(customerName string) ([]*store.Order, er
 
 func TestPlaceOrder(t *testing.T) {
 	tests := []struct {
-		name           string
+		name          string
 		order         OrderRequest
-		expectedCode   int
-		expectedError  bool
+		expectedCode  int
+		expectedError bool
 	}{
 		{
 			name: "Valid order",

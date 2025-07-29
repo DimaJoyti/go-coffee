@@ -1,18 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Image optimization
+  // Enable static export for Cloudflare Pages
+  output: 'export',
+  trailingSlash: true,
+  
+  // Image optimization - disabled for static export
   images: {
-    domains: ['localhost'],
-  },
-
-  // API rewrites for backend integration
-  async rewrites() {
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: 'http://localhost:8090/api/v1/:path*',
-      },
-    ]
+    unoptimized: true,
   },
 
   // Enhanced webpack configuration

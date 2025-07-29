@@ -10,30 +10,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/google/uuid"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/transaction"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/internal/wallet"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/blockchain"
 	cryptoUtil "github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/crypto"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/models"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/google/uuid"
 )
 
 // Service provides smart contract operations
 type Service struct {
-	repo           Repository
-	walletRepo     wallet.Repository
-	txRepo         transaction.Repository
-	ethClient      *blockchain.EthereumClient
-	bscClient      *blockchain.EthereumClient
-	polygonClient  *blockchain.EthereumClient
-	keyManager     *cryptoUtil.KeyManager
-	logger         *logger.Logger
+	repo          Repository
+	walletRepo    wallet.Repository
+	txRepo        transaction.Repository
+	ethClient     *blockchain.EthereumClient
+	bscClient     *blockchain.EthereumClient
+	polygonClient *blockchain.EthereumClient
+	keyManager    *cryptoUtil.KeyManager
+	logger        *logger.Logger
 }
 
 // NewService creates a new smart contract service
@@ -208,7 +208,7 @@ func (s *Service) DeployContract(ctx context.Context, req *models.DeployContract
 		UserID:    wallet.UserID,
 		Name:      req.Name,
 		Address:   contractAddress.Hex(),
-		Chain:     string(req.Chain),
+		Chain:     req.Chain,
 		ABI:       req.ABI,
 		Bytecode:  req.Bytecode,
 		CreatedAt: time.Now(),
@@ -236,7 +236,7 @@ func (s *Service) DeployContract(ctx context.Context, req *models.DeployContract
 		Nonce:     nonce,
 		Data:      "0x" + hex.EncodeToString(data),
 		Chain:     wallet.Chain,
-		Status:    string(models.TransactionStatusPending),
+		Status:    models.TransactionStatusPending,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -275,7 +275,7 @@ func (s *Service) ImportContract(ctx context.Context, req *models.ImportContract
 		UserID:    req.UserID,
 		Name:      req.Name,
 		Address:   req.Address,
-		Chain:     string(req.Chain),
+		Chain:     req.Chain,
 		ABI:       req.ABI,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

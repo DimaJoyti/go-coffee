@@ -2,37 +2,27 @@ package defi
 
 import (
 	"context"
-	"math/big"
 	"testing"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 )
 
-// MockEthereumClient мок для Ethereum клієнта
-type MockEthereumClient struct {
-	mock.Mock
-}
-
-func (m *MockEthereumClient) GetLatestBlockNumber(ctx context.Context) (*big.Int, error) {
-	args := m.Called(ctx)
-	return args.Get(0).(*big.Int), args.Error(1)
-}
+// Note: MockEthereumClient removed since NewOnChainAnalyzer expects concrete types
+// In a real integration test, actual blockchain client instances would be used
 
 func TestOnChainAnalyzer_Creation(t *testing.T) {
 	// Arrange
 	logger := logger.New("test")
 	mockRedis := &MockRedisClient{}
-	mockEth := &MockEthereumClient{}
-	mockBSC := &MockEthereumClient{}
-	mockPolygon := &MockEthereumClient{}
 
 	// Act
-	analyzer := NewOnChainAnalyzer(logger, mockRedis, mockEth, mockBSC, mockPolygon)
+	// Use nil for blockchain clients since NewOnChainAnalyzer expects concrete types
+	// In a real integration test, these would be actual client instances
+	analyzer := NewOnChainAnalyzer(logger, mockRedis, nil, nil, nil)
 
 	// Assert
 	assert.NotNil(t, analyzer)
@@ -245,10 +235,10 @@ func TestOnChainAnalyzer_CalculateTokenScore(t *testing.T) {
 		{
 			name: "High Quality Token",
 			metrics: &OnChainMetrics{
-				Volume24h:       decimal.NewFromFloat(50000000), // $50M
-				Liquidity:       decimal.NewFromFloat(100000000), // $100M
-				Holders:         50000,
-				Volatility:      decimal.NewFromFloat(0.05), // 5%
+				Volume24h:  decimal.NewFromFloat(50000000),  // $50M
+				Liquidity:  decimal.NewFromFloat(100000000), // $100M
+				Holders:    50000,
+				Volatility: decimal.NewFromFloat(0.05), // 5%
 			},
 			expectedMin: decimal.NewFromFloat(80),
 			expectedMax: decimal.NewFromFloat(100),
@@ -256,10 +246,10 @@ func TestOnChainAnalyzer_CalculateTokenScore(t *testing.T) {
 		{
 			name: "Medium Quality Token",
 			metrics: &OnChainMetrics{
-				Volume24h:       decimal.NewFromFloat(5000000), // $5M
-				Liquidity:       decimal.NewFromFloat(20000000), // $20M
-				Holders:         5000,
-				Volatility:      decimal.NewFromFloat(0.15), // 15%
+				Volume24h:  decimal.NewFromFloat(5000000),  // $5M
+				Liquidity:  decimal.NewFromFloat(20000000), // $20M
+				Holders:    5000,
+				Volatility: decimal.NewFromFloat(0.15), // 15%
 			},
 			expectedMin: decimal.NewFromFloat(40),
 			expectedMax: decimal.NewFromFloat(70),
@@ -267,10 +257,10 @@ func TestOnChainAnalyzer_CalculateTokenScore(t *testing.T) {
 		{
 			name: "Low Quality Token",
 			metrics: &OnChainMetrics{
-				Volume24h:       decimal.NewFromFloat(100000), // $100k
-				Liquidity:       decimal.NewFromFloat(500000), // $500k
-				Holders:         100,
-				Volatility:      decimal.NewFromFloat(0.50), // 50%
+				Volume24h:  decimal.NewFromFloat(100000), // $100k
+				Liquidity:  decimal.NewFromFloat(500000), // $500k
+				Holders:    100,
+				Volatility: decimal.NewFromFloat(0.50), // 50%
 			},
 			expectedMin: decimal.NewFromFloat(10),
 			expectedMax: decimal.NewFromFloat(50),
@@ -374,7 +364,7 @@ func TestOnChainAnalyzer_DetermineWhaleDirection(t *testing.T) {
 			name: "Bullish - High Activity",
 			whale: &WhaleWatch{
 				Volume24h:  decimal.NewFromFloat(5000000), // < $10M
-				TxCount24h: 15, // > 10 transactions
+				TxCount24h: 15,                            // > 10 transactions
 			},
 			expectedDirection: SignalDirectionBullish,
 		},
@@ -382,7 +372,7 @@ func TestOnChainAnalyzer_DetermineWhaleDirection(t *testing.T) {
 			name: "Neutral - Low Activity",
 			whale: &WhaleWatch{
 				Volume24h:  decimal.NewFromFloat(1000000), // < $10M
-				TxCount24h: 3, // < 10 transactions
+				TxCount24h: 3,                             // < 10 transactions
 			},
 			expectedDirection: SignalDirectionNeutral,
 		},
@@ -403,11 +393,10 @@ func TestOnChainAnalyzer_DetermineWhaleDirection(t *testing.T) {
 func createTestAnalyzer(t *testing.T) *OnChainAnalyzer {
 	logger := logger.New("test")
 	mockRedis := &MockRedisClient{}
-	mockEth := &MockEthereumClient{}
-	mockBSC := &MockEthereumClient{}
-	mockPolygon := &MockEthereumClient{}
 
-	return NewOnChainAnalyzer(logger, mockRedis, mockEth, mockBSC, mockPolygon)
+	// Use nil for blockchain clients since NewOnChainAnalyzer expects concrete types
+	// In a real integration test, these would be actual client instances
+	return NewOnChainAnalyzer(logger, mockRedis, nil, nil, nil)
 }
 
 // Benchmark tests
@@ -436,13 +425,8 @@ func TestOnChainAnalyzer_Integration(t *testing.T) {
 	analyzer := createTestAnalyzer(t)
 	ctx := context.Background()
 
-	// Mock blockchain clients
-	mockEth := &MockEthereumClient{}
-	analyzer.ethClient = mockEth
-
-	// Mock latest block number
-	latestBlock := big.NewInt(18000000)
-	mockEth.On("GetLatestBlockNumber", ctx).Return(latestBlock, nil)
+	// Note: In a real integration test, we would set up actual blockchain clients
+	// For this test, we'll work with the analyzer's internal functionality
 
 	// Start analyzer
 	err := analyzer.Start(ctx)
@@ -465,12 +449,10 @@ func TestOnChainAnalyzer_Integration(t *testing.T) {
 	assert.NotEmpty(t, whales) // Should have initialized whales
 
 	// Test market signals
-	signals, err := analyzer.GetMarketSignals(ctx)
+	_, err = analyzer.GetMarketSignals(ctx)
 	assert.NoError(t, err)
 	// Signals may be empty initially, that's ok
 
 	// Cleanup
 	analyzer.Stop()
-
-	mockEth.AssertExpectations(t)
 }

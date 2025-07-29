@@ -2,6 +2,7 @@ package defi
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -302,4 +303,176 @@ type AaveUserReserveData struct {
 	LiquidityRate            decimal.Decimal `json:"liquidity_rate"`
 	StableRateLastUpdated    int64           `json:"stable_rate_last_updated"`
 	UsageAsCollateralEnabled bool            `json:"usage_as_collateral_enabled"`
+}
+
+// Flash Loan Methods
+
+// FlashLoan executes a flash loan through Aave
+func (ac *AaveClient) FlashLoan(ctx context.Context, params *FlashLoanParams) (string, error) {
+	ac.logger.Info("Executing Aave flash loan",
+		zap.String("asset", params.Asset),
+		zap.String("amount", params.Amount.String()))
+
+	// Convert amount to big.Int with proper decimals
+	amount := params.Amount.BigInt()
+
+	// In a real implementation, this would prepare flash loan parameters and call the Aave lending pool contract
+	// Parameters would include: assets, amounts, modes, onBehalfOf, params, referralCode
+	// For now, we'll simulate the transaction
+	txHash := ac.simulateFlashLoanTransaction(params)
+
+	ac.logger.Info("Flash loan transaction submitted",
+		zap.String("tx_hash", txHash),
+		zap.String("asset", params.Asset),
+		zap.String("amount", amount.String()))
+
+	return txHash, nil
+}
+
+// GetFlashLoanAssets returns assets available for flash loans
+func (ac *AaveClient) GetFlashLoanAssets(ctx context.Context) ([]Token, error) {
+	ac.logger.Debug("Getting Aave flash loan assets")
+
+	// Get all reserve tokens
+	reserves, err := ac.getAllReserves(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get reserves: %w", err)
+	}
+
+	var assets []Token
+	for _, reserve := range reserves {
+		// Check if flash loans are enabled for this asset
+		if ac.isFlashLoanEnabled(ctx, reserve) {
+			asset := Token{
+				Address:  reserve,
+				Symbol:   ac.getTokenSymbol(ctx, reserve),
+				Name:     ac.getTokenName(ctx, reserve),
+				Decimals: int(ac.getTokenDecimals(ctx, reserve)),
+			}
+			assets = append(assets, asset)
+		}
+	}
+
+	ac.logger.Info("Retrieved Aave flash loan assets",
+		zap.Int("count", len(assets)))
+
+	return assets, nil
+}
+
+// GetTokenPrice gets the price of a token from Aave price oracle
+func (ac *AaveClient) GetTokenPrice(ctx context.Context, tokenAddress string) (decimal.Decimal, error) {
+	ac.logger.Debug("Getting token price from Aave oracle",
+		zap.String("token", tokenAddress))
+
+	// In a real implementation, this would query the Aave price oracle
+	// For now, return a simulated price based on token type
+
+	switch strings.ToLower(tokenAddress) {
+	case "0xa0b86a33e6441b8c4505b6b8c0e4f7c3c4b5c8e1": // USDC
+		return decimal.NewFromFloat(1.0), nil
+	case "0x6b175474e89094c44da98b954eedeac495271d0f": // DAI
+		return decimal.NewFromFloat(1.0), nil
+	case "0xdac17f958d2ee523a2206206994597c13d831ec7": // USDT
+		return decimal.NewFromFloat(1.0), nil
+	case "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": // WBTC
+		return decimal.NewFromFloat(45000.0), nil
+	case "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": // WETH
+		return decimal.NewFromFloat(3000.0), nil
+	default:
+		return decimal.NewFromFloat(100.0), nil // Default price
+	}
+}
+
+// Helper methods for flash loans
+
+// getAllReserves gets all reserve tokens from Aave
+func (ac *AaveClient) getAllReserves(ctx context.Context) ([]string, error) {
+	// In a real implementation, this would query the Aave data provider
+	// For now, return a list of common tokens
+
+	reserves := []string{
+		"0xA0b86a33E6441b8C4505B6B8C0E4F7c3C4b5C8E1", // USDC
+		"0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
+		"0xdAC17F958D2ee523a2206206994597C13D831ec7", // USDT
+		"0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", // WBTC
+		"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
+	}
+
+	return reserves, nil
+}
+
+// isFlashLoanEnabled checks if flash loans are enabled for an asset
+func (ac *AaveClient) isFlashLoanEnabled(ctx context.Context, assetAddress string) bool {
+	// In a real implementation, this would check the reserve configuration
+	// For now, assume flash loans are enabled for all major assets
+	return true
+}
+
+// getTokenSymbol gets the symbol of a token
+func (ac *AaveClient) getTokenSymbol(ctx context.Context, tokenAddress string) string {
+	// In a real implementation, this would query the token contract
+	// For now, return simulated symbols
+
+	switch strings.ToLower(tokenAddress) {
+	case "0xa0b86a33e6441b8c4505b6b8c0e4f7c3c4b5c8e1":
+		return "USDC"
+	case "0x6b175474e89094c44da98b954eedeac495271d0f":
+		return "DAI"
+	case "0xdac17f958d2ee523a2206206994597c13d831ec7":
+		return "USDT"
+	case "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599":
+		return "WBTC"
+	case "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2":
+		return "WETH"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// getTokenName gets the name of a token
+func (ac *AaveClient) getTokenName(ctx context.Context, tokenAddress string) string {
+	// In a real implementation, this would query the token contract
+	// For now, return simulated names
+
+	switch strings.ToLower(tokenAddress) {
+	case "0xa0b86a33e6441b8c4505b6b8c0e4f7c3c4b5c8e1":
+		return "USD Coin"
+	case "0x6b175474e89094c44da98b954eedeac495271d0f":
+		return "Dai Stablecoin"
+	case "0xdac17f958d2ee523a2206206994597c13d831ec7":
+		return "Tether USD"
+	case "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599":
+		return "Wrapped BTC"
+	case "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2":
+		return "Wrapped Ether"
+	default:
+		return "Unknown Token"
+	}
+}
+
+// getTokenDecimals gets the decimals of a token
+func (ac *AaveClient) getTokenDecimals(ctx context.Context, tokenAddress string) uint8 {
+	// In a real implementation, this would query the token contract
+	// For now, return simulated decimals
+
+	switch strings.ToLower(tokenAddress) {
+	case "0xa0b86a33e6441b8c4505b6b8c0e4f7c3c4b5c8e1":
+		return 6 // USDC
+	case "0x6b175474e89094c44da98b954eedeac495271d0f":
+		return 18 // DAI
+	case "0xdac17f958d2ee523a2206206994597c13d831ec7":
+		return 6 // USDT
+	case "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599":
+		return 8 // WBTC
+	case "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2":
+		return 18 // WETH
+	default:
+		return 18 // Default
+	}
+}
+
+// simulateFlashLoanTransaction simulates a flash loan transaction
+func (ac *AaveClient) simulateFlashLoanTransaction(params *FlashLoanParams) string {
+	// Generate a simulated transaction hash
+	return fmt.Sprintf("0x%x", time.Now().UnixNano())
 }

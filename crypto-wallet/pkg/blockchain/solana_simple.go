@@ -35,7 +35,19 @@ func NewSimpleSolanaClient(cfg config.SolanaNetworkConfig, logger *logger.Logger
 // GetBalance retrieves the balance of an address (mock implementation)
 func (c *SimpleSolanaClient) GetBalance(ctx context.Context, address string) (*big.Int, error) {
 	c.logger.Debug("Getting Solana balance for address", zap.String("address", address))
-	
+
+	// Check context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// Basic address validation for testing
+	if len(address) < 32 || len(address) > 44 {
+		return nil, fmt.Errorf("invalid address: %s", address)
+	}
+
 	// Mock balance for demo
 	balance := big.NewInt(1000000000) // 1 SOL in lamports
 	return balance, nil
@@ -48,7 +60,7 @@ func (c *SimpleSolanaClient) SendTransaction(ctx context.Context, from, to strin
 		zap.String("to", to),
 		zap.String("amount", amount.String()),
 	)
-	
+
 	// Mock transaction hash
 	txHash := "mock_solana_tx_hash_" + from[:8] + "_" + to[:8]
 	return txHash, nil
@@ -57,7 +69,7 @@ func (c *SimpleSolanaClient) SendTransaction(ctx context.Context, from, to strin
 // GetTransactionStatus gets transaction status (mock implementation)
 func (c *SimpleSolanaClient) GetTransactionStatus(ctx context.Context, txHash string) (string, error) {
 	c.logger.Debug("Getting Solana transaction status", zap.String("tx_hash", txHash))
-	
+
 	// Mock status
 	return "confirmed", nil
 }
@@ -65,18 +77,18 @@ func (c *SimpleSolanaClient) GetTransactionStatus(ctx context.Context, txHash st
 // CreateAccount creates a new account (mock implementation)
 func (c *SimpleSolanaClient) CreateAccount(ctx context.Context) (string, string, error) {
 	c.logger.Debug("Creating new Solana account")
-	
+
 	// Mock account creation
 	publicKey := "mock_solana_public_key_" + fmt.Sprintf("%d", ctx.Value("timestamp"))
 	privateKey := "mock_solana_private_key_" + fmt.Sprintf("%d", ctx.Value("timestamp"))
-	
+
 	return publicKey, privateKey, nil
 }
 
 // GetAccountInfo gets account information (mock implementation)
 func (c *SimpleSolanaClient) GetAccountInfo(ctx context.Context, address string) (map[string]interface{}, error) {
 	c.logger.Debug("Getting Solana account info", zap.String("address", address))
-	
+
 	// Mock account info
 	accountInfo := map[string]interface{}{
 		"address":    address,
@@ -85,14 +97,14 @@ func (c *SimpleSolanaClient) GetAccountInfo(ctx context.Context, address string)
 		"owner":      "11111111111111111111111111111112",
 		"rent_epoch": 361,
 	}
-	
+
 	return accountInfo, nil
 }
 
 // GetRecentBlockhash gets recent blockhash (mock implementation)
 func (c *SimpleSolanaClient) GetRecentBlockhash(ctx context.Context) (string, error) {
 	c.logger.Debug("Getting recent Solana blockhash")
-	
+
 	// Mock blockhash
 	blockhash := "mock_solana_blockhash_" + fmt.Sprintf("%d", ctx.Value("timestamp"))
 	return blockhash, nil
@@ -101,7 +113,7 @@ func (c *SimpleSolanaClient) GetRecentBlockhash(ctx context.Context) (string, er
 // GetSlot gets current slot (mock implementation)
 func (c *SimpleSolanaClient) GetSlot(ctx context.Context) (uint64, error) {
 	c.logger.Debug("Getting current Solana slot")
-	
+
 	// Mock slot
 	return 123456789, nil
 }
@@ -109,17 +121,17 @@ func (c *SimpleSolanaClient) GetSlot(ctx context.Context) (uint64, error) {
 // GetEpochInfo gets epoch information (mock implementation)
 func (c *SimpleSolanaClient) GetEpochInfo(ctx context.Context) (map[string]interface{}, error) {
 	c.logger.Debug("Getting Solana epoch info")
-	
+
 	// Mock epoch info
 	epochInfo := map[string]interface{}{
-		"epoch":                361,
-		"slot_index":           123456,
-		"slots_in_epoch":       432000,
-		"absolute_slot":        123456789,
-		"block_height":         123456780,
-		"transaction_count":    987654321,
+		"epoch":             361,
+		"slot_index":        123456,
+		"slots_in_epoch":    432000,
+		"absolute_slot":     123456789,
+		"block_height":      123456780,
+		"transaction_count": 987654321,
 	}
-	
+
 	return epochInfo, nil
 }
 
@@ -129,7 +141,17 @@ func (c *SimpleSolanaClient) GetTokenBalance(ctx context.Context, address, token
 		zap.String("address", address),
 		zap.String("token_mint", tokenMint),
 	)
-	
+
+	// Basic address validation for testing
+	if len(address) < 32 || len(address) > 44 {
+		return nil, fmt.Errorf("invalid address: %s", address)
+	}
+
+	// Basic mint address validation for testing
+	if len(tokenMint) < 32 || len(tokenMint) > 44 {
+		return nil, fmt.Errorf("invalid mint address: %s", tokenMint)
+	}
+
 	// Mock token balance
 	balance := big.NewInt(500000000) // 0.5 tokens
 	return balance, nil
@@ -138,7 +160,7 @@ func (c *SimpleSolanaClient) GetTokenBalance(ctx context.Context, address, token
 // GetTokenAccounts gets token accounts (mock implementation)
 func (c *SimpleSolanaClient) GetTokenAccounts(ctx context.Context, owner string) ([]map[string]interface{}, error) {
 	c.logger.Debug("Getting Solana token accounts", zap.String("owner", owner))
-	
+
 	// Mock token accounts
 	accounts := []map[string]interface{}{
 		{
@@ -147,12 +169,12 @@ func (c *SimpleSolanaClient) GetTokenAccounts(ctx context.Context, owner string)
 				"data": map[string]interface{}{
 					"parsed": map[string]interface{}{
 						"info": map[string]interface{}{
-							"mint":         "mock_token_mint_1",
-							"owner":        owner,
+							"mint":  "mock_token_mint_1",
+							"owner": owner,
 							"tokenAmount": map[string]interface{}{
 								"amount":   "1000000",
 								"decimals": 6,
-								"uiAmount":  1.0,
+								"uiAmount": 1.0,
 							},
 						},
 					},
@@ -160,14 +182,14 @@ func (c *SimpleSolanaClient) GetTokenAccounts(ctx context.Context, owner string)
 			},
 		},
 	}
-	
+
 	return accounts, nil
 }
 
 // GetProgramAccounts gets program accounts (mock implementation)
 func (c *SimpleSolanaClient) GetProgramAccounts(ctx context.Context, programID string) ([]map[string]interface{}, error) {
 	c.logger.Debug("Getting Solana program accounts", zap.String("program_id", programID))
-	
+
 	// Mock program accounts
 	accounts := []map[string]interface{}{
 		{
@@ -181,17 +203,17 @@ func (c *SimpleSolanaClient) GetProgramAccounts(ctx context.Context, programID s
 			},
 		},
 	}
-	
+
 	return accounts, nil
 }
 
 // GetConfirmedTransaction gets confirmed transaction (mock implementation)
 func (c *SimpleSolanaClient) GetConfirmedTransaction(ctx context.Context, signature string) (map[string]interface{}, error) {
 	c.logger.Debug("Getting confirmed Solana transaction", zap.String("signature", signature))
-	
+
 	// Mock transaction
 	transaction := map[string]interface{}{
-		"slot":        123456789,
+		"slot": 123456789,
 		"transaction": map[string]interface{}{
 			"message": map[string]interface{}{
 				"accountKeys": []string{
@@ -205,8 +227,8 @@ func (c *SimpleSolanaClient) GetConfirmedTransaction(ctx context.Context, signat
 				},
 				"instructions": []map[string]interface{}{
 					{
-						"accounts":     []int{0, 1},
-						"data":         "mock_instruction_data",
+						"accounts":       []int{0, 1},
+						"data":           "mock_instruction_data",
 						"programIdIndex": 2,
 					},
 				},
@@ -220,7 +242,7 @@ func (c *SimpleSolanaClient) GetConfirmedTransaction(ctx context.Context, signat
 			"status": map[string]interface{}{"Ok": nil},
 		},
 	}
-	
+
 	return transaction, nil
 }
 

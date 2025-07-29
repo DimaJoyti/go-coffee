@@ -28,12 +28,12 @@ type ObservabilityManager struct {
 
 // HealthChecker monitors system health
 type HealthChecker struct {
-	logger     *zap.Logger
-	checks     map[string]HealthCheck
-	status     HealthStatus
-	lastCheck  time.Time
-	interval   time.Duration
-	mutex      sync.RWMutex
+	logger    *zap.Logger
+	checks    map[string]HealthCheck
+	status    HealthStatus
+	lastCheck time.Time
+	interval  time.Duration
+	mutex     sync.RWMutex
 }
 
 // HealthCheck represents a health check
@@ -44,10 +44,10 @@ type HealthCheck interface {
 
 // HealthResult represents the result of a health check
 type HealthResult struct {
-	Status    HealthStatus `json:"status"`
-	Message   string       `json:"message"`
-	Latency   time.Duration `json:"latency"`
-	Timestamp time.Time    `json:"timestamp"`
+	Status    HealthStatus           `json:"status"`
+	Message   string                 `json:"message"`
+	Latency   time.Duration          `json:"latency"`
+	Timestamp time.Time              `json:"timestamp"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -67,16 +67,65 @@ type TraceCollector struct {
 	mutex  sync.RWMutex
 }
 
+// AlertManager manages alerts and notifications
+type AlertManager struct {
+	logger *zap.Logger
+	alerts map[string]*Alert
+	rules  []AlertRule
+	mutex  sync.RWMutex
+}
+
+// Alert represents an alert
+type Alert struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Severity    AlertSeverity     `json:"severity"`
+	Status      AlertStatus       `json:"status"`
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations"`
+	StartsAt    time.Time         `json:"starts_at"`
+	EndsAt      *time.Time        `json:"ends_at,omitempty"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+}
+
+// AlertRule represents an alert rule
+type AlertRule struct {
+	Name        string            `json:"name"`
+	Expression  string            `json:"expression"`
+	Duration    time.Duration     `json:"duration"`
+	Severity    AlertSeverity     `json:"severity"`
+	Description string            `json:"description"`
+	Labels      map[string]string `json:"labels"`
+}
+
+// AlertSeverity represents alert severity
+type AlertSeverity string
+
+const (
+	AlertSeverityInfo     AlertSeverity = "info"
+	AlertSeverityWarning  AlertSeverity = "warning"
+	AlertSeverityCritical AlertSeverity = "critical"
+)
+
+// AlertStatus represents alert status
+type AlertStatus string
+
+const (
+	AlertStatusFiring   AlertStatus = "firing"
+	AlertStatusResolved AlertStatus = "resolved"
+)
+
 // Trace represents a distributed trace
 type Trace struct {
-	ID        string      `json:"id"`
-	Operation string      `json:"operation"`
-	StartTime time.Time   `json:"start_time"`
-	EndTime   *time.Time  `json:"end_time,omitempty"`
-	Duration  time.Duration `json:"duration"`
-	Spans     []Span      `json:"spans"`
+	ID        string            `json:"id"`
+	Operation string            `json:"operation"`
+	StartTime time.Time         `json:"start_time"`
+	EndTime   *time.Time        `json:"end_time,omitempty"`
+	Duration  time.Duration     `json:"duration"`
+	Spans     []Span            `json:"spans"`
 	Tags      map[string]string `json:"tags"`
-	Status    TraceStatus `json:"status"`
+	Status    TraceStatus       `json:"status"`
 }
 
 // Span represents a trace span
@@ -95,9 +144,9 @@ type Span struct {
 
 // SpanLog represents a span log entry
 type SpanLog struct {
-	Timestamp time.Time         `json:"timestamp"`
-	Level     string            `json:"level"`
-	Message   string            `json:"message"`
+	Timestamp time.Time              `json:"timestamp"`
+	Level     string                 `json:"level"`
+	Message   string                 `json:"message"`
 	Fields    map[string]interface{} `json:"fields"`
 }
 
@@ -120,23 +169,23 @@ const (
 
 // Dashboard represents a monitoring dashboard
 type Dashboard struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Panels      []DashboardPanel  `json:"panels"`
-	Tags        []string          `json:"tags"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	Panels      []DashboardPanel `json:"panels"`
+	Tags        []string         `json:"tags"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
 }
 
 // DashboardPanel represents a dashboard panel
 type DashboardPanel struct {
-	ID          string                 `json:"id"`
-	Title       string                 `json:"title"`
-	Type        PanelType              `json:"type"`
-	Query       string                 `json:"query"`
+	ID            string                 `json:"id"`
+	Title         string                 `json:"title"`
+	Type          PanelType              `json:"type"`
+	Query         string                 `json:"query"`
 	Visualization map[string]interface{} `json:"visualization"`
-	Position    PanelPosition          `json:"position"`
+	Position      PanelPosition          `json:"position"`
 }
 
 // PanelType represents panel type
@@ -213,7 +262,7 @@ var (
 // NewObservabilityManager creates a new observability manager
 func NewObservabilityManager(logger *zap.Logger, port int) *ObservabilityManager {
 	registry := prometheus.NewRegistry()
-	
+
 	// Register metrics
 	registry.MustRegister(requestsTotal)
 	registry.MustRegister(requestDuration)
@@ -323,27 +372,27 @@ func (om *ObservabilityManager) RecordSecurityAlert(severity, category string) {
 // handleHealth handles health check requests
 func (om *ObservabilityManager) handleHealth(w http.ResponseWriter, r *http.Request) {
 	status := om.healthChecker.GetStatus()
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	if status.Status == HealthStatusHealthy {
 		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
-	
+
 	// Return health status as JSON
-	fmt.Fprintf(w, `{"status":"%s","timestamp":"%s"}`, 
+	fmt.Fprintf(w, `{"status":"%s","timestamp":"%s"}`,
 		status.Status, status.Timestamp.Format(time.RFC3339))
 }
 
 // handleTraces handles trace requests
 func (om *ObservabilityManager) handleTraces(w http.ResponseWriter, r *http.Request) {
 	traces := om.traceCollector.GetTraces()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	// Return traces as JSON (simplified)
 	fmt.Fprintf(w, `{"traces":%d}`, len(traces))
 }
@@ -352,7 +401,7 @@ func (om *ObservabilityManager) handleTraces(w http.ResponseWriter, r *http.Requ
 func (om *ObservabilityManager) handleDashboards(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
+
 	// Return dashboard list (simplified)
 	fmt.Fprintf(w, `{"dashboards":%d}`, len(om.dashboards))
 }
@@ -400,10 +449,10 @@ func (hc *HealthChecker) performChecks(ctx context.Context) {
 	defer hc.mutex.Unlock()
 
 	overallStatus := HealthStatusHealthy
-	
+
 	for name, check := range hc.checks {
 		result := check.Check(ctx)
-		
+
 		hc.logger.Debug("Health check completed",
 			zap.String("check", name),
 			zap.String("status", string(result.Status)),
@@ -480,4 +529,79 @@ func (tc *TraceCollector) GetTraces() map[string]*Trace {
 		traces[k] = v
 	}
 	return traces
+}
+
+// NewAlertManager creates a new alert manager
+func NewAlertManager(logger *zap.Logger) *AlertManager {
+	return &AlertManager{
+		logger: logger,
+		alerts: make(map[string]*Alert),
+		rules:  []AlertRule{},
+	}
+}
+
+// AddRule adds an alert rule
+func (am *AlertManager) AddRule(rule AlertRule) {
+	am.mutex.Lock()
+	defer am.mutex.Unlock()
+
+	am.rules = append(am.rules, rule)
+	am.logger.Info("Alert rule added", zap.String("name", rule.Name))
+}
+
+// TriggerAlert triggers an alert
+func (am *AlertManager) TriggerAlert(name, description string, severity AlertSeverity, labels map[string]string) {
+	am.mutex.Lock()
+	defer am.mutex.Unlock()
+
+	alert := &Alert{
+		ID:          fmt.Sprintf("alert_%d", time.Now().UnixNano()),
+		Name:        name,
+		Description: description,
+		Severity:    severity,
+		Status:      AlertStatusFiring,
+		Labels:      labels,
+		Annotations: make(map[string]string),
+		StartsAt:    time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	am.alerts[alert.ID] = alert
+	am.logger.Warn("Alert triggered",
+		zap.String("id", alert.ID),
+		zap.String("name", alert.Name),
+		zap.String("severity", string(alert.Severity)),
+	)
+}
+
+// ResolveAlert resolves an alert
+func (am *AlertManager) ResolveAlert(alertID string) {
+	am.mutex.Lock()
+	defer am.mutex.Unlock()
+
+	if alert, exists := am.alerts[alertID]; exists {
+		now := time.Now()
+		alert.Status = AlertStatusResolved
+		alert.EndsAt = &now
+		alert.UpdatedAt = now
+
+		am.logger.Info("Alert resolved",
+			zap.String("id", alertID),
+			zap.String("name", alert.Name),
+		)
+	}
+}
+
+// GetActiveAlerts returns all active alerts
+func (am *AlertManager) GetActiveAlerts() []*Alert {
+	am.mutex.RLock()
+	defer am.mutex.RUnlock()
+
+	var activeAlerts []*Alert
+	for _, alert := range am.alerts {
+		if alert.Status == AlertStatusFiring {
+			activeAlerts = append(activeAlerts, alert)
+		}
+	}
+	return activeAlerts
 }

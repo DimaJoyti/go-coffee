@@ -19,6 +19,12 @@ type Cache interface {
 	Keys(ctx context.Context, pattern string) ([]string, error)
 	FlushAll(ctx context.Context) error
 	Health(ctx context.Context) error
+	
+	// Batch operations for better performance
+	MSet(ctx context.Context, pairs map[string]interface{}, expiration time.Duration) error
+	MGet(ctx context.Context, keys []string) (map[string]interface{}, error)
+	MDelete(ctx context.Context, keys []string) error
+	Pipeline() *RedisPipeline
 }
 
 // RedisCache implements Cache interface using Redis
@@ -337,6 +343,147 @@ func (dl *DistributedLock) Release(ctx context.Context) error {
 	}
 
 	return nil // Not our lock
+}
+
+// RedisPipeline wraps Redis pipeline for batch operations
+type RedisPipeline struct {
+	pipe   redis.Pipeliner
+	cache  *RedisCache
+	closed bool
+}
+
+// MSet sets multiple key-value pairs with expiration
+func (r *RedisCache) MSet(ctx context.Context, pairs map[string]interface{}, expiration time.Duration) error {
+	pipe := r.client.Pipeline()
+	
+	for key, value := range pairs {
+		fullKey := r.getFullKey(key)
+		data, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("failed to marshal value for key %s: %w", key, err)
+		}
+		pipe.Set(ctx, fullKey, data, expiration)
+	}
+	
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute batch set: %w", err)
+	}
+	
+	return nil
+}
+
+// MGet gets multiple values by keys
+func (r *RedisCache) MGet(ctx context.Context, keys []string) (map[string]interface{}, error) {
+	if len(keys) == 0 {
+		return make(map[string]interface{}), nil
+	}
+	
+	fullKeys := make([]string, len(keys))
+	for i, key := range keys {
+		fullKeys[i] = r.getFullKey(key)
+	}
+	
+	results, err := r.client.MGet(ctx, fullKeys...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute batch get: %w", err)
+	}
+	
+	response := make(map[string]interface{})
+	for i, result := range results {
+		if result != nil {
+			var value interface{}
+			if err := json.Unmarshal([]byte(result.(string)), &value); err == nil {
+				response[keys[i]] = value
+			}
+		}
+	}
+	
+	return response, nil
+}
+
+// MDelete deletes multiple keys
+func (r *RedisCache) MDelete(ctx context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	
+	fullKeys := make([]string, len(keys))
+	for i, key := range keys {
+		fullKeys[i] = r.getFullKey(key)
+	}
+	
+	err := r.client.Del(ctx, fullKeys...).Err()
+	if err != nil {
+		return fmt.Errorf("failed to execute batch delete: %w", err)
+	}
+	
+	return nil
+}
+
+// Pipeline creates a new Redis pipeline for batch operations
+func (r *RedisCache) Pipeline() *RedisPipeline {
+	return &RedisPipeline{
+		pipe:  r.client.Pipeline(),
+		cache: r,
+	}
+}
+
+// Set adds a set operation to the pipeline
+func (p *RedisPipeline) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	if p.closed {
+		return fmt.Errorf("pipeline is closed")
+	}
+	
+	fullKey := p.cache.getFullKey(key)
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("failed to marshal value: %w", err)
+	}
+	
+	p.pipe.Set(ctx, fullKey, data, expiration)
+	return nil
+}
+
+// Get adds a get operation to the pipeline (note: use Exec to get results)
+func (p *RedisPipeline) Get(ctx context.Context, key string) *redis.StringCmd {
+	if p.closed {
+		return nil
+	}
+	
+	fullKey := p.cache.getFullKey(key)
+	return p.pipe.Get(ctx, fullKey)
+}
+
+// Delete adds a delete operation to the pipeline
+func (p *RedisPipeline) Delete(ctx context.Context, key string) error {
+	if p.closed {
+		return fmt.Errorf("pipeline is closed")
+	}
+	
+	fullKey := p.cache.getFullKey(key)
+	p.pipe.Del(ctx, fullKey)
+	return nil
+}
+
+// Exec executes all operations in the pipeline
+func (p *RedisPipeline) Exec(ctx context.Context) ([]redis.Cmder, error) {
+	if p.closed {
+		return nil, fmt.Errorf("pipeline is closed")
+	}
+	
+	results, err := p.pipe.Exec(ctx)
+	p.closed = true
+	return results, err
+}
+
+// Close closes the pipeline
+func (p *RedisPipeline) Close() error {
+	if !p.closed {
+		p.pipe.Discard()
+		p.closed = true
+	}
+	return nil
 }
 
 // DefaultConfig returns default Redis configuration

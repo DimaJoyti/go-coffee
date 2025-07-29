@@ -328,21 +328,13 @@ func (s *SecurityMonitoringService) logEvent(event *SecurityEvent) {
 
 	switch event.Severity {
 	case SeverityCritical:
-		s.logger.Error("Critical security event", map[string]any{
-			"event": string(eventJSON),
-		})
+		s.logger.Error("Critical security event: %s", string(eventJSON))
 	case SeverityHigh:
-		s.logger.Warn("High severity security event", map[string]any{
-			"event": string(eventJSON),
-		})
+		s.logger.Warn("High severity security event: %s", string(eventJSON))
 	case SeverityMedium:
-		s.logger.Info("Medium severity security event", map[string]any{
-			"event": string(eventJSON),
-		})
+		s.logger.Info("Medium severity security event: %s", string(eventJSON))
 	default:
-		s.logger.Debug("Security event", map[string]any{
-			"event": string(eventJSON),
-		})
+		s.logger.Debug("Security event: %s", string(eventJSON))
 	}
 }
 

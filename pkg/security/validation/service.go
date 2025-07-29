@@ -329,10 +329,7 @@ func (v *ValidationService) ValidateIP(ip string) *ValidationResult {
 func (v *ValidationService) detectSQLInjection(input string) bool {
 	for _, pattern := range sqlInjectionPatterns {
 		if pattern.MatchString(input) {
-			v.logger.Warn("SQL injection pattern detected", map[string]any{
-				"input":   input,
-				"pattern": pattern.String(),
-			})
+			v.logger.Warn("SQL injection pattern detected - input: %s, pattern: %s", input, pattern.String())
 			return true
 		}
 	}
@@ -342,10 +339,7 @@ func (v *ValidationService) detectSQLInjection(input string) bool {
 func (v *ValidationService) detectXSS(input string) bool {
 	for _, pattern := range xssPatterns {
 		if pattern.MatchString(input) {
-			v.logger.Warn("XSS pattern detected", map[string]any{
-				"input":   input,
-				"pattern": pattern.String(),
-			})
+			v.logger.Warn("XSS pattern detected - input: %s, pattern: %s", input, pattern.String())
 			return true
 		}
 	}
@@ -355,10 +349,7 @@ func (v *ValidationService) detectXSS(input string) bool {
 func (v *ValidationService) detectPathTraversal(input string) bool {
 	for _, pattern := range pathTraversalPatterns {
 		if pattern.MatchString(input) {
-			v.logger.Warn("Path traversal pattern detected", map[string]any{
-				"input":   input,
-				"pattern": pattern.String(),
-			})
+			v.logger.Warn("Path traversal pattern detected - input: %s, pattern: %s", input, pattern.String())
 			return true
 		}
 	}

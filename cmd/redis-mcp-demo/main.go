@@ -80,11 +80,11 @@ func (s *SimpleAIService) GenerateText(ctx context.Context, prompt string) (stri
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || 
-		(len(s) > len(substr) && 
-			(s[:len(substr)] == substr || 
-			 s[len(s)-len(substr):] == substr ||
-			 findSubstring(s, substr))))
+	return len(s) >= len(substr) && (s == substr ||
+		(len(s) > len(substr) &&
+			(s[:len(substr)] == substr ||
+				s[len(s)-len(substr):] == substr ||
+				findSubstring(s, substr))))
 }
 
 func findSubstring(s, substr string) bool {
@@ -116,12 +116,12 @@ type MCPResponse struct {
 
 // ParsedQuery represents a parsed natural language query
 type ParsedQuery struct {
-	Type       string                 `json:"type"`
-	Operation  string                 `json:"operation"`
-	Key        string                 `json:"key"`
-	Value      interface{}            `json:"value,omitempty"`
-	RedisCmd   []interface{}          `json:"redis_cmd"`
-	Confidence float64                `json:"confidence"`
+	Type       string        `json:"type"`
+	Operation  string        `json:"operation"`
+	Key        string        `json:"key"`
+	Value      interface{}   `json:"value,omitempty"`
+	RedisCmd   []interface{} `json:"redis_cmd"`
+	Confidence float64       `json:"confidence"`
 }
 
 // SimpleMCPServer represents a simple Redis MCP server for demo
@@ -165,10 +165,10 @@ func (s *SimpleMCPServer) handleQuery(c *gin.Context) {
 
 	req.Timestamp = time.Now()
 
-	s.logger.Info("Processing MCP query", map[string]interface{}{
+	s.logger.WithFields(map[string]interface{}{
 		"query":    req.Query,
 		"agent_id": req.AgentID,
-	})
+	}).Info("Processing MCP query")
 
 	// Parse the natural language query
 	aiResponse, err := s.aiService.GenerateText(c.Request.Context(), req.Query)
@@ -225,7 +225,7 @@ func (s *SimpleMCPServer) executeRedisCommand(ctx context.Context, query *Parsed
 		start := int64(0)
 		stop := int64(9)
 		withScores := false
-		
+
 		// Check for WITHSCORES
 		for _, arg := range query.RedisCmd {
 			if str, ok := arg.(string); ok && str == "WITHSCORES" {
@@ -233,7 +233,7 @@ func (s *SimpleMCPServer) executeRedisCommand(ctx context.Context, query *Parsed
 				break
 			}
 		}
-		
+
 		if withScores {
 			return s.redis.ZRevRangeWithScores(ctx, query.Key, start, stop).Result()
 		}
@@ -284,10 +284,10 @@ func (s *SimpleMCPServer) respondError(c *gin.Context, status int, message strin
 
 	if err != nil {
 		response.Error = fmt.Sprintf("%s: %v", message, err)
-		s.logger.Error("MCP Error", map[string]interface{}{
+		s.logger.WithFields(map[string]interface{}{
 			"message": message,
 			"error":   err.Error(),
-		})
+		}).Error("MCP Error")
 	}
 
 	c.JSON(status, response)
@@ -309,9 +309,9 @@ func (s *SimpleMCPServer) corsMiddleware() gin.HandlerFunc {
 }
 
 func (s *SimpleMCPServer) Start(port string) error {
-	s.logger.Info("Starting Simple Redis MCP Server", map[string]interface{}{
+	s.logger.WithFields(map[string]interface{}{
 		"port": port,
-	})
+	}).Info("Starting Simple Redis MCP Server")
 	return s.router.Run(":" + port)
 }
 
@@ -349,9 +349,9 @@ func main() {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	logger.Info("✅ Connected to Redis successfully", map[string]interface{}{
+	logger.WithFields(map[string]interface{}{
 		"url": redisURL,
-	})
+	}).Info("✅ Connected to Redis successfully")
 
 	// Initialize sample data
 	initializeSampleData(redisClient, logger)
@@ -370,19 +370,19 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	logger.Info("🎯 Simple Redis MCP Demo Server is running", map[string]interface{}{
+	logger.WithFields(map[string]interface{}{
 		"port": serverPort,
 		"url":  fmt.Sprintf("http://localhost:%s", serverPort),
-	})
+	}).Info("🎯 Simple Redis MCP Demo Server is running")
 	<-c
 
 	logger.Info("🛑 Shutting down Simple Redis MCP Demo Server...")
 
 	// Close Redis connection
 	if err := redisClient.Close(); err != nil {
-		logger.Error("Error closing Redis connection", map[string]interface{}{
+		logger.WithFields(map[string]interface{}{
 			"error": err.Error(),
-		})
+		}).Error("Error closing Redis connection")
 	}
 
 	logger.Info("✅ Simple Redis MCP Demo Server stopped gracefully")
@@ -404,10 +404,10 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 
 	for item, price := range menu {
 		if err := client.HSet(ctx, "coffee:menu:downtown", item, price).Err(); err != nil {
-			logger.Error("Failed to set menu item", map[string]interface{}{
+			logger.WithFields(map[string]interface{}{
 				"error": err.Error(),
 				"item":  item,
-			})
+			}).Error("Failed to set menu item")
 		}
 	}
 
@@ -421,10 +421,10 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 
 	for ingredient, quantity := range inventory {
 		if err := client.HSet(ctx, "coffee:inventory:downtown", ingredient, quantity).Err(); err != nil {
-			logger.Error("Failed to set inventory item", map[string]interface{}{
+			logger.WithFields(map[string]interface{}{
 				"error":      err.Error(),
 				"ingredient": ingredient,
-			})
+			}).Error("Failed to set inventory item")
 		}
 	}
 
@@ -432,10 +432,10 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 	ingredients := []string{"coffee_beans", "milk", "sugar", "oat_milk", "vanilla_syrup"}
 	for _, ingredient := range ingredients {
 		if err := client.SAdd(ctx, "ingredients:available", ingredient).Err(); err != nil {
-			logger.Error("Failed to add ingredient", map[string]interface{}{
+			logger.WithFields(map[string]interface{}{
 				"error":      err.Error(),
 				"ingredient": ingredient,
-			})
+			}).Error("Failed to add ingredient")
 		}
 	}
 
@@ -452,10 +452,10 @@ func initializeSampleData(client *redis.Client, logger *logger.Logger) {
 			Score:  count,
 			Member: drink,
 		}).Err(); err != nil {
-			logger.Error("Failed to add order count", map[string]interface{}{
+			logger.WithFields(map[string]interface{}{
 				"error": err.Error(),
 				"drink": drink,
-			})
+			}).Error("Failed to add order count")
 		}
 	}
 

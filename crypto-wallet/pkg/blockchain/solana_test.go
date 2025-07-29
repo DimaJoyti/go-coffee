@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
-	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 )
 
 func TestNewSolanaClient(t *testing.T) {
@@ -70,14 +70,14 @@ func TestSolanaClient_GetBalance_ValidAddress(t *testing.T) {
 	// Test with valid address (this might fail if address has no funds, but should not error on format)
 	validAddress := "11111111111111111111111111111112" // System program address
 	balance, err := client.GetBalance(ctx, validAddress)
-	
+
 	// Should not error on valid address format
 	if err != nil {
 		// If it errors, it should be a network/RPC error, not a format error
 		assert.NotContains(t, err.Error(), "invalid address")
 	} else {
 		// Balance should be non-negative
-		assert.True(t, balance.GreaterThanOrEqual(decimal.Zero))
+		assert.True(t, balance.Cmp(decimal.Zero.BigInt()) >= 0)
 	}
 }
 
@@ -89,7 +89,7 @@ func TestSolanaClient_GetTokenBalance_InvalidAddress(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with invalid address
-	_, _, err := client.GetTokenBalance(ctx, "invalid-address", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	_, err := client.GetTokenBalance(ctx, "invalid-address", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid address")
 }
@@ -103,7 +103,7 @@ func TestSolanaClient_GetTokenBalance_InvalidMint(t *testing.T) {
 
 	// Test with invalid mint address
 	validAddress := "11111111111111111111111111111112"
-	_, _, err := client.GetTokenBalance(ctx, validAddress, "invalid-mint")
+	_, err := client.GetTokenBalance(ctx, validAddress, "invalid-mint")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid mint address")
 }
@@ -128,7 +128,7 @@ func TestSolanaClient_GetRecentBlockhash(t *testing.T) {
 		t.Skipf("Network error: %v", err)
 	} else {
 		// Blockhash should not be empty
-		assert.NotEmpty(t, blockhash.String())
+		assert.NotEmpty(t, blockhash)
 	}
 }
 
@@ -203,15 +203,20 @@ func TestSolanaClient_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
+	// Wait a bit to ensure context is cancelled
+	time.Sleep(2 * time.Millisecond)
+
 	// This should timeout quickly
 	_, err := client.GetBalance(ctx, "11111111111111111111111111111112")
 	assert.Error(t, err)
 	// Should be a context error
-	assert.True(t, 
-		err == context.DeadlineExceeded || 
-		err == context.Canceled ||
-		err.Error() == "context deadline exceeded" ||
-		err.Error() == "context canceled")
+	if err != nil {
+		assert.True(t,
+			err == context.DeadlineExceeded ||
+				err == context.Canceled ||
+				err.Error() == "context deadline exceeded" ||
+				err.Error() == "context canceled")
+	}
 }
 
 func TestSolanaClient_MultipleOperations(t *testing.T) {
@@ -287,12 +292,33 @@ func createTestSolanaClient(t *testing.T) *SolanaClient {
 	return client
 }
 
+// Helper function to create test client for benchmarks
+func createTestSolanaClientForBenchmark(b *testing.B) *SolanaClient {
+	cfg := config.SolanaNetworkConfig{
+		Network:            "devnet",
+		RPCURL:             "https://api.devnet.solana.com",
+		WSURL:              "", // Skip WebSocket for tests
+		Cluster:            "devnet",
+		Commitment:         "confirmed",
+		Timeout:            "30s",
+		MaxRetries:         3,
+		ConfirmationBlocks: 32,
+	}
+
+	logger := logger.New("test")
+	client, err := NewSolanaClient(cfg, logger)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return client
+}
+
 func BenchmarkSolanaClient_GetBalance(b *testing.B) {
 	if testing.Short() {
 		b.Skip("Skipping benchmark in short mode")
 	}
 
-	client := createTestSolanaClient(b)
+	client := createTestSolanaClientForBenchmark(b)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -312,7 +338,7 @@ func BenchmarkSolanaClient_GetRecentBlockhash(b *testing.B) {
 		b.Skip("Skipping benchmark in short mode")
 	}
 
-	client := createTestSolanaClient(b)
+	client := createTestSolanaClientForBenchmark(b)
 	defer client.Close()
 
 	ctx := context.Background()

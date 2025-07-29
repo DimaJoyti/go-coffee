@@ -1,0 +1,350 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crypto-automation
+  labels:
+    app: crypto-automation-platform
+    environment: production
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crypto-platform-config
+  namespace: crypto-automation
+  labels:
+    app: crypto-automation-platform
+    component: configuration
+data:
+  app.yaml: |
+    # Cryptocurrency Automation Platform Configuration
+    server:
+      port: 8080
+      host: "0.0.0.0"
+      read_timeout: "30s"
+      write_timeout: "30s"
+      idle_timeout: "120s"
+      
+    # Database Configuration
+    database:
+      host: "postgres-service.crypto-automation.svc.cluster.local"
+      port: 5432
+      name: "crypto_automation"
+      user: "crypto_user"
+      ssl_mode: "require"
+      max_open_conns: 25
+      max_idle_conns: 5
+      conn_max_lifetime: "5m"
+      
+    # Redis Configuration
+    redis:
+      host: "redis-service.crypto-automation.svc.cluster.local"
+      port: 6379
+      db: 0
+      pool_size: 10
+      min_idle_conns: 5
+      
+    # MEV Protection Configuration
+    mev_protection:
+      enabled: true
+      flashbots_enabled: true
+      private_mempool_enabled: true
+      protection_level: "high"
+      max_priority_fee: "50"
+      max_base_fee: "100"
+      
+    # Flash Loan Arbitrage Configuration
+    flash_loan_arbitrage:
+      enabled: true
+      protocols: ["aave", "dydx", "balancer"]
+      min_profit_threshold: "0.02"
+      max_loan_amount: "1000000"
+      auto_execute: false
+      risk_level: "moderate"
+      
+    # Cross-Chain Arbitrage Configuration
+    cross_chain_arbitrage:
+      enabled: true
+      enabled_chains: ["ethereum", "polygon", "arbitrum", "optimism"]
+      enabled_bridges: ["polygon", "arbitrum", "optimism"]
+      min_profit_threshold: "0.01"
+      max_bridge_amount: "100000"
+      bridge_timeout_minutes: 30
+      auto_execute: false
+      
+    # AI Risk Management Configuration
+    ai_risk_management:
+      enabled: true
+      risk_tolerance_level: "moderate"
+      max_portfolio_risk: "0.15"
+      max_single_transaction_risk: "0.05"
+      enable_real_time_monitoring: true
+      enable_predictive_analysis: true
+      model_update_interval: "1h"
+      
+    # Market Volatility Analysis Configuration
+    market_volatility:
+      enabled: true
+      analysis_interval: "1m"
+      correlation_update_interval: "5m"
+      volatility_window: "24h"
+      high_volatility_threshold: "0.5"
+      low_volatility_threshold: "0.1"
+      enable_position_sizing: true
+      monitored_assets: ["BTC", "ETH", "USDC", "USDT", "BNB", "ADA", "SOL"]
+      
+    # Hardware Wallet Configuration
+    hardware_wallet:
+      enabled: true
+      supported_devices: ["ledger", "trezor"]
+      connection_timeout: "30s"
+      transaction_timeout: "120s"
+      
+    # Monitoring Configuration
+    monitoring:
+      metrics_enabled: true
+      metrics_port: 9090
+      health_check_interval: "30s"
+      log_level: "info"
+      structured_logging: true
+      
+    # Security Configuration
+    security:
+      rate_limiting:
+        enabled: true
+        requests_per_minute: 100
+        burst_size: 20
+      cors:
+        enabled: true
+        allowed_origins: ["https://app.crypto-automation.com"]
+        allowed_methods: ["GET", "POST", "PUT", "DELETE"]
+        allowed_headers: ["Content-Type", "Authorization"]
+      jwt:
+        secret_key_env: "JWT_SECRET_KEY"
+        expiration: "24h"
+        issuer: "crypto-automation-platform"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: crypto-platform-secrets
+  namespace: crypto-automation
+  labels:
+    app: crypto-automation-platform
+    component: secrets
+type: Opaque
+data:
+  # Base64 encoded secrets (replace with actual values)
+  database-password: Y3J5cHRvX3Bhc3N3b3JkXzEyMw==
+  redis-password: cmVkaXNfcGFzc3dvcmRfNDU2
+  jwt-secret-key: and0X3NlY3JldF9rZXlfNzg5
+  flashbots-private-key: Zmxhc2hib3RzX3ByaXZhdGVfa2V5XzEwMTE=
+  infura-api-key: aW5mdXJhX2FwaV9rZXlfMTIxMw==
+  alchemy-api-key: YWxjaGVteV9hcGlfa2V5XzE0MTU=
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crypto-automation-api
+  namespace: crypto-automation
+  labels:
+    app: crypto-automation-platform
+    component: api
+    version: v1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: crypto-automation-platform
+      component: api
+  template:
+    metadata:
+      labels:
+        app: crypto-automation-platform
+        component: api
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: crypto-automation-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: crypto-automation-api
+        image: crypto-automation/platform:v1.0.0
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: CONFIG_PATH
+          value: "/etc/config/app.yaml"
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: crypto-platform-secrets
+              key: database-password
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: crypto-platform-secrets
+              key: redis-password
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: crypto-platform-secrets
+              key: jwt-secret-key
+        - name: FLASHBOTS_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: crypto-platform-secrets
+              key: flashbots-private-key
+        - name: INFURA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: crypto-platform-secrets
+              key: infura-api-key
+        - name: ALCHEMY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: crypto-platform-secrets
+              key: alchemy-api-key
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+          readOnly: true
+        - name: temp-volume
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      volumes:
+      - name: config-volume
+        configMap:
+          name: crypto-platform-config
+      - name: temp-volume
+        emptyDir: {}
+      nodeSelector:
+        node-type: "compute-optimized"
+      tolerations:
+      - key: "crypto-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - crypto-automation-platform
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crypto-automation-api-service
+  namespace: crypto-automation
+  labels:
+    app: crypto-automation-platform
+    component: api
+spec:
+  type: ClusterIP
+  selector:
+    app: crypto-automation-platform
+    component: api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crypto-automation-service-account
+  namespace: crypto-automation
+  labels:
+    app: crypto-automation-platform
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: crypto-automation-role
+  namespace: crypto-automation
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: crypto-automation-role-binding
+  namespace: crypto-automation
+subjects:
+- kind: ServiceAccount
+  name: crypto-automation-service-account
+  namespace: crypto-automation
+roleRef:
+  kind: Role
+  name: crypto-automation-role
+  apiGroup: rbac.authorization.k8s.io

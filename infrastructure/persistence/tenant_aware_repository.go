@@ -279,7 +279,9 @@ func NewTenantAwareTransaction(ctx context.Context, db TenantAwareDB, tenantID s
 	if multiTenantDB, ok := db.(*MultiTenantDB); ok && multiTenantDB.isolationLevel == shared.SchemaPerTenant {
 		schema := db.GetSchema(tenantID)
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf("SET search_path TO %s", schema)); err != nil {
-			tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return nil, fmt.Errorf("failed to set schema in transaction: %w, rollback failed: %v", err, rollbackErr)
+			}
 			return nil, fmt.Errorf("failed to set schema in transaction: %w", err)
 		}
 	}

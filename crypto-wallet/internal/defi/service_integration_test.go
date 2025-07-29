@@ -14,6 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Mock client definitions for testing
+
+// Note: MockRedisClient is already defined in arbitrage_detector_test.go
+// For this integration test, we use nil values for blockchain clients
+// since the service is designed to work with concrete types rather than interfaces
+
 func TestDeFiService_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -22,9 +28,6 @@ func TestDeFiService_Integration(t *testing.T) {
 	// Arrange
 	logger := logger.New("integration-test")
 	mockRedis := &MockRedisClient{}
-	mockEth := &MockEthereumClient{}
-	mockBSC := &MockEthereumClient{}
-	mockPolygon := &MockEthereumClient{}
 
 	defiConfig := config.DeFiConfig{
 		OneInch: config.OneInchConfig{
@@ -32,7 +35,9 @@ func TestDeFiService_Integration(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockEth, mockBSC, mockPolygon, mockRedis, logger, defiConfig)
+	// Use nil for clients that aren't essential for basic testing
+	// In a real integration test, these would be actual client instances
+	service := NewService(nil, nil, nil, nil, nil, nil, mockRedis, logger, defiConfig)
 
 	ctx := context.Background()
 
@@ -159,9 +164,6 @@ func TestDeFiService_ConcurrentOperations(t *testing.T) {
 	// Arrange
 	logger := logger.New("concurrent-test")
 	mockRedis := &MockRedisClient{}
-	mockEth := &MockEthereumClient{}
-	mockBSC := &MockEthereumClient{}
-	mockPolygon := &MockEthereumClient{}
 
 	defiConfig := config.DeFiConfig{
 		OneInch: config.OneInchConfig{
@@ -169,7 +171,7 @@ func TestDeFiService_ConcurrentOperations(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockEth, mockBSC, mockPolygon, mockRedis, logger, defiConfig)
+	service := NewService(nil, nil, nil, nil, nil, nil, mockRedis, logger, defiConfig)
 
 	ctx := context.Background()
 
@@ -278,9 +280,6 @@ func TestDeFiService_ErrorHandling(t *testing.T) {
 	// Arrange
 	logger := logger.New("error-test")
 	mockRedis := &MockRedisClient{}
-	mockEth := &MockEthereumClient{}
-	mockBSC := &MockEthereumClient{}
-	mockPolygon := &MockEthereumClient{}
 
 	defiConfig := config.DeFiConfig{
 		OneInch: config.OneInchConfig{
@@ -288,7 +287,7 @@ func TestDeFiService_ErrorHandling(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockEth, mockBSC, mockPolygon, mockRedis, logger, defiConfig)
+	service := NewService(nil, nil, nil, nil, nil, nil, mockRedis, logger, defiConfig)
 
 	ctx := context.Background()
 
@@ -345,9 +344,6 @@ func TestDeFiService_PerformanceUnderLoad(t *testing.T) {
 	// Arrange
 	logger := logger.New("performance-test")
 	mockRedis := &MockRedisClient{}
-	mockEth := &MockEthereumClient{}
-	mockBSC := &MockEthereumClient{}
-	mockPolygon := &MockEthereumClient{}
 
 	defiConfig := config.DeFiConfig{
 		OneInch: config.OneInchConfig{
@@ -355,7 +351,7 @@ func TestDeFiService_PerformanceUnderLoad(t *testing.T) {
 		},
 	}
 
-	service := NewService(mockEth, mockBSC, mockPolygon, mockRedis, logger, defiConfig)
+	service := NewService(nil, nil, nil, nil, nil, nil, mockRedis, logger, defiConfig)
 
 	ctx := context.Background()
 

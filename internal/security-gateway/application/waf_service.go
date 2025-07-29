@@ -27,45 +27,45 @@ type WAFService struct {
 
 // WAFConfig represents WAF configuration
 type WAFConfig struct {
-	Enabled           bool     `yaml:"enabled"`
-	BlockSuspiciousIP bool     `yaml:"block_suspicious_ip"`
-	AllowedCountries  []string `yaml:"allowed_countries"`
-	BlockedCountries  []string `yaml:"blocked_countries"`
-	MaxRequestSize    int64    `yaml:"max_request_size"`
-	EnableGeoBlocking bool     `yaml:"enable_geo_blocking"`
-	EnableBotDetection bool    `yaml:"enable_bot_detection"`
-	EnableRateLimiting bool    `yaml:"enable_rate_limiting"`
+	Enabled            bool     `yaml:"enabled"`
+	BlockSuspiciousIP  bool     `yaml:"block_suspicious_ip"`
+	AllowedCountries   []string `yaml:"allowed_countries"`
+	BlockedCountries   []string `yaml:"blocked_countries"`
+	MaxRequestSize     int64    `yaml:"max_request_size"`
+	EnableGeoBlocking  bool     `yaml:"enable_geo_blocking"`
+	EnableBotDetection bool     `yaml:"enable_bot_detection"`
+	EnableRateLimiting bool     `yaml:"enable_rate_limiting"`
 }
 
 // WAFRule represents a WAF rule
 type WAFRule struct {
-	ID          string           `json:"id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	Type        WAFRuleType      `json:"type"`
-	Pattern     *regexp.Regexp   `json:"-"`
-	PatternStr  string           `json:"pattern"`
-	Action      WAFAction        `json:"action"`
+	ID          string                  `json:"id"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Type        WAFRuleType             `json:"type"`
+	Pattern     *regexp.Regexp          `json:"-"`
+	PatternStr  string                  `json:"pattern"`
+	Action      WAFAction               `json:"action"`
 	Severity    domain.SecuritySeverity `json:"severity"`
-	Enabled     bool             `json:"enabled"`
-	Score       int              `json:"score"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Enabled     bool                    `json:"enabled"`
+	Score       int                     `json:"score"`
+	Metadata    map[string]interface{}  `json:"metadata,omitempty"`
 }
 
 // WAFRuleType represents the type of WAF rule
 type WAFRuleType string
 
 const (
-	WAFRuleTypeSQLInjection    WAFRuleType = "sql_injection"
-	WAFRuleTypeXSS             WAFRuleType = "xss"
-	WAFRuleTypePathTraversal   WAFRuleType = "path_traversal"
+	WAFRuleTypeSQLInjection     WAFRuleType = "sql_injection"
+	WAFRuleTypeXSS              WAFRuleType = "xss"
+	WAFRuleTypePathTraversal    WAFRuleType = "path_traversal"
 	WAFRuleTypeCommandInjection WAFRuleType = "command_injection"
-	WAFRuleTypeLDAPInjection   WAFRuleType = "ldap_injection"
-	WAFRuleTypeXMLInjection    WAFRuleType = "xml_injection"
-	WAFRuleTypeSSRF            WAFRuleType = "ssrf"
-	WAFRuleTypeFileUpload      WAFRuleType = "file_upload"
-	WAFRuleTypeUserAgent       WAFRuleType = "user_agent"
-	WAFRuleTypeCustom          WAFRuleType = "custom"
+	WAFRuleTypeLDAPInjection    WAFRuleType = "ldap_injection"
+	WAFRuleTypeXMLInjection     WAFRuleType = "xml_injection"
+	WAFRuleTypeSSRF             WAFRuleType = "ssrf"
+	WAFRuleTypeFileUpload       WAFRuleType = "file_upload"
+	WAFRuleTypeUserAgent        WAFRuleType = "user_agent"
+	WAFRuleTypeCustom           WAFRuleType = "custom"
 )
 
 // WAFAction represents the action to take when a rule matches
@@ -129,7 +129,7 @@ func (w *WAFService) CheckRequest(ctx context.Context, req *domain.SecurityReque
 		result.Blocked = true
 		result.Reason = "Request size exceeds maximum allowed"
 		result.Score = 100
-		
+
 		w.logWAFEvent(ctx, req, "request_size_exceeded", domain.SeverityMedium)
 		return result, nil
 	}
@@ -140,7 +140,7 @@ func (w *WAFService) CheckRequest(ctx context.Context, req *domain.SecurityReque
 		result.Blocked = true
 		result.Reason = reason
 		result.Score = 100
-		
+
 		w.logWAFEvent(ctx, req, "ip_blocked", domain.SeverityHigh)
 		return result, nil
 	}
@@ -152,7 +152,7 @@ func (w *WAFService) CheckRequest(ctx context.Context, req *domain.SecurityReque
 			result.Blocked = true
 			result.Reason = reason
 			result.Score = 80
-			
+
 			w.logWAFEvent(ctx, req, "geo_blocked", domain.SeverityMedium)
 			return result, nil
 		}
@@ -166,12 +166,12 @@ func (w *WAFService) CheckRequest(ctx context.Context, req *domain.SecurityReque
 				"is_bot":     true,
 				"confidence": confidence,
 			}
-			
+
 			if confidence > 0.8 {
 				result.Allowed = false
 				result.Blocked = true
 				result.Reason = "Malicious bot detected"
-				
+
 				w.logWAFEvent(ctx, req, "bot_detected", domain.SeverityHigh)
 				return result, nil
 			}
@@ -206,7 +206,7 @@ func (w *WAFService) CheckRequest(ctx context.Context, req *domain.SecurityReque
 		result.Allowed = false
 		result.Blocked = true
 		result.Reason = "High risk score threshold exceeded"
-		
+
 		w.logWAFEvent(ctx, req, "high_risk_score", domain.SeverityHigh)
 	}
 
@@ -239,7 +239,7 @@ func (w *WAFService) initializeRules() {
 			Enabled:     true,
 			Score:       70,
 		},
-		
+
 		// XSS rules
 		{
 			ID:          "xss_001",
@@ -263,7 +263,7 @@ func (w *WAFService) initializeRules() {
 			Enabled:     true,
 			Score:       60,
 		},
-		
+
 		// Path Traversal rules
 		{
 			ID:          "path_001",
@@ -276,7 +276,7 @@ func (w *WAFService) initializeRules() {
 			Enabled:     true,
 			Score:       80,
 		},
-		
+
 		// Command Injection rules
 		{
 			ID:          "cmd_001",
@@ -289,7 +289,7 @@ func (w *WAFService) initializeRules() {
 			Enabled:     true,
 			Score:       80,
 		},
-		
+
 		// User Agent rules
 		{
 			ID:          "ua_001",
@@ -309,10 +309,10 @@ func (w *WAFService) initializeRules() {
 		if pattern, err := regexp.Compile(w.rules[i].PatternStr); err == nil {
 			w.rules[i].Pattern = pattern
 		} else {
-			w.logger.WithError(err).Error("Failed to compile WAF rule pattern", map[string]any{
+			w.logger.WithError(err).WithFields(map[string]interface{}{
 				"rule_id": w.rules[i].ID,
 				"pattern": w.rules[i].PatternStr,
-			})
+			}).Error("Failed to compile WAF rule pattern")
 		}
 	}
 }
@@ -324,7 +324,7 @@ func (w *WAFService) checkRule(rule WAFRule, req *domain.SecurityRequest) (bool,
 	}
 
 	details := make(map[string]interface{})
-	
+
 	// Check URL
 	if rule.Pattern.MatchString(req.URL) {
 		details["matched_in"] = "url"
@@ -387,12 +387,12 @@ func (w *WAFService) checkIPRestrictions(ipAddress string) (bool, string) {
 func (w *WAFService) checkGeoBlocking(ctx context.Context, ipAddress string) (bool, string) {
 	// TODO: Implement actual geo-location lookup
 	// For now, this is a placeholder
-	
+
 	// In a real implementation, you would:
 	// 1. Use a geo-location service (MaxMind, IP2Location, etc.)
 	// 2. Look up the country for the IP address
 	// 3. Check against allowed/blocked countries
-	
+
 	return false, ""
 }
 
@@ -417,13 +417,13 @@ func (w *WAFService) detectBot(req *domain.SecurityRequest) (bool, float64) {
 				"googlebot", "bingbot", "slurp", "duckduckbot", "baiduspider",
 				"yandexbot", "facebookexternalhit", "twitterbot",
 			}
-			
+
 			for _, legitBot := range legitimateBots {
 				if strings.Contains(lowerUA, legitBot) {
 					return false, 0.0 // Legitimate bot
 				}
 			}
-			
+
 			return true, 0.7 // Suspicious bot
 		}
 	}

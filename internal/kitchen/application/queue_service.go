@@ -51,7 +51,9 @@ func (s *QueueServiceImpl) AddOrder(ctx context.Context, order *domain.KitchenOr
 	if err := s.repoManager.Queue().AddOrderToQueue(ctx, order); err != nil {
 		s.logger.WithError(err).Error("Failed to persist order to queue")
 		// Try to remove from in-memory queue to maintain consistency
-		s.queue.RemoveOrder(order.ID())
+		if removeErr := s.queue.RemoveOrder(order.ID()); removeErr != nil {
+			s.logger.WithError(removeErr).Error("Failed to remove order from in-memory queue")
+		}
 		return fmt.Errorf("failed to persist order to queue: %w", err)
 	}
 
@@ -155,34 +157,34 @@ func (s *QueueServiceImpl) UpdateOrderPriority(ctx context.Context, orderID stri
 // GetQueueStatus returns the current queue status
 func (s *QueueServiceImpl) GetQueueStatus(ctx context.Context) (*domain.QueueStatus, error) {
 	status := s.queue.GetQueueStatus()
-	
+
 	s.logger.WithFields(map[string]interface{}{
-		"total_orders":    status.TotalOrders,
-		"pending_orders":  status.PendingOrders,
+		"total_orders":      status.TotalOrders,
+		"pending_orders":    status.PendingOrders,
 		"processing_orders": status.ProcessingOrders,
 	}).Info("Retrieved queue status")
-	
+
 	return status, nil
 }
 
 // GetEstimatedWaitTime calculates estimated wait time for an order
 func (s *QueueServiceImpl) GetEstimatedWaitTime(ctx context.Context, order *domain.KitchenOrder) (time.Duration, error) {
 	waitTime := s.queue.GetEstimatedWaitTime(order)
-	
+
 	s.logger.WithFields(map[string]interface{}{
 		"order_id":  order.ID(),
 		"wait_time": waitTime.String(),
 	}).Info("Calculated estimated wait time")
-	
+
 	return waitTime, nil
 }
 
 // GetOverdueOrders returns orders that are overdue
 func (s *QueueServiceImpl) GetOverdueOrders(ctx context.Context) ([]*domain.KitchenOrder, error) {
 	overdueOrders := s.queue.GetOverdueOrders()
-	
+
 	s.logger.WithField("overdue_count", len(overdueOrders)).Info("Retrieved overdue orders")
-	
+
 	// Publish events for overdue orders
 	for _, order := range overdueOrders {
 		event := domain.NewOrderOverdueEvent(order)
@@ -190,7 +192,7 @@ func (s *QueueServiceImpl) GetOverdueOrders(ctx context.Context) ([]*domain.Kitc
 			s.logger.WithError(err).WithField("order_id", order.ID()).Warn("Failed to publish order overdue event")
 		}
 	}
-	
+
 	return overdueOrders, nil
 }
 
@@ -238,7 +240,7 @@ func (s *QueueServiceImpl) RebalanceQueue(ctx context.Context) error {
 
 	// Get current queue status
 	status := s.queue.GetQueueStatus()
-	
+
 	// Check if rebalancing is needed
 	if status.PendingOrders < 5 {
 		s.logger.Info("Queue rebalancing not needed - low order count")
@@ -247,19 +249,19 @@ func (s *QueueServiceImpl) RebalanceQueue(ctx context.Context) error {
 
 	// Get all pending orders
 	pendingOrders := s.queue.GetOrdersByStatus(domain.OrderStatusPending)
-	
+
 	// Sort by priority and wait time
 	// This is a simplified rebalancing - in production, you'd use more sophisticated algorithms
 	for _, order := range pendingOrders {
 		waitTime := order.GetWaitTime()
-		
+
 		// Increase priority for orders waiting too long
 		if waitTime > 15*time.Minute && order.Priority() < domain.OrderPriorityHigh {
 			newPriority := order.Priority() + 1
 			if newPriority > domain.OrderPriorityUrgent {
 				newPriority = domain.OrderPriorityUrgent
 			}
-			
+
 			if err := s.UpdateOrderPriority(ctx, order.ID(), newPriority); err != nil {
 				s.logger.WithError(err).WithField("order_id", order.ID()).Warn("Failed to update order priority during rebalancing")
 			} else {
@@ -300,7 +302,7 @@ func (s *QueueServiceImpl) LoadQueueFromPersistence(ctx context.Context) error {
 	}
 
 	s.queue = persistedQueue
-	
+
 	s.logger.WithField("queue_length", s.queue.GetQueueLength()).Info("Queue loaded from persistence successfully")
 	return nil
 }
@@ -349,7 +351,7 @@ func (s *QueueServiceImpl) GetQueueMetrics(ctx context.Context, period *TimePeri
 	currentStatus := s.queue.GetQueueStatus()
 
 	metrics := &QueueMetrics{
-		CurrentQueueLength:  currentStatus.TotalOrders,
+		CurrentQueueLength: currentStatus.TotalOrders,
 		PendingOrders:      currentStatus.PendingOrders,
 		ProcessingOrders:   currentStatus.ProcessingOrders,
 		CompletedOrders:    currentStatus.CompletedOrders,
@@ -361,9 +363,9 @@ func (s *QueueServiceImpl) GetQueueMetrics(ctx context.Context, period *TimePeri
 	}
 
 	s.logger.WithFields(map[string]interface{}{
-		"queue_length":     metrics.CurrentQueueLength,
-		"avg_wait_time":    metrics.AverageWaitTime,
-		"throughput_hour":  metrics.ThroughputPerHour,
+		"queue_length":    metrics.CurrentQueueLength,
+		"avg_wait_time":   metrics.AverageWaitTime,
+		"throughput_hour": metrics.ThroughputPerHour,
 	}).Info("Queue metrics calculated")
 
 	return metrics, nil

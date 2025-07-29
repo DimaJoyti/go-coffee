@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/blockchain"
+	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/config"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/logger"
 	"github.com/DimaJoyti/go-coffee/crypto-wallet/pkg/redis"
 	"github.com/shopspring/decimal"
@@ -29,15 +30,22 @@ func TestArbitrageDetector_RealAPI(t *testing.T) {
 
 	// Setup
 	logger := logger.New("integration-test")
-	
+
 	// Create real Redis client (or mock if Redis not available)
 	var redisClient redis.Client
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL != "" {
-		redisClient = redis.NewClient(redis.Config{
+		redisConfig := &redis.Config{
 			Host: "localhost",
 			Port: 6379,
-		})
+			DB:   0,
+		}
+		var err error
+		redisClient, err = redis.NewClient(redisConfig)
+		if err != nil {
+			t.Logf("Failed to create Redis client, using mock: %v", err)
+			redisClient = &MockRedisClient{}
+		}
 	} else {
 		// Use mock Redis for testing
 		redisClient = &MockRedisClient{}
@@ -49,7 +57,15 @@ func TestArbitrageDetector_RealAPI(t *testing.T) {
 		ethRPC = "https://eth-mainnet.alchemyapi.io/v2/demo" // Demo endpoint
 	}
 
-	ethClient, err := blockchain.NewEthereumClient(ethRPC, logger)
+	ethConfig := config.BlockchainNetworkConfig{
+		Network:            "mainnet",
+		RPCURL:             ethRPC,
+		ChainID:            1,
+		GasLimit:           21000,
+		ConfirmationBlocks: 12,
+	}
+
+	ethClient, err := blockchain.NewEthereumClient(ethConfig, logger)
 	require.NoError(t, err, "Failed to create Ethereum client")
 
 	// Create real protocol clients
@@ -95,7 +111,7 @@ func TestArbitrageDetector_RealAPI(t *testing.T) {
 				t.Run("Provider_Health_"+provider.GetExchangeInfo().Name, func(t *testing.T) {
 					healthy := provider.IsHealthy(ctx)
 					t.Logf("Provider %d (%s) healthy: %v", i, provider.GetExchangeInfo().Name, healthy)
-					
+
 					if healthy {
 						// If provider is healthy, try to get price
 						price, err := provider.GetPrice(ctx, token)
@@ -112,7 +128,7 @@ func TestArbitrageDetector_RealAPI(t *testing.T) {
 			// Test arbitrage detection
 			t.Run("Arbitrage_Detection", func(t *testing.T) {
 				opportunities, err := detector.DetectArbitrageForToken(ctx, token)
-				
+
 				// Don't require success since real markets might not have arbitrage opportunities
 				if err != nil {
 					t.Logf("Arbitrage detection failed for %s: %v", token.Symbol, err)
@@ -171,7 +187,15 @@ func TestPriceProviders_RealAPI(t *testing.T) {
 			ethRPC = "https://eth-mainnet.alchemyapi.io/v2/demo"
 		}
 
-		ethClient, err := blockchain.NewEthereumClient(ethRPC, logger)
+		ethConfig := config.BlockchainNetworkConfig{
+			Network:            "mainnet",
+			RPCURL:             ethRPC,
+			ChainID:            1,
+			GasLimit:           21000,
+			ConfirmationBlocks: 12,
+		}
+
+		ethClient, err := blockchain.NewEthereumClient(ethConfig, logger)
 		if err != nil {
 			t.Skipf("Failed to create Ethereum client: %v", err)
 		}

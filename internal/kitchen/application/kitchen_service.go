@@ -391,7 +391,10 @@ func (s *KitchenServiceImpl) AddOrderToQueue(ctx context.Context, req *AddOrderR
 		s.logger.WithError(err).Warn("Failed to predict preparation time, using default")
 		estimatedTime = 300 // 5 minutes default
 	}
-	order.SetEstimatedTime(estimatedTime)
+	if err := order.SetEstimatedTime(estimatedTime); err != nil {
+		s.logger.WithError(err).Error("Failed to set estimated time for order")
+		return nil, fmt.Errorf("failed to set estimated time: %w", err)
+	}
 
 	// Save order to repository
 	if err := s.repoManager.Order().Create(ctx, order); err != nil {
@@ -457,11 +460,17 @@ func (s *KitchenServiceImpl) UpdateOrderStatus(ctx context.Context, id string, s
 	switch status {
 	case domain.OrderStatusProcessing:
 		event := domain.NewOrderStartedEvent(order)
-		s.eventService.PublishEvent(ctx, event)
+		if err := s.eventService.PublishEvent(ctx, event); err != nil {
+			s.logger.WithError(err).Error("Failed to publish order started event")
+		}
 	case domain.OrderStatusCompleted:
 		event := domain.NewOrderCompletedEvent(order)
-		s.eventService.PublishEvent(ctx, event)
-		s.notificationService.NotifyOrderCompleted(ctx, order)
+		if err := s.eventService.PublishEvent(ctx, event); err != nil {
+			s.logger.WithError(err).Error("Failed to publish order completed event")
+		}
+		if err := s.notificationService.NotifyOrderCompleted(ctx, order); err != nil {
+			s.logger.WithError(err).Error("Failed to notify order completed")
+		}
 	}
 
 	s.logger.WithFields(map[string]interface{}{
@@ -555,8 +564,12 @@ func (s *KitchenServiceImpl) AssignOrderToStaff(ctx context.Context, orderID, st
 	orderEvent := domain.NewOrderAssignedEvent(order)
 	staffEvent := domain.NewStaffAssignedEvent(staff, orderID)
 
-	s.eventService.PublishEvent(ctx, orderEvent)
-	s.eventService.PublishEvent(ctx, staffEvent)
+	if err := s.eventService.PublishEvent(ctx, orderEvent); err != nil {
+		s.logger.WithError(err).Error("Failed to publish order assigned event")
+	}
+	if err := s.eventService.PublishEvent(ctx, staffEvent); err != nil {
+		s.logger.WithError(err).Error("Failed to publish staff assigned event")
+	}
 
 	// Send notification
 	if err := s.notificationService.NotifyStaffAssigned(ctx, staff, order); err != nil {
@@ -623,8 +636,12 @@ func (s *KitchenServiceImpl) CompleteOrder(ctx context.Context, orderID string) 
 	if order.AssignedStaffID() != "" {
 		staff, err := s.repoManager.Staff().GetByID(ctx, order.AssignedStaffID())
 		if err == nil {
-			staff.CompleteOrder()
-			s.repoManager.Staff().Update(ctx, staff)
+			if completeErr := staff.CompleteOrder(); completeErr != nil {
+				s.logger.WithError(completeErr).Error("Failed to complete order for staff")
+			}
+			if updateErr := s.repoManager.Staff().Update(ctx, staff); updateErr != nil {
+				s.logger.WithError(updateErr).Error("Failed to update staff after completing order")
+			}
 		}
 	}
 

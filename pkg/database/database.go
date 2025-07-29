@@ -37,7 +37,7 @@ type Repository interface {
 	List(ctx context.Context, filter interface{}, entities interface{}) error
 }
 
-// NewDatabase creates a new database connection
+// NewDatabase creates a new database connection with optimized settings
 func NewDatabase(config *Config) (*Database, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password, config.Database, config.SSLMode)
@@ -47,13 +47,16 @@ func NewDatabase(config *Config) (*Database, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Configure connection pool
+	// Configure optimized connection pool
 	db.SetMaxOpenConns(config.MaxOpenConns)
 	db.SetMaxIdleConns(config.MaxIdleConns)
 	db.SetConnMaxLifetime(config.MaxLifetime)
+	
+	// Set connection idle timeout to prevent resource waste
+	db.SetConnMaxIdleTime(time.Minute * 5)
 
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Test connection with shorter timeout for faster failure detection
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -320,7 +323,7 @@ type Order struct {
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// DefaultConfig returns default database configuration
+// DefaultConfig returns optimized database configuration
 func DefaultConfig() *Config {
 	return &Config{
 		Host:         "localhost",
@@ -329,8 +332,8 @@ func DefaultConfig() *Config {
 		Password:     "postgres",
 		Database:     "go_coffee",
 		SSLMode:      "disable",
-		MaxOpenConns: 25,
-		MaxIdleConns: 5,
-		MaxLifetime:  time.Hour,
+		MaxOpenConns: 100,                // Increased from 25 for better concurrency
+		MaxIdleConns: 25,                 // Increased from 5 to reduce connection overhead
+		MaxLifetime:  time.Minute * 30,   // Reduced from 1 hour to prevent stale connections
 	}
 }

@@ -18,6 +18,12 @@ const (
 	ProtocolTypeChainlink   ProtocolType = "chainlink"
 	ProtocolType1inch       ProtocolType = "1inch"
 	ProtocolTypeSynthetix   ProtocolType = "synthetix"
+	ProtocolTypeFlashbots   ProtocolType = "flashbots"
+	ProtocolTypeParaswap    ProtocolType = "paraswap"
+	ProtocolType0x          ProtocolType = "0x"
+	ProtocolTypeMatcha      ProtocolType = "matcha"
+	ProtocolTypeRaydium     ProtocolType = "raydium"
+	ProtocolTypeJupiter     ProtocolType = "jupiter"
 )
 
 // Chain represents supported blockchain networks
@@ -580,4 +586,85 @@ type ArbitrageMetrics struct {
 	LastError               string          `json:"last_error,omitempty"`
 }
 
+// MEV Protection Types
 
+// MEVProtectionLevel represents the level of MEV protection
+type MEVProtectionLevel string
+
+const (
+	MEVProtectionNone     MEVProtectionLevel = "none"
+	MEVProtectionBasic    MEVProtectionLevel = "basic"
+	MEVProtectionAdvanced MEVProtectionLevel = "advanced"
+	MEVProtectionMaximum  MEVProtectionLevel = "maximum"
+)
+
+// MEVAttackType represents different types of MEV attacks
+type MEVAttackType string
+
+const (
+	MEVAttackSandwich    MEVAttackType = "sandwich"
+	MEVAttackFrontrun    MEVAttackType = "frontrun"
+	MEVAttackBackrun     MEVAttackType = "backrun"
+	MEVAttackLiquidation MEVAttackType = "liquidation"
+	MEVAttackArbitrage   MEVAttackType = "arbitrage"
+)
+
+// MEVProtectionConfig holds MEV protection configuration
+type MEVProtectionConfig struct {
+	Enabled                bool               `json:"enabled" yaml:"enabled"`
+	Level                  MEVProtectionLevel `json:"level" yaml:"level"`
+	UseFlashbots           bool               `json:"use_flashbots" yaml:"use_flashbots"`
+	UsePrivateMempool      bool               `json:"use_private_mempool" yaml:"use_private_mempool"`
+	MaxSlippageProtection  decimal.Decimal    `json:"max_slippage_protection" yaml:"max_slippage_protection"`
+	SandwichDetection      bool               `json:"sandwich_detection" yaml:"sandwich_detection"`
+	FrontrunDetection      bool               `json:"frontrun_detection" yaml:"frontrun_detection"`
+	MinBlockConfirmations  int                `json:"min_block_confirmations" yaml:"min_block_confirmations"`
+	GasPriceMultiplier     decimal.Decimal    `json:"gas_price_multiplier" yaml:"gas_price_multiplier"`
+	FlashbotsRelay         string             `json:"flashbots_relay" yaml:"flashbots_relay"`
+	PrivateMempoolEndpoint string             `json:"private_mempool_endpoint" yaml:"private_mempool_endpoint"`
+}
+
+// MEVDetection represents a detected MEV attack
+type MEVDetection struct {
+	ID                string          `json:"id"`
+	Type              MEVAttackType   `json:"type"`
+	TargetTransaction string          `json:"target_transaction"`
+	AttackerAddress   string          `json:"attacker_address"`
+	VictimAddress     string          `json:"victim_address"`
+	TokenAddress      string          `json:"token_address"`
+	EstimatedLoss     decimal.Decimal `json:"estimated_loss"`
+	Confidence        decimal.Decimal `json:"confidence"`
+	BlockNumber       uint64          `json:"block_number"`
+	Timestamp         time.Time       `json:"timestamp"`
+	Prevented         bool            `json:"prevented"`
+	PreventionMethod  string          `json:"prevention_method,omitempty"`
+}
+
+// FlashbotsBundle represents a Flashbots bundle
+type FlashbotsBundle struct {
+	ID           string                 `json:"id"`
+	Transactions []FlashbotsTransaction `json:"transactions"`
+	BlockNumber  uint64                 `json:"block_number"`
+	MinTimestamp uint64                 `json:"min_timestamp,omitempty"`
+	MaxTimestamp uint64                 `json:"max_timestamp,omitempty"`
+	RevertingTxs []int                  `json:"reverting_txs,omitempty"`
+}
+
+// FlashbotsTransaction represents a transaction in a Flashbots bundle
+type FlashbotsTransaction struct {
+	SignedTransaction string `json:"signed_transaction"`
+	CanRevert         bool   `json:"can_revert"`
+}
+
+// MEVProtectionMetrics holds MEV protection performance metrics
+type MEVProtectionMetrics struct {
+	TotalTransactions     int64           `json:"total_transactions"`
+	ProtectedTransactions int64           `json:"protected_transactions"`
+	DetectedAttacks       int64           `json:"detected_attacks"`
+	PreventedAttacks      int64           `json:"prevented_attacks"`
+	TotalSavings          decimal.Decimal `json:"total_savings"`
+	AverageProtectionTime time.Duration   `json:"average_protection_time"`
+	FlashbotsSuccess      int64           `json:"flashbots_success"`
+	FlashbotsFailures     int64           `json:"flashbots_failures"`
+	LastUpdate            time.Time       `json:"last_update"`
+}
