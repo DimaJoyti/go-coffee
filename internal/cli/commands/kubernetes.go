@@ -14,6 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// DefaultNamespace is the default namespace for Go Coffee services
+	DefaultNamespace = "go-coffee"
+)
+
 // KubernetesResource represents a Kubernetes resource
 type KubernetesResource struct {
 	Name      string
@@ -256,11 +261,11 @@ func newK8sWorkloadsCommand(cfg *config.Config, logger *zap.Logger) *cobra.Comma
 func getKubernetesResources(ctx context.Context, cfg *config.Config, resourceType, resourceName, namespace string, allNamespaces bool) ([]KubernetesResource, error) {
 	// Mock implementation - in real scenario, this would use Kubernetes client
 	resources := []KubernetesResource{
-		{Name: "api-gateway-deployment", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 2 * time.Hour, Ready: "2/2"},
-		{Name: "auth-service-deployment", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 1 * time.Hour, Ready: "3/3"},
-		{Name: "enterprise-demo", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 24 * time.Hour, Ready: "1/1"},
-		{Name: "optimization-service", Kind: "Deployment", Namespace: "go-coffee", Status: "Running", Age: 30 * time.Minute, Ready: "1/1"},
-		{Name: "redis-cluster", Kind: "StatefulSet", Namespace: "go-coffee", Status: "Running", Age: 48 * time.Hour, Ready: "3/3"},
+		{Name: "api-gateway-deployment", Kind: "Deployment", Namespace: DefaultNamespace, Status: "Running", Age: 2 * time.Hour, Ready: "2/2"},
+		{Name: "auth-service-deployment", Kind: "Deployment", Namespace: DefaultNamespace, Status: "Running", Age: 1 * time.Hour, Ready: "3/3"},
+		{Name: "enterprise-demo", Kind: "Deployment", Namespace: DefaultNamespace, Status: "Running", Age: 24 * time.Hour, Ready: "1/1"},
+		{Name: "optimization-service", Kind: "Deployment", Namespace: DefaultNamespace, Status: "Running", Age: 30 * time.Minute, Ready: "1/1"},
+		{Name: "redis-cluster", Kind: "StatefulSet", Namespace: DefaultNamespace, Status: "Running", Age: 48 * time.Hour, Ready: "3/3"},
 	}
 
 	// Filter by resource type
@@ -314,18 +319,6 @@ func printResourcesTable(resources []KubernetesResource) error {
 
 	table.Render()
 	return nil
-}
-
-func formatDuration(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	} else if d < time.Hour {
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	} else if d < 24*time.Hour {
-		return fmt.Sprintf("%dh", int(d.Hours()))
-	} else {
-		return fmt.Sprintf("%dd", int(d.Hours()/24))
-	}
 }
 
 // Additional helper functions for Kubernetes operations

@@ -453,6 +453,26 @@ type ServicesConfig struct {
 	HealthCheckPath string            `mapstructure:"health_check_path"`
 	MetricsPath     string            `mapstructure:"metrics_path"`
 	Endpoints       map[string]string `mapstructure:"endpoints"`
+	Database        DatabaseConfig    `mapstructure:"database"`
+	Cache           CacheConfig       `mapstructure:"cache"`
+}
+
+// DatabaseConfig holds database configuration
+type DatabaseConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Database string `mapstructure:"database"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	SSLMode  string `mapstructure:"ssl_mode"`
+}
+
+// CacheConfig holds cache configuration
+type CacheConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Password string `mapstructure:"password"`
+	Database int    `mapstructure:"database"`
 }
 
 // SecurityConfig holds security-related configuration
@@ -517,7 +537,7 @@ func setDefaults(v *viper.Viper) {
 
 	// Telemetry defaults
 	v.SetDefault("telemetry.enabled", true)
-	v.SetDefault("telemetry.service_name", "gocoffee-cli")
+	v.SetDefault("telemetry.service_name", "gocoffee")
 	v.SetDefault("telemetry.endpoint", "")
 
 	// Kubernetes defaults

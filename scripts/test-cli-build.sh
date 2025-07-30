@@ -29,7 +29,7 @@ print_error() {
 
 # Step 1: Check CLI structure
 echo "Step 1: Checking CLI structure..."
-if [ -f "cmd/gocoffee-cli/main.go" ]; then
+if [ -f "cmd/gocoffee/main.go" ]; then
     print_status "CLI main.go exists"
 else
     print_error "CLI main.go not found"
@@ -126,7 +126,7 @@ fi
 echo "Step 7: Testing Docker build..."
 if command -v docker &> /dev/null; then
     if [ -f "docker/Dockerfile.cli" ]; then
-        if docker build -t gocoffee-cli:test -f docker/Dockerfile.cli .; then
+        if docker build -t gocoffee:test -f docker/Dockerfile.cli .; then
             print_status "Docker build successful"
         else
             print_warning "Docker build failed"
@@ -141,7 +141,7 @@ fi
 # Step 8: Test linting (if golangci-lint is available)
 echo "Step 8: Testing linting..."
 if command -v golangci-lint &> /dev/null; then
-    if golangci-lint run ./internal/cli/... ./cmd/gocoffee-cli/...; then
+    if golangci-lint run ./internal/cli/... ./cmd/gocoffee/...; then
         print_status "Linting passed"
     else
         print_warning "Linting found issues"

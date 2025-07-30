@@ -80,7 +80,10 @@ Features:
 	rootCmd.PersistentFlags().Bool("no-color", false, "disable colored output")
 	rootCmd.PersistentFlags().Bool("verbose", false, "verbose output")
 
-	// Add subcommands
+	// Add core DevOps commands
+	rootCmd.AddCommand(commands.NewDevOpsCommand(cfg, logger))
+
+	// Add existing subcommands
 	rootCmd.AddCommand(commands.NewServicesCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewKubernetesCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewCloudCommand(cfg, logger))
@@ -90,12 +93,12 @@ Features:
 	rootCmd.AddCommand(commands.NewConfigCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewVersionCommand(version, commit, date))
 
-	// 3: Advanced cloud-native commands
+	// Advanced cloud-native commands
 	rootCmd.AddCommand(commands.NewMultiCloudCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewEdgeCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewMLOpsCommand(cfg, logger))
 
-	// 4: Future technologies commands
+	// Future technologies commands
 	rootCmd.AddCommand(commands.NewQuantumCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewBlockchainCommand(cfg, logger))
 

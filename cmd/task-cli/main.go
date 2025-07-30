@@ -18,7 +18,7 @@ var (
 func main() {
 	// Initialize enhanced logger
 	logConfig := logger.DevelopmentConfig()
-	logConfig.Service = "go-coffee-cli"
+	logConfig.Service = "go-coffee"
 	log := logger.NewLogger(logConfig)
 
 	// Display startup banner

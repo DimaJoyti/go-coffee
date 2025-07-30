@@ -131,7 +131,7 @@ resources := []KubernetesResource{
 
 ### **🖥️ GO COFFEE CLI (FIXED):**
 ```bash
-./bin/gocoffee-cli
+./bin/gocoffee
 # Features: Kubernetes management, edge computing, monitoring, deployment
 ```
 
@@ -189,7 +189,7 @@ Focus on the **enterprise-grade core features** that are working perfectly:
 ./bin/optimization-integration
 
 # Use CLI for management
-./bin/gocoffee-cli status
+./bin/gocoffee status
 ```
 
 ### **🧪 TESTING COMMANDS:**
@@ -200,9 +200,9 @@ curl http://localhost:8080/metrics
 curl -X POST http://localhost:8080/orders -d '{"id":"test","total":15.50}'
 
 # Test CLI
-./bin/gocoffee-cli kubernetes status
-./bin/gocoffee-cli edge status
-./bin/gocoffee-cli monitoring status
+./bin/gocoffee kubernetes status
+./bin/gocoffee edge status
+./bin/gocoffee monitoring status
 ```
 
 ---

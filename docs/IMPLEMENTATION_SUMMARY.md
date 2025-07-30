@@ -20,7 +20,7 @@ This document summarizes the comprehensive implementation of the Go Coffee platf
 ```
 go-coffee/
 ├── cmd/
-│   └── gocoffee-cli/           # CLI application entrypoint
+│   └── gocoffee/           # CLI application entrypoint
 ├── internal/
 │   └── cli/                    # CLI implementation
 │       ├── commands/           # Command implementations
@@ -169,7 +169,7 @@ go-coffee/
 log_level: info
 telemetry:
   enabled: true
-  service_name: gocoffee-cli
+  service_name: gocoffee
 kubernetes:
   config_path: ~/.kube/config
   namespace: go-coffee

@@ -74,7 +74,7 @@ make -f Makefile.cli install
 #### Docker
 ```bash
 # Run in Docker
-docker run --rm -it ghcr.io/dimajoyti/gocoffee-cli:latest
+docker run --rm -it ghcr.io/dimajoyti/gocoffee:latest
 
 # Build locally
 make -f Makefile.cli docker-build
@@ -96,7 +96,7 @@ Example configuration:
 log_level: info
 telemetry:
   enabled: true
-  service_name: gocoffee-cli
+  service_name: gocoffee
 kubernetes:
   config_path: ~/.kube/config
   namespace: go-coffee

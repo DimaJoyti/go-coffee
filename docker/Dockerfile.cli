@@ -14,7 +14,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy source code
-COPY cmd/gocoffee-cli/ cmd/gocoffee-cli/
+COPY cmd/gocoffee/ cmd/gocoffee/
 COPY internal/cli/ internal/cli/
 
 # Build arguments
@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE} -w -s" \
     -a -installsuffix cgo \
     -o gocoffee \
-    cmd/gocoffee-cli/main.go
+    cmd/gocoffee/main.go
 
 # Final stage - minimal image
 FROM alpine:latest

@@ -253,7 +253,7 @@ func newServicesDeployCommand(cfg *config.Config, logger *zap.Logger) *cobra.Com
 				return fmt.Errorf("specify service name")
 			}
 
-			return deployService(ctx, cfg, logger, args[0], image, tag, env)
+			return deployServiceLegacy(ctx, cfg, logger, args[0], image, tag, env)
 		},
 	}
 
@@ -406,7 +406,7 @@ func scaleService(ctx context.Context, cfg *config.Config, logger *zap.Logger, s
 	return nil
 }
 
-func deployService(ctx context.Context, cfg *config.Config, logger *zap.Logger, service, image, tag, env string) error {
+func deployServiceLegacy(ctx context.Context, cfg *config.Config, logger *zap.Logger, service, image, tag, env string) error {
 	// TODO: Implement deploy service
 	logger.Info("Deploying service",
 		zap.String("service", service),
