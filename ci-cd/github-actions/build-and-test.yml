@@ -228,17 +228,30 @@ jobs:
     strategy:
       matrix:
         service:
+          # Core Business Services
           - api-gateway
+          - auth-service
           - order-service
           - payment-service
           - kitchen-service
           - user-gateway
           - security-gateway
-          - web-ui-backend
-          - ai-search
-          - bright-data-hub
           - communication-hub
-          - enterprise-service
+          # AI & ML Services
+          - ai-service
+          - ai-search
+          - ai-arbitrage-service
+          - ai-order-service
+          - llm-orchestrator
+          - llm-orchestrator-simple
+          - mcp-ai-integration
+          # Infrastructure Services
+          - market-data-service
+          - defi-service
+          - bright-data-hub-service
+          - redis-mcp-server
+          # Web UI
+          - web-ui-backend
       fail-fast: false
     
     steps:
@@ -274,11 +287,29 @@ jobs:
         output: 'trivy-image-results.sarif'
       continue-on-error: true
     
+    - name: 🔍 Determine Dockerfile Path
+      id: dockerfile
+      run: |
+        SERVICE="${{ matrix.service }}"
+
+        # Check for service-specific Dockerfile locations
+        if [ -f "cmd/${SERVICE}/Dockerfile" ]; then
+          echo "dockerfile=cmd/${SERVICE}/Dockerfile" >> $GITHUB_OUTPUT
+        elif [ -f "deployments/${SERVICE}/Dockerfile" ]; then
+          echo "dockerfile=deployments/${SERVICE}/Dockerfile" >> $GITHUB_OUTPUT
+        elif [ -f "docker/Dockerfile.${SERVICE}" ]; then
+          echo "dockerfile=docker/Dockerfile.${SERVICE}" >> $GITHUB_OUTPUT
+        elif [ -f "services/${SERVICE}/Dockerfile" ]; then
+          echo "dockerfile=services/${SERVICE}/Dockerfile" >> $GITHUB_OUTPUT
+        else
+          echo "dockerfile=Dockerfile" >> $GITHUB_OUTPUT
+        fi
+
     - name: 🏗️ Build and Push Image
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./services/${{ matrix.service }}/Dockerfile
+        file: ${{ steps.dockerfile.outputs.dockerfile }}
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -289,6 +320,7 @@ jobs:
           VERSION=${{ github.sha }}
           BUILD_DATE=${{ github.event.head_commit.timestamp }}
           VCS_REF=${{ github.sha }}
+          SERVICE_NAME=${{ matrix.service }}
 
   # Kubernetes Manifest Validation
   k8s-validation:

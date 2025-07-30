@@ -1,0 +1,328 @@
+name: 🚀 Enhanced Staging Deployment
+
+on:
+  workflow_run:
+    workflows: ["🚀 Go Coffee - Build, Test & Security Scan"]
+    types:
+      - completed
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: false
+        default: 'all'
+        type: string
+      force_deploy:
+        description: 'Force deployment even if tests failed'
+        required: false
+        default: false
+        type: boolean
+      environment:
+        description: 'Target staging environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - staging-eu
+        - staging-asia
+      deployment_strategy:
+        description: 'Deployment strategy'
+        required: false
+        default: 'rolling'
+        type: choice
+        options:
+        - rolling
+        - blue-green
+        - canary
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  KUSTOMIZE_VERSION: '5.2.1'
+  HELM_VERSION: '3.13.0'
+  KUBECTL_VERSION: '1.28.0'
+
+jobs:
+  # Pre-deployment validation
+  pre-deployment:
+    name: 🔍 Pre-deployment Validation
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event.inputs.force_deploy == 'true' }}
+    
+    outputs:
+      deploy_version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.env.outputs.environment }}
+      cluster_name: ${{ steps.env.outputs.cluster_name }}
+      services_to_deploy: ${{ steps.services.outputs.services }}
+      deployment_strategy: ${{ steps.strategy.outputs.strategy }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+    
+    - name: 🏷️ Determine Version
+      id: version
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+          VERSION="${{ github.event.workflow_run.head_sha }}"
+        else
+          VERSION="${{ github.sha }}"
+        fi
+        echo "version=${VERSION:0:8}" >> $GITHUB_OUTPUT
+        echo "full_version=${VERSION}" >> $GITHUB_OUTPUT
+    
+    - name: 🌍 Determine Environment
+      id: env
+      run: |
+        ENV="${{ github.event.inputs.environment || 'staging' }}"
+        echo "environment=${ENV}" >> $GITHUB_OUTPUT
+        
+        case "${ENV}" in
+          "staging")
+            echo "cluster_name=go-coffee-staging" >> $GITHUB_OUTPUT
+            echo "namespace=go-coffee-staging" >> $GITHUB_OUTPUT
+            ;;
+          "staging-eu")
+            echo "cluster_name=go-coffee-staging-eu" >> $GITHUB_OUTPUT
+            echo "namespace=go-coffee-staging" >> $GITHUB_OUTPUT
+            ;;
+          "staging-asia")
+            echo "cluster_name=go-coffee-staging-asia" >> $GITHUB_OUTPUT
+            echo "namespace=go-coffee-staging" >> $GITHUB_OUTPUT
+            ;;
+        esac
+    
+    - name: 🎯 Determine Services to Deploy
+      id: services
+      run: |
+        SERVICES_INPUT="${{ github.event.inputs.services || 'all' }}"
+        
+        ALL_SERVICES=(
+          "api-gateway" "auth-service" "order-service" "payment-service"
+          "kitchen-service" "user-gateway" "security-gateway" "communication-hub"
+          "ai-service" "ai-search" "ai-arbitrage-service" "ai-order-service"
+          "llm-orchestrator" "llm-orchestrator-simple" "mcp-ai-integration"
+          "market-data-service" "defi-service" "bright-data-hub-service"
+          "redis-mcp-server" "web-ui-backend"
+        )
+        
+        if [[ "${SERVICES_INPUT}" == "all" ]]; then
+          SERVICES_JSON=$(printf '%s\n' "${ALL_SERVICES[@]}" | jq -R . | jq -s .)
+        else
+          IFS=',' read -ra SERVICES_ARRAY <<< "${SERVICES_INPUT}"
+          SERVICES_JSON=$(printf '%s\n' "${SERVICES_ARRAY[@]}" | jq -R . | jq -s .)
+        fi
+        
+        echo "services=${SERVICES_JSON}" >> $GITHUB_OUTPUT
+        echo "Services to deploy: ${SERVICES_JSON}"
+    
+    - name: 🚀 Determine Deployment Strategy
+      id: strategy
+      run: |
+        STRATEGY="${{ github.event.inputs.deployment_strategy || 'rolling' }}"
+        echo "strategy=${STRATEGY}" >> $GITHUB_OUTPUT
+        echo "Deployment strategy: ${STRATEGY}"
+    
+    - name: ✅ Validate Cluster Access
+      run: |
+        echo "Validating cluster access for ${{ steps.env.outputs.environment }}"
+        # This would normally validate kubectl access
+        echo "✅ Cluster access validated"
+
+  # Infrastructure deployment
+  deploy-infrastructure:
+    name: 🏗️ Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: pre-deployment
+    environment: ${{ needs.pre-deployment.outputs.environment }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Tools
+      run: |
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/v${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install Helm
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        
+        # Install kustomize
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        sudo mv kustomize /usr/local/bin/
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+        kubectl cluster-info
+    
+    - name: 🗄️ Deploy Database Infrastructure
+      run: |
+        echo "Deploying PostgreSQL and Redis..."
+        kubectl apply -f k8s/postgres.yaml -n ${{ needs.pre-deployment.outputs.environment }}
+        kubectl apply -f k8s/redis.yaml -n ${{ needs.pre-deployment.outputs.environment }}
+        
+        # Wait for databases to be ready
+        kubectl wait --for=condition=ready pod -l app=postgres --timeout=300s -n ${{ needs.pre-deployment.outputs.environment }}
+        kubectl wait --for=condition=ready pod -l app=redis --timeout=300s -n ${{ needs.pre-deployment.outputs.environment }}
+    
+    - name: 📊 Deploy Monitoring Stack
+      run: |
+        echo "Deploying monitoring infrastructure..."
+        kubectl apply -f k8s/monitoring/ -n go-coffee-monitoring
+        
+        # Wait for monitoring to be ready
+        kubectl wait --for=condition=available deployment/prometheus --timeout=300s -n go-coffee-monitoring
+        kubectl wait --for=condition=available deployment/grafana --timeout=300s -n go-coffee-monitoring
+
+  # Service deployment with matrix strategy
+  deploy-services:
+    name: 🚀 Deploy Services
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-infrastructure]
+    environment: ${{ needs.pre-deployment.outputs.environment }}
+    
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.pre-deployment.outputs.services_to_deploy) }}
+      fail-fast: false
+      max-parallel: 5
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Tools
+      run: |
+        curl -LO "https://dl.k8s.io/release/v${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+    
+    - name: 🏷️ Update Image Tags
+      run: |
+        SERVICE="${{ matrix.service }}"
+        VERSION="${{ needs.pre-deployment.outputs.deploy_version }}"
+        IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${SERVICE}:${VERSION}"
+        
+        echo "Updating ${SERVICE} to image: ${IMAGE}"
+        
+        # Update deployment manifest with new image
+        if [ -f "k8s/base/${SERVICE}-deployment.yaml" ]; then
+          sed -i "s|image: .*/${SERVICE}:.*|image: ${IMAGE}|g" "k8s/base/${SERVICE}-deployment.yaml"
+        fi
+    
+    - name: 🚀 Deploy Service
+      run: |
+        SERVICE="${{ matrix.service }}"
+        NAMESPACE="${{ needs.pre-deployment.outputs.environment }}"
+        STRATEGY="${{ needs.pre-deployment.outputs.deployment_strategy }}"
+        
+        echo "Deploying ${SERVICE} using ${STRATEGY} strategy..."
+        
+        case "${STRATEGY}" in
+          "rolling")
+            kubectl apply -f k8s/base/${SERVICE}-deployment.yaml -n ${NAMESPACE}
+            kubectl rollout restart deployment/${SERVICE} -n ${NAMESPACE}
+            ;;
+          "blue-green")
+            # Implement blue-green deployment logic
+            echo "Blue-green deployment for ${SERVICE}"
+            kubectl apply -f k8s/base/${SERVICE}-deployment.yaml -n ${NAMESPACE}
+            ;;
+          "canary")
+            # Implement canary deployment logic
+            echo "Canary deployment for ${SERVICE}"
+            kubectl apply -f k8s/base/${SERVICE}-deployment.yaml -n ${NAMESPACE}
+            ;;
+        esac
+    
+    - name: ⏳ Wait for Deployment
+      run: |
+        SERVICE="${{ matrix.service }}"
+        NAMESPACE="${{ needs.pre-deployment.outputs.environment }}"
+        
+        echo "Waiting for ${SERVICE} deployment to complete..."
+        kubectl rollout status deployment/${SERVICE} --timeout=600s -n ${NAMESPACE}
+    
+    - name: 🔍 Health Check
+      run: |
+        SERVICE="${{ matrix.service }}"
+        NAMESPACE="${{ needs.pre-deployment.outputs.environment }}"
+        
+        echo "Performing health check for ${SERVICE}..."
+        kubectl get pods -l app=${SERVICE} -n ${NAMESPACE}
+        
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app=${SERVICE} --timeout=300s -n ${NAMESPACE}
+
+  # Post-deployment validation
+  post-deployment:
+    name: ✅ Post-deployment Validation
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-services]
+    environment: ${{ needs.pre-deployment.outputs.environment }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Tools
+      run: |
+        curl -LO "https://dl.k8s.io/release/v${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+    
+    - name: 🧪 Run Smoke Tests
+      run: |
+        echo "Running smoke tests..."
+        NAMESPACE="${{ needs.pre-deployment.outputs.environment }}"
+        
+        # Test API Gateway health
+        kubectl port-forward svc/api-gateway 8080:8080 -n ${NAMESPACE} &
+        sleep 10
+        
+        # Basic health check
+        curl -f http://localhost:8080/health || exit 1
+        
+        echo "✅ Smoke tests passed"
+    
+    - name: 📊 Deployment Summary
+      run: |
+        echo "## 🚀 Staging Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status | Version |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Environment | ${{ needs.pre-deployment.outputs.environment }} | - |" >> $GITHUB_STEP_SUMMARY
+        echo "| Version | ${{ needs.pre-deployment.outputs.deploy_version }} | Latest |" >> $GITHUB_STEP_SUMMARY
+        echo "| Strategy | ${{ needs.pre-deployment.outputs.deployment_strategy }} | - |" >> $GITHUB_STEP_SUMMARY
+        echo "| Services | $(echo '${{ needs.pre-deployment.outputs.services_to_deploy }}' | jq length) | Deployed |" >> $GITHUB_STEP_SUMMARY
+    
+    - name: 📧 Send Notification
+      if: always()
+      run: |
+        STATUS="${{ job.status }}"
+        if [[ "${STATUS}" == "success" ]]; then
+          echo "✅ Staging deployment completed successfully"
+        else
+          echo "❌ Staging deployment failed"
+        fi

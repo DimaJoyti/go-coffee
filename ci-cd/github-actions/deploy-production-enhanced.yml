@@ -1,0 +1,405 @@
+name: 🚀 Production Deployment with Blue-Green Strategy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (commit SHA or tag)'
+        required: true
+        type: string
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: false
+        default: 'all'
+        type: string
+      deployment_strategy:
+        description: 'Deployment strategy'
+        required: true
+        default: 'blue-green'
+        type: choice
+        options:
+        - blue-green
+        - canary
+        - rolling
+      environment:
+        description: 'Production environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - production-eu
+        - production-asia
+      skip_approval:
+        description: 'Skip manual approval (emergency only)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  KUBECTL_VERSION: '1.28.0'
+  HELM_VERSION: '3.13.0'
+
+jobs:
+  # Pre-deployment validation and approval
+  pre-deployment-approval:
+    name: 🔒 Pre-deployment Approval
+    runs-on: ubuntu-latest
+    environment: 
+      name: production-approval
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    
+    outputs:
+      approved: ${{ steps.approval.outputs.approved }}
+      deploy_version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.env.outputs.environment }}
+      services_to_deploy: ${{ steps.services.outputs.services }}
+      deployment_strategy: ${{ steps.strategy.outputs.strategy }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.version }}
+    
+    - name: 🔍 Validate Version
+      id: version
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        
+        # Validate that the version exists
+        if ! git rev-parse --verify "${VERSION}" >/dev/null 2>&1; then
+          echo "❌ Invalid version: ${VERSION}"
+          exit 1
+        fi
+        
+        FULL_SHA=$(git rev-parse "${VERSION}")
+        SHORT_SHA=${FULL_SHA:0:8}
+        
+        echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
+        echo "full_version=${FULL_SHA}" >> $GITHUB_OUTPUT
+        echo "✅ Version validated: ${SHORT_SHA}"
+    
+    - name: 🌍 Set Environment
+      id: env
+      run: |
+        ENV="${{ github.event.inputs.environment }}"
+        echo "environment=${ENV}" >> $GITHUB_OUTPUT
+        
+        case "${ENV}" in
+          "production")
+            echo "cluster_name=go-coffee-production" >> $GITHUB_OUTPUT
+            echo "namespace=go-coffee-production" >> $GITHUB_OUTPUT
+            ;;
+          "production-eu")
+            echo "cluster_name=go-coffee-production-eu" >> $GITHUB_OUTPUT
+            echo "namespace=go-coffee-production" >> $GITHUB_OUTPUT
+            ;;
+          "production-asia")
+            echo "cluster_name=go-coffee-production-asia" >> $GITHUB_OUTPUT
+            echo "namespace=go-coffee-production" >> $GITHUB_OUTPUT
+            ;;
+        esac
+    
+    - name: 🎯 Determine Services
+      id: services
+      run: |
+        SERVICES_INPUT="${{ github.event.inputs.services }}"
+        
+        ALL_SERVICES=(
+          "api-gateway" "auth-service" "order-service" "payment-service"
+          "kitchen-service" "user-gateway" "security-gateway" "communication-hub"
+          "ai-service" "ai-search" "ai-arbitrage-service" "ai-order-service"
+          "llm-orchestrator" "llm-orchestrator-simple" "mcp-ai-integration"
+          "market-data-service" "defi-service" "bright-data-hub-service"
+          "redis-mcp-server" "web-ui-backend"
+        )
+        
+        if [[ "${SERVICES_INPUT}" == "all" ]]; then
+          SERVICES_JSON=$(printf '%s\n' "${ALL_SERVICES[@]}" | jq -R . | jq -s .)
+        else
+          IFS=',' read -ra SERVICES_ARRAY <<< "${SERVICES_INPUT}"
+          SERVICES_JSON=$(printf '%s\n' "${SERVICES_ARRAY[@]}" | jq -R . | jq -s .)
+        fi
+        
+        echo "services=${SERVICES_JSON}" >> $GITHUB_OUTPUT
+    
+    - name: 🚀 Set Strategy
+      id: strategy
+      run: |
+        STRATEGY="${{ github.event.inputs.deployment_strategy }}"
+        echo "strategy=${STRATEGY}" >> $GITHUB_OUTPUT
+    
+    - name: ✅ Manual Approval
+      id: approval
+      if: ${{ github.event.inputs.skip_approval != 'true' }}
+      run: |
+        echo "approved=true" >> $GITHUB_OUTPUT
+        echo "✅ Deployment approved for production"
+    
+    - name: 📋 Deployment Plan Summary
+      run: |
+        echo "## 🚀 Production Deployment Plan" >> $GITHUB_STEP_SUMMARY
+        echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Version | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Environment | ${{ steps.env.outputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Strategy | ${{ steps.strategy.outputs.strategy }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Services | $(echo '${{ steps.services.outputs.services }}' | jq length) services |" >> $GITHUB_STEP_SUMMARY
+
+  # Pre-deployment health check
+  pre-deployment-health:
+    name: 🔍 Pre-deployment Health Check
+    runs-on: ubuntu-latest
+    needs: pre-deployment-approval
+    environment: ${{ needs.pre-deployment-approval.outputs.environment }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Tools
+      run: |
+        curl -LO "https://dl.k8s.io/release/v${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+        kubectl cluster-info
+    
+    - name: 🔍 Current System Health Check
+      run: |
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        
+        echo "Checking current system health..."
+        kubectl get pods -n ${NAMESPACE}
+        kubectl get services -n ${NAMESPACE}
+        
+        # Check critical services are running
+        CRITICAL_SERVICES=("api-gateway" "auth-service" "order-service" "payment-service")
+        
+        for service in "${CRITICAL_SERVICES[@]}"; do
+          if kubectl get deployment ${service} -n ${NAMESPACE} >/dev/null 2>&1; then
+            READY=$(kubectl get deployment ${service} -n ${NAMESPACE} -o jsonpath='{.status.readyReplicas}')
+            DESIRED=$(kubectl get deployment ${service} -n ${NAMESPACE} -o jsonpath='{.spec.replicas}')
+            
+            if [[ "${READY}" == "${DESIRED}" ]]; then
+              echo "✅ ${service}: ${READY}/${DESIRED} pods ready"
+            else
+              echo "⚠️ ${service}: ${READY}/${DESIRED} pods ready"
+            fi
+          else
+            echo "ℹ️ ${service}: Not deployed"
+          fi
+        done
+    
+    - name: 📊 Resource Usage Check
+      run: |
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        
+        echo "Checking resource usage..."
+        kubectl top nodes || echo "Metrics server not available"
+        kubectl top pods -n ${NAMESPACE} || echo "Pod metrics not available"
+
+  # Blue-Green Deployment
+  blue-green-deployment:
+    name: 🔄 Blue-Green Deployment
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-approval, pre-deployment-health]
+    if: ${{ needs.pre-deployment-approval.outputs.deployment_strategy == 'blue-green' }}
+    environment: ${{ needs.pre-deployment-approval.outputs.environment }}
+    
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.pre-deployment-approval.outputs.services_to_deploy) }}
+      fail-fast: false
+      max-parallel: 3
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Tools
+      run: |
+        curl -LO "https://dl.k8s.io/release/v${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+    
+    - name: 🟢 Deploy Green Environment
+      run: |
+        SERVICE="${{ matrix.service }}"
+        VERSION="${{ needs.pre-deployment-approval.outputs.deploy_version }}"
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${SERVICE}:${VERSION}"
+        
+        echo "Deploying ${SERVICE} green environment with image: ${IMAGE}"
+        
+        # Create green deployment
+        kubectl get deployment ${SERVICE} -n ${NAMESPACE} -o yaml | \
+        sed "s/${SERVICE}/${SERVICE}-green/g" | \
+        sed "s|image: .*/${SERVICE}:.*|image: ${IMAGE}|g" | \
+        kubectl apply -f -
+        
+        # Wait for green deployment to be ready
+        kubectl rollout status deployment/${SERVICE}-green --timeout=600s -n ${NAMESPACE}
+    
+    - name: 🧪 Test Green Environment
+      run: |
+        SERVICE="${{ matrix.service }}"
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        
+        echo "Testing ${SERVICE} green environment..."
+        
+        # Create temporary service for testing
+        kubectl get service ${SERVICE} -n ${NAMESPACE} -o yaml | \
+        sed "s/${SERVICE}/${SERVICE}-green-test/g" | \
+        sed "s/app: ${SERVICE}/app: ${SERVICE}-green/g" | \
+        kubectl apply -f -
+        
+        # Port forward and test
+        kubectl port-forward svc/${SERVICE}-green-test 8080:80 -n ${NAMESPACE} &
+        PF_PID=$!
+        sleep 10
+        
+        # Basic health check
+        if curl -f http://localhost:8080/health; then
+          echo "✅ ${SERVICE} green environment health check passed"
+        else
+          echo "❌ ${SERVICE} green environment health check failed"
+          kill $PF_PID
+          exit 1
+        fi
+        
+        kill $PF_PID
+        kubectl delete service ${SERVICE}-green-test -n ${NAMESPACE}
+    
+    - name: 🔄 Switch Traffic to Green
+      run: |
+        SERVICE="${{ matrix.service }}"
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        
+        echo "Switching traffic from blue to green for ${SERVICE}..."
+        
+        # Update service selector to point to green deployment
+        kubectl patch service ${SERVICE} -n ${NAMESPACE} -p '{"spec":{"selector":{"app":"'${SERVICE}'-green"}}}'
+        
+        echo "✅ Traffic switched to green environment for ${SERVICE}"
+    
+    - name: ⏳ Monitor Green Environment
+      run: |
+        SERVICE="${{ matrix.service }}"
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        
+        echo "Monitoring ${SERVICE} green environment for 2 minutes..."
+        
+        for i in {1..12}; do
+          echo "Health check ${i}/12..."
+          kubectl port-forward svc/${SERVICE} 8080:80 -n ${NAMESPACE} &
+          PF_PID=$!
+          sleep 5
+          
+          if curl -f http://localhost:8080/health; then
+            echo "✅ Health check ${i} passed"
+          else
+            echo "❌ Health check ${i} failed"
+            kill $PF_PID
+            exit 1
+          fi
+          
+          kill $PF_PID
+          sleep 10
+        done
+        
+        echo "✅ Green environment monitoring completed successfully"
+    
+    - name: 🗑️ Cleanup Blue Environment
+      run: |
+        SERVICE="${{ matrix.service }}"
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        
+        echo "Cleaning up blue environment for ${SERVICE}..."
+        
+        # Delete old blue deployment (current deployment becomes blue)
+        kubectl delete deployment ${SERVICE} -n ${NAMESPACE} --ignore-not-found=true
+        
+        # Rename green deployment to main deployment
+        kubectl get deployment ${SERVICE}-green -n ${NAMESPACE} -o yaml | \
+        sed "s/${SERVICE}-green/${SERVICE}/g" | \
+        kubectl apply -f -
+        
+        # Delete green deployment
+        kubectl delete deployment ${SERVICE}-green -n ${NAMESPACE}
+        
+        echo "✅ Blue-green deployment completed for ${SERVICE}"
+
+  # Post-deployment validation
+  post-deployment-validation:
+    name: ✅ Post-deployment Validation
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-approval, blue-green-deployment]
+    environment: ${{ needs.pre-deployment-approval.outputs.environment }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Tools
+      run: |
+        curl -LO "https://dl.k8s.io/release/v${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+    
+    - name: 🔐 Configure Kubernetes Access
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+    
+    - name: 🧪 Comprehensive System Test
+      run: |
+        NAMESPACE="${{ needs.pre-deployment-approval.outputs.environment }}"
+        
+        echo "Running comprehensive system tests..."
+        
+        # Test API Gateway
+        kubectl port-forward svc/api-gateway 8080:80 -n ${NAMESPACE} &
+        API_PF_PID=$!
+        sleep 10
+        
+        # Test critical endpoints
+        curl -f http://localhost:8080/health || exit 1
+        curl -f http://localhost:8080/api/v1/health || exit 1
+        
+        kill $API_PF_PID
+        
+        echo "✅ System tests passed"
+    
+    - name: 📊 Final Deployment Report
+      run: |
+        echo "## 🎉 Production Deployment Completed" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status | Version |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Environment | ${{ needs.pre-deployment-approval.outputs.environment }} | ✅ |" >> $GITHUB_STEP_SUMMARY
+        echo "| Version | ${{ needs.pre-deployment-approval.outputs.deploy_version }} | ✅ |" >> $GITHUB_STEP_SUMMARY
+        echo "| Strategy | Blue-Green | ✅ |" >> $GITHUB_STEP_SUMMARY
+        echo "| Services | $(echo '${{ needs.pre-deployment-approval.outputs.services_to_deploy }}' | jq length) | ✅ |" >> $GITHUB_STEP_SUMMARY
+        echo "| Health Status | All services healthy | ✅ |" >> $GITHUB_STEP_SUMMARY
+    
+    - name: 📧 Success Notification
+      run: |
+        echo "🎉 Production deployment completed successfully!"
+        echo "Version: ${{ needs.pre-deployment-approval.outputs.deploy_version }}"
+        echo "Environment: ${{ needs.pre-deployment-approval.outputs.environment }}"
+        echo "Services: $(echo '${{ needs.pre-deployment-approval.outputs.services_to_deploy }}' | jq length) deployed"

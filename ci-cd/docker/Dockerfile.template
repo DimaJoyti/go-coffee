@@ -1,0 +1,101 @@
+# Multi-stage build template for Go Coffee services
+# This template provides a standardized approach for all Go services
+
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    ca-certificates \
+    tzdata \
+    gcc \
+    musl-dev \
+    sqlite-dev
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy source code
+COPY . .
+
+# Build arguments
+ARG SERVICE_NAME
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG VCS_REF
+
+# Build the application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    -ldflags="-w -s -X main.version=${VERSION} -X main.buildDate=${BUILD_DATE} -X main.gitCommit=${VCS_REF}" \
+    -o /app/bin/${SERVICE_NAME} \
+    ./cmd/${SERVICE_NAME}
+
+# Security scanning stage (optional)
+FROM aquasec/trivy:latest AS security-scan
+COPY --from=builder /app /scan
+RUN trivy fs --exit-code 1 --no-progress --severity HIGH,CRITICAL /scan
+
+# Final runtime stage
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && update-ca-certificates
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set timezone
+ENV TZ=UTC
+
+# Create necessary directories
+RUN mkdir -p /app/config /app/logs /app/data && \
+    chown -R appuser:appgroup /app
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+ARG SERVICE_NAME
+COPY --from=builder /app/bin/${SERVICE_NAME} /app/service
+COPY --from=builder /app/config/ /app/config/
+
+# Set ownership
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose port (service-specific)
+EXPOSE 8080
+
+# Labels for metadata
+LABEL maintainer="Go Coffee Team <devops@gocoffee.dev>"
+LABEL version="${VERSION}"
+LABEL description="Go Coffee ${SERVICE_NAME} service"
+LABEL org.opencontainers.image.title="go-coffee-${SERVICE_NAME}"
+LABEL org.opencontainers.image.description="Go Coffee ${SERVICE_NAME} microservice"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${VCS_REF}"
+LABEL org.opencontainers.image.source="https://github.com/DimaJoyti/go-coffee"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# Run the service
+ENTRYPOINT ["/app/service"]
