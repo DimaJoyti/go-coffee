@@ -352,17 +352,17 @@ jobs:
         
         echo "🚦 Starting gradual traffic switch..."
         
-        # Phase 1: 10% traffic to green
-        echo "Phase 1: Switching 10% traffic to green..."
+        # 1: 10% traffic to green
+        echo "1: Switching 10% traffic to green..."
         # Implement traffic splitting logic here (using Istio, NGINX, or similar)
         sleep 300  # Monitor for 5 minutes
         
-        # Phase 2: 50% traffic to green
-        echo "Phase 2: Switching 50% traffic to green..."
+        # 2: 50% traffic to green
+        echo "2: Switching 50% traffic to green..."
         sleep 300  # Monitor for 5 minutes
         
-        # Phase 3: 100% traffic to green
-        echo "Phase 3: Switching 100% traffic to green..."
+        # 3: 100% traffic to green
+        echo "3: Switching 100% traffic to green..."
         sleep 300  # Monitor for 5 minutes
         
         echo "✅ Traffic switch completed"

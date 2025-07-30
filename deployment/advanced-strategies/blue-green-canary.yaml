@@ -508,7 +508,7 @@ data:
       
       alerts:
         deployment_failure:
-          condition: "rollout_phase == 'Degraded'"
+          condition: "rollout_== 'Degraded'"
           severity: "critical"
           notification_channels: ["slack", "pagerduty"]
         

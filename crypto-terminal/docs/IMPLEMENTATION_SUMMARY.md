@@ -243,19 +243,19 @@ make prod-deploy     # Deploy to production
 
 ## 🎯 Next Steps & Roadmap
 
-### Phase 2: Advanced Features
+### 2: Advanced Features
 - [ ] **Advanced Technical Analysis** - More indicators and patterns
 - [ ] **Machine Learning Signals** - AI-powered trading signals
 - [ ] **Social Sentiment Analysis** - Twitter/Reddit sentiment tracking
 - [ ] **News Integration** - Real-time crypto news aggregation
 
-### Phase 3: Trading Features
+### 3: Trading Features
 - [ ] **Paper Trading** - Simulated trading environment
 - [ ] **Order Management** - Buy/sell order execution
 - [ ] **Strategy Backtesting** - Historical strategy testing
 - [ ] **Copy Trading** - Follow successful traders
 
-### Phase 4: Advanced Portfolio
+### 4: Advanced Portfolio
 - [ ] **Tax Reporting** - Automated tax calculation
 - [ ] **Rebalancing** - Automated portfolio rebalancing
 - [ ] **Performance Attribution** - Detailed performance analysis

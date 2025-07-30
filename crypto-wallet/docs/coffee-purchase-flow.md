@@ -88,7 +88,7 @@ This document describes the complete end-to-end flow for purchasing coffee using
 
 ## Detailed Technical Flow
 
-### Phase 1: Shop Discovery and Menu Loading
+### 1: Shop Discovery and Menu Loading
 
 ```mermaid
 sequenceDiagram
@@ -115,7 +115,7 @@ sequenceDiagram
     API-->>U: Menu with real-time prices
 ```
 
-### Phase 2: Order Creation and Payment Processing
+### 2: Order Creation and Payment Processing
 
 ```mermaid
 sequenceDiagram
@@ -147,7 +147,7 @@ sequenceDiagram
     OS->>K: Publish order.confirmed event
 ```
 
-### Phase 3: Order Fulfillment and Claiming
+### 3: Order Fulfillment and Claiming
 
 ```mermaid
 sequenceDiagram

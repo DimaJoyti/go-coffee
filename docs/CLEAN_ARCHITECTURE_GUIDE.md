@@ -136,32 +136,32 @@ go-coffee/
 
 ## 🔄 Migration Plan
 
-### Phase 1: Core Infrastructure ✅
+### 1: Core Infrastructure ✅
 - [x] Create new directory structure
 - [x] Move Bitcoin implementation to `pkg/bitcoin/`
 - [x] Update import paths
 - [x] Create shared models in `pkg/models/`
 
-### Phase 2: Payment Service (In Progress)
+### 2: Payment Service (In Progress)
 - [ ] Complete payment service implementation
 - [ ] Add proper HTTP handlers (standard library)
 - [ ] Integrate with existing config system
 - [ ] Add comprehensive tests
 
-### Phase 3: Service Consolidation
+### 3: Service Consolidation
 - [ ] Merge crypto-wallet → payment-service
 - [ ] Merge ai-agents + ai-arbitrage → ai-service
 - [ ] Update auth-service structure
 - [ ] Update order-service structure
 - [ ] Update kitchen-service structure
 
-### Phase 4: API Standardization
+### 4: API Standardization
 - [ ] Create gRPC definitions in `api/proto/`
 - [ ] Create OpenAPI specs in `api/openapi/`
 - [ ] Implement API Gateway
 - [ ] Add middleware for logging, auth, rate limiting
 
-### Phase 5: Deployment & DevOps
+### 5: Deployment & DevOps
 - [ ] Consolidate Docker configurations
 - [ ] Create Kubernetes manifests
 - [ ] Set up CI/CD pipelines

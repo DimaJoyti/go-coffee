@@ -338,7 +338,7 @@ gocoffee --env production gitops sync
 
 ## 🚀 Next Steps
 
-### **Phase 2 Enhancements**
+### **2 Enhancements**
 1. **Enhanced Operators:**
    - AI Workload Operator
    - Multi-tenant Operator

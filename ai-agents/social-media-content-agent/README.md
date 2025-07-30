@@ -375,19 +375,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗺️ Roadmap
 
-### Phase 1 (Current)
+### 1 (Current)
 - ✅ Core content management
 - ✅ Multi-platform publishing
 - ✅ Basic analytics
 - ✅ Campaign management
 
-### Phase 2 (Q2 2024)
+### 2 (Q2 2024)
 - 🔄 Advanced AI features
 - 🔄 Real-time collaboration
 - 🔄 Advanced analytics dashboard
 - 🔄 Mobile app support
 
-### Phase 3 (Q3 2024)
+### 3 (Q3 2024)
 - 📋 Influencer management
 - 📋 Advanced automation
 - 📋 Custom AI model training

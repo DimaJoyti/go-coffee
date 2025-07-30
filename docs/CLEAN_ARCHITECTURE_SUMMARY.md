@@ -2,7 +2,7 @@
 
 ## 🎯 What We've Accomplished
 
-### ✅ **Phase 1: Core Infrastructure (COMPLETED)**
+### ✅ **1: Core Infrastructure (COMPLETED)**
 
 1. **New Directory Structure Created**
    ```
@@ -32,7 +32,7 @@
    - ✅ `pkg/logger/` - Logging utilities (existing)
    - ✅ `pkg/bitcoin/` - Bitcoin cryptography
 
-### 🚧 **Phase 2: Payment Service (IN PROGRESS)**
+### 🚧 **2: Payment Service (IN PROGRESS)**
 
 1. **Service Structure Created**
    - ✅ `cmd/payment-service/main.go` - Entry point
@@ -47,7 +47,7 @@
    - ✅ Multisig address creation
    - ✅ Bitcoin feature support
 
-### 📋 **Phase 3: Migration Plan (PLANNED)**
+### 📋 **3: Migration Plan (PLANNED)**
 
 Services to migrate in order of priority:
 
@@ -163,21 +163,21 @@ mkdir -p cmd/my-service internal/my-service
 
 ## 📊 Migration Progress
 
-### ✅ **Completed (Phase 1)**
+### ✅ **Completed (1)**
 - [x] Directory structure created
 - [x] Bitcoin implementation migrated
 - [x] Import paths updated
 - [x] Tests passing
 - [x] Documentation created
 
-### 🔄 **In Progress (Phase 2)**
+### 🔄 **In Progress (2)**
 - [x] Payment service structure
 - [x] Business logic implementation
 - [ ] HTTP handlers (converting to standard library)
 - [ ] Integration tests
 - [ ] Docker configuration
 
-### ⏳ **Planned (Phase 3+)**
+### ⏳ **Planned (3+)**
 - [ ] Auth service migration
 - [ ] Order service migration  
 - [ ] Kitchen service migration

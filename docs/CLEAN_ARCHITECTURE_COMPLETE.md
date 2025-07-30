@@ -175,7 +175,7 @@ cd ../../internal/payment/
 
 ## 📋 **Migration Status**
 
-### ✅ **Phase 1: COMPLETED**
+### ✅ **1: COMPLETED**
 - [x] Directory structure created
 - [x] Bitcoin implementation migrated  
 - [x] Import paths updated
@@ -183,13 +183,13 @@ cd ../../internal/payment/
 - [x] Payment service structure created
 - [x] Documentation completed
 
-### 🔄 **Phase 2: IN PROGRESS**  
+### 🔄 **2: IN PROGRESS**  
 - [x] Payment service business logic
 - [ ] Complete HTTP handlers (80% done)
 - [ ] Integration tests
 - [ ] Docker configuration
 
-### ⏳ **Phase 3: PLANNED**
+### ⏳ **3: PLANNED**
 - [ ] Auth service migration
 - [ ] Order service migration
 - [ ] Kitchen service migration  

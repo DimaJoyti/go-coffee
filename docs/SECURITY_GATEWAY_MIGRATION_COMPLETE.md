@@ -156,7 +156,7 @@ func getQueryParam(r *http.Request, key string) string
 - **Proxy Functionality** - Backend service proxying maintained
 - **Metrics Collection** - Prometheus-style metrics endpoint
 
-The Security Gateway migration is **COMPLETE** and ready for the next phase of the migration plan.
+The Security Gateway migration is **COMPLETE** and ready for the next of the migration plan.
 
 ## 📈 Performance Improvements
 

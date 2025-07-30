@@ -261,25 +261,25 @@ main() {
     setup_env
     
     # Build phase
-    print_status "Phase 1: Building services..."
+    print_status "1: Building services..."
     build_services
     build_docker_images
     
     # Deployment phase
-    print_status "Phase 2: Deploying infrastructure..."
+    print_status "2: Deploying infrastructure..."
     deploy_infrastructure
     
-    print_status "Phase 3: Deploying backend services..."
+    print_status "3: Deploying backend services..."
     deploy_backend
     
-    print_status "Phase 4: Deploying AI service..."
+    print_status "4: Deploying AI service..."
     deploy_ai_service
     
-    print_status "Phase 5: Deploying frontend applications..."
+    print_status "5: Deploying frontend applications..."
     deploy_frontend
     
     # Verification phase
-    print_status "Phase 6: Health checks..."
+    print_status "6: Health checks..."
     health_check
     
     # Success

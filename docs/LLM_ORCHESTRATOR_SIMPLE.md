@@ -16,7 +16,7 @@ The LLM Orchestrator Simple is a lightweight, standalone version of our cutting-
 ### 📊 **Monitoring & Observability**
 - **Health Checks**: Built-in health monitoring endpoints
 - **Performance Metrics**: CPU, memory, GPU utilization tracking
-- **Workload Status**: Real-time status updates and phase tracking
+- **Workload Status**: Real-time status updates and tracking
 - **Request Analytics**: Request rate, latency, and error rate monitoring
 
 ### 🔧 **Developer-Friendly**

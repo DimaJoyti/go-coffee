@@ -197,7 +197,7 @@ docker-compose -f docker-compose.ai-order.yml up -d
 
 ## 🔮 Future Enhancements
 
-### Phase 2 Features
+### 2 Features
 1. **Advanced AI Models**
    - Custom ML models for demand forecasting
    - Computer vision for quality control

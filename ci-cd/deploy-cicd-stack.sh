@@ -294,7 +294,7 @@ notifications:
   
   triggers:
     trigger.on-deployed: |
-      - when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+      - when: app.status.operationState.in ['Succeeded'] and app.status.health.status == 'Healthy'
         send: [app-deployed]
     
     trigger.on-health-degraded: |
@@ -302,7 +302,7 @@ notifications:
         send: [app-health-degraded]
     
     trigger.on-sync-failed: |
-      - when: app.status.operationState.phase in ['Error', 'Failed']
+      - when: app.status.operationState.in ['Error', 'Failed']
         send: [app-sync-failed]
 EOF
     

@@ -620,7 +620,7 @@ data:
     - description: Application is synced and healthy
       send:
       - app-deployed
-      when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+      when: app.status.operationState.in ['Succeeded'] and app.status.health.status == 'Healthy'
   
   trigger.on-health-degraded: |
     - description: Application has degraded
@@ -632,7 +632,7 @@ data:
     - description: Application sync is failed
       send:
       - app-sync-failed
-      when: app.status.operationState.phase in ['Error', 'Failed']
+      when: app.status.operationState.in ['Error', 'Failed']
   
   subscriptions: |
     - recipients:

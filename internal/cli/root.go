@@ -90,12 +90,12 @@ Features:
 	rootCmd.AddCommand(commands.NewConfigCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewVersionCommand(version, commit, date))
 
-	// Phase 3: Advanced cloud-native commands
+	// 3: Advanced cloud-native commands
 	rootCmd.AddCommand(commands.NewMultiCloudCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewEdgeCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewMLOpsCommand(cfg, logger))
 
-	// Phase 4: Future technologies commands
+	// 4: Future technologies commands
 	rootCmd.AddCommand(commands.NewQuantumCommand(cfg, logger))
 	rootCmd.AddCommand(commands.NewBlockchainCommand(cfg, logger))
 

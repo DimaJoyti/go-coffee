@@ -195,7 +195,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 - **Analytics** - Sales and revenue analytics
 - **WebSocket Support** - Real-time updates for dashboard
 
-The Web UI Backend migration is **COMPLETE** and ready for the next phase of the migration plan.
+The Web UI Backend migration is **COMPLETE** and ready for the next of the migration plan.
 
 ## 📈 Performance Improvements
 
