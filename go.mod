@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.4
 
 require (
-	github.com/DimaJoyti/go-coffee/pkg v0.0.0-00010101000000-000000000000
+	github.com/DimaJoyti/go-coffee/pkg v0.0.0
 	github.com/briandowns/spinner v1.23.1
 	github.com/fatih/color v1.18.0
 	github.com/gin-gonic/gin v1.10.1

@@ -313,10 +313,19 @@ func setupRoutes(router *gin.Engine, service *terminal.Service, healthService *h
 	// Initialize TradingView handlers
 	tradingViewHandlers := api.NewTradingViewHandlers(brightDataService, logrus.StandardLogger())
 
+	// Initialize Enhanced Trading handlers
+	enhancedTradingHandlers := api.NewEnhancedTradingHandlers(logrus.StandardLogger())
+
 	// API v2 routes for TradingView integration
 	v2 := router.Group("/api/v2")
 	{
 		tradingViewHandlers.RegisterRoutes(v2)
+	}
+
+	// API v3 routes for Enhanced Trading interface
+	v3 := router.Group("/api/v3")
+	{
+		enhancedTradingHandlers.RegisterRoutes(v3)
 	}
 
 	// API v1 routes

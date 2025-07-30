@@ -2,6 +2,263 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Professional Trading Interface Theme */
+@layer base {
+  :root {
+    /* Dark Theme Colors */
+    --background: 220 13% 9%;
+    --foreground: 220 9% 95%;
+
+    /* Card backgrounds */
+    --card: 220 13% 11%;
+    --card-foreground: 220 9% 95%;
+
+    /* Popover backgrounds */
+    --popover: 220 13% 11%;
+    --popover-foreground: 220 9% 95%;
+
+    /* Primary colors */
+    --primary: 142 76% 36%;
+    --primary-foreground: 355 7% 97%;
+
+    /* Secondary colors */
+    --secondary: 220 13% 15%;
+    --secondary-foreground: 220 9% 95%;
+
+    /* Muted colors */
+    --muted: 220 13% 15%;
+    --muted-foreground: 220 9% 60%;
+
+    /* Accent colors */
+    --accent: 220 13% 15%;
+    --accent-foreground: 220 9% 95%;
+
+    /* Destructive colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Border colors */
+    --border: 220 13% 18%;
+    --input: 220 13% 18%;
+    --ring: 142 76% 36%;
+
+    /* Trading specific colors */
+    --buy-color: 134 61% 41%;
+    --sell-color: 0 84% 60%;
+    --neutral-color: 220 9% 60%;
+
+    /* Chart colors */
+    --chart-green: 134 61% 41%;
+    --chart-red: 0 84% 60%;
+    --chart-blue: 217 91% 60%;
+    --chart-yellow: 47 96% 53%;
+    --chart-purple: 262 83% 58%;
+
+    /* Glass effect */
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+    /* Radius */
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+}
+
+@layer components {
+  /* Trading specific components */
+  .trading-card {
+    @apply bg-card border border-border rounded-lg p-4 shadow-sm;
+    backdrop-filter: blur(10px);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+  }
+
+  .trading-card-glass {
+    @apply bg-card/50 border border-border/50 rounded-lg p-4 shadow-lg;
+    backdrop-filter: blur(20px);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+  }
+
+  .price-up {
+    @apply text-green-400;
+    color: hsl(var(--buy-color));
+  }
+
+  .price-down {
+    @apply text-red-400;
+    color: hsl(var(--sell-color));
+  }
+
+  .price-neutral {
+    @apply text-muted-foreground;
+    color: hsl(var(--neutral-color));
+  }
+
+  .buy-button {
+    @apply bg-green-600 hover:bg-green-700 text-white;
+    background-color: hsl(var(--buy-color));
+  }
+
+  .sell-button {
+    @apply bg-red-600 hover:bg-red-700 text-white;
+    background-color: hsl(var(--sell-color));
+  }
+
+  .order-book-bid {
+    @apply text-green-400 bg-green-400/10;
+    color: hsl(var(--buy-color));
+    background-color: hsl(var(--buy-color) / 0.1);
+  }
+
+  .order-book-ask {
+    @apply text-red-400 bg-red-400/10;
+    color: hsl(var(--sell-color));
+    background-color: hsl(var(--sell-color) / 0.1);
+  }
+
+  .chart-container {
+    @apply bg-card border border-border rounded-lg overflow-hidden;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+  }
+
+  .market-data-row {
+    @apply hover:bg-muted/50 transition-colors cursor-pointer;
+  }
+
+  .market-data-row:hover {
+    background-color: hsl(var(--muted) / 0.5);
+  }
+
+  /* Animation classes */
+  .fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .pulse-green {
+    animation: pulseGreen 1s ease-in-out infinite;
+  }
+
+  .pulse-red {
+    animation: pulseRed 1s ease-in-out infinite;
+  }
+
+  /* Glow effects */
+  .glow-green {
+    box-shadow: 0 0 20px hsl(var(--buy-color) / 0.3);
+  }
+
+  .glow-red {
+    box-shadow: 0 0 20px hsl(var(--sell-color) / 0.3);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px hsl(var(--chart-blue) / 0.3);
+  }
+}
+
+@layer utilities {
+  /* Custom utilities */
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--chart-blue)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-gradient-trading {
+    background: linear-gradient(135deg, hsl(var(--background)), hsl(var(--card)));
+  }
+
+  .border-gradient {
+    border-image: linear-gradient(135deg, hsl(var(--border)), hsl(var(--primary))) 1;
+  }
+}
+
+/* Keyframe animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseGreen {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--buy-color) / 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px hsl(var(--buy-color) / 0);
+  }
+}
+
+@keyframes pulseRed {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--sell-color) / 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px hsl(var(--sell-color) / 0);
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

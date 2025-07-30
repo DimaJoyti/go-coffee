@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/DimaJoyti/go-coffee/crypto-terminal/internal/middleware"
-		"github.com/gorilla/websocket"
+	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -18,16 +18,25 @@ import (
 type MessageType string
 
 const (
-	MessageTypeMarketData     MessageType = "market_data"
-	MessageTypePortfolio      MessageType = "portfolio"
-	MessageTypeAlert          MessageType = "alert"
-	MessageTypeOrderFlow      MessageType = "order_flow"
-	MessageTypeHFT            MessageType = "hft"
-	MessageTypeNews           MessageType = "news"
-	MessageTypeSubscribe      MessageType = "subscribe"
-	MessageTypeUnsubscribe    MessageType = "unsubscribe"
-	MessageTypeHeartbeat      MessageType = "heartbeat"
-	MessageTypeError          MessageType = "error"
+	MessageTypeMarketData  MessageType = "market_data"
+	MessageTypePortfolio   MessageType = "portfolio"
+	MessageTypeAlert       MessageType = "alert"
+	MessageTypeOrderFlow   MessageType = "order_flow"
+	MessageTypeHFT         MessageType = "hft"
+	MessageTypeNews        MessageType = "news"
+	MessageTypeSubscribe   MessageType = "subscribe"
+	MessageTypeUnsubscribe MessageType = "unsubscribe"
+	MessageTypeHeartbeat   MessageType = "heartbeat"
+	MessageTypeError       MessageType = "error"
+	// Enhanced trading message types
+	MessageTypeOrderBook    MessageType = "order_book"
+	MessageTypeTrade        MessageType = "trade"
+	MessageTypeTicker       MessageType = "ticker"
+	MessageTypeDepth        MessageType = "depth"
+	MessageTypePing         MessageType = "ping"
+	MessageTypePong         MessageType = "pong"
+	MessageTypeConnected    MessageType = "connected"
+	MessageTypeDisconnected MessageType = "disconnected"
 )
 
 // Message represents a WebSocket message
@@ -346,7 +355,7 @@ func (h *EnhancedHub) GetClientCount() int {
 func (h *EnhancedHub) GetSubscriptionCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	
+
 	count := 0
 	for _, subscribers := range h.subscriptions {
 		count += len(subscribers)
@@ -358,7 +367,7 @@ func (h *EnhancedHub) GetSubscriptionCount() int {
 func (h *EnhancedHub) GetChannels() []string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	
+
 	channels := make([]string, 0, len(h.subscriptions))
 	for channel := range h.subscriptions {
 		channels = append(channels, channel)
