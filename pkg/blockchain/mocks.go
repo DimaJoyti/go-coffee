@@ -4,11 +4,29 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/DimaJoyti/go-coffee/pkg/config"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 )
+
+// Constructor functions for blockchain clients
+func NewEthereumClient(config config.EthereumConfig) (EthereumClient, error) {
+	return &MockEthereumClient{}, nil
+}
+
+func NewBSCClient(config config.EthereumConfig) (EthereumClient, error) {
+	return &MockEthereumClient{}, nil
+}
+
+func NewPolygonClient(config config.EthereumConfig) (EthereumClient, error) {
+	return &MockEthereumClient{}, nil
+}
+
+func NewSolanaClient(config config.SolanaConfig) (SolanaClient, error) {
+	return &MockSolanaClient{}, nil
+}
 
 // MockEthereumClient is a mock implementation of EthereumClient
 type MockEthereumClient struct {

@@ -1,0 +1,448 @@
+---
+# Enhanced Producer Service with OpenTelemetry
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer-service
+  namespace: go-coffee-platform
+  labels:
+    app: producer-service
+    component: core
+    tier: api
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: producer-service
+  template:
+    metadata:
+      labels:
+        app: producer-service
+        component: core
+        tier: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: go-coffee-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: producer
+        image: go-coffee/producer:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "3000"
+        - name: KAFKA_BROKERS
+          value: "kafka:9092"
+        - name: KAFKA_TOPIC
+          value: "coffee_orders"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: redis-url
+        # OpenTelemetry Configuration
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector.go-coffee-monitoring:4317"
+        - name: OTEL_SERVICE_NAME
+          value: "producer-service"
+        - name: OTEL_SERVICE_VERSION
+          value: "2.0.0"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.namespace=go-coffee-platform,deployment.environment=production"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_METRICS_EXPORTER
+          value: "otlp"
+        - name: OTEL_LOGS_EXPORTER
+          value: "otlp"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
+        - name: OTEL_PROPAGATORS
+          value: "tracecontext,baggage,b3"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: producer-service
+  namespace: go-coffee-platform
+  labels:
+    app: producer-service
+    component: core
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+    protocol: TCP
+  selector:
+    app: producer-service
+---
+# Enhanced Web3 Payment Service with OpenTelemetry
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web3-payment-service
+  namespace: go-coffee-platform
+  labels:
+    app: web3-payment-service
+    component: web3
+    tier: api
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: web3-payment-service
+  template:
+    metadata:
+      labels:
+        app: web3-payment-service
+        component: web3
+        tier: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8083"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: go-coffee-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: web3-payment
+        image: go-coffee/web3-payment:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8083
+          name: http
+          protocol: TCP
+        - containerPort: 8084
+          name: health
+          protocol: TCP
+        env:
+        - name: WEB3_PAYMENT_PORT
+          value: "8083"
+        - name: WEB3_PAYMENT_HEALTH_PORT
+          value: "8084"
+        - name: WEB3_SUPPORTED_CHAINS
+          value: '["ethereum","bsc","polygon","solana"]'
+        - name: WEB3_SUPPORTED_CURRENCIES
+          value: '["ETH","BNB","MATIC","SOL","USDC","USDT","COFFEE"]'
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: redis-url
+        - name: BLOCKCHAIN_ETHEREUM_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: ethereum-rpc-url
+        - name: BLOCKCHAIN_BSC_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: bsc-rpc-url
+        - name: BLOCKCHAIN_POLYGON_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: polygon-rpc-url
+        - name: BLOCKCHAIN_SOLANA_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: solana-rpc-url
+        # OpenTelemetry Configuration
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector.go-coffee-monitoring:4317"
+        - name: OTEL_SERVICE_NAME
+          value: "web3-payment-service"
+        - name: OTEL_SERVICE_VERSION
+          value: "2.0.0"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.namespace=go-coffee-platform,deployment.environment=production,service.component=web3"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_METRICS_EXPORTER
+          value: "otlp"
+        - name: OTEL_LOGS_EXPORTER
+          value: "otlp"
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1500m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8084
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8084
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8084
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web3-payment-service
+  namespace: go-coffee-platform
+  labels:
+    app: web3-payment-service
+    component: web3
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8083"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8083
+    protocol: TCP
+  - name: health
+    port: 8084
+    targetPort: 8084
+    protocol: TCP
+  selector:
+    app: web3-payment-service
+---
+# Enhanced AI Orchestrator Service with OpenTelemetry
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-orchestrator-service
+  namespace: go-coffee-platform
+  labels:
+    app: ai-orchestrator-service
+    component: ai
+    tier: orchestration
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: ai-orchestrator-service
+  template:
+    metadata:
+      labels:
+        app: ai-orchestrator-service
+        component: ai
+        tier: orchestration
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8094"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: go-coffee-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: ai-orchestrator
+        image: go-coffee/ai-orchestrator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8094
+          name: http
+          protocol: TCP
+        - containerPort: 8095
+          name: health
+          protocol: TCP
+        env:
+        - name: AI_ORCHESTRATOR_PORT
+          value: "8094"
+        - name: AI_ORCHESTRATOR_HEALTH_PORT
+          value: "8095"
+        - name: AI_KAFKA_BROKERS
+          value: '["kafka:9092"]'
+        - name: AI_KAFKA_TOPIC
+          value: "ai_agents"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: redis-url
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: openai-api-key
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: go-coffee-secrets
+              key: gemini-api-key
+        # OpenTelemetry Configuration
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector.go-coffee-monitoring:4317"
+        - name: OTEL_SERVICE_NAME
+          value: "ai-orchestrator-service"
+        - name: OTEL_SERVICE_VERSION
+          value: "2.0.0"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.namespace=go-coffee-platform,deployment.environment=production,service.component=ai"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_METRICS_EXPORTER
+          value: "otlp"
+        - name: OTEL_LOGS_EXPORTER
+          value: "otlp"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8095
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8095
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8095
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-orchestrator-service
+  namespace: go-coffee-platform
+  labels:
+    app: ai-orchestrator-service
+    component: ai
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8094"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8094
+    protocol: TCP
+  - name: health
+    port: 8095
+    targetPort: 8095
+    protocol: TCP
+  selector:
+    app: ai-orchestrator-service

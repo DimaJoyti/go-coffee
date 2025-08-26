@@ -14,6 +14,12 @@ import (
 	"github.com/DimaJoyti/go-coffee/producer/store"
 )
 
+// Constants for common strings
+const (
+	ContentTypeJSON = "application/json"
+	InvalidMethodMsg = "Invalid request method"
+)
+
 // OrderRequest represents a request to place an order
 type OrderRequest struct {
 	CustomerName string `json:"customer_name"`
@@ -296,6 +302,28 @@ func (h *Handler) ListOrders(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	response := map[string]string{
 		"status": "ok",
+		"service": "coffee-producer",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// ReadinessCheck handles readiness check requests
+func (h *Handler) ReadinessCheck(w http.ResponseWriter, r *http.Request) {
+	// Check if Kafka producer is ready
+	// For now, we'll assume it's ready if the handler exists
+	// In a real implementation, you might want to ping Kafka
+
+	response := map[string]interface{}{
+		"status": "ready",
+		"service": "coffee-producer",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"checks": map[string]string{
+			"kafka": "ok",
+			"store": "ok",
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")

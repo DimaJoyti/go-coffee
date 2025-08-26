@@ -9,6 +9,7 @@ require (
 	github.com/IBM/sarama v1.45.2
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.19.0
+	go.uber.org/zap v1.27.0
 )
 
 require (
@@ -33,6 +34,7 @@ require (
 	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect

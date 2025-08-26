@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config represents the application configuration
@@ -37,6 +38,9 @@ type Config struct {
 	// AI configuration
 	AI AIConfig `json:"ai"`
 
+	// Analytics configuration
+	Analytics AnalyticsConfig `json:"analytics"`
+
 	// External integrations
 	Integrations IntegrationsConfig `json:"integrations"`
 
@@ -49,19 +53,19 @@ type Config struct {
 
 // ServerConfig represents server configuration
 type ServerConfig struct {
-	APIGatewayPort    int    `json:"api_gateway_port"`
-	ProducerPort      int    `json:"producer_port"`
-	ConsumerPort      int    `json:"consumer_port"`
-	StreamsPort       int    `json:"streams_port"`
-	AISearchPort      int    `json:"ai_search_port"`
-	AuthServicePort   int    `json:"auth_service_port"`
-	PaymentServicePort int   `json:"payment_service_port"`
-	OrderServicePort   int   `json:"order_service_port"`
-	KitchenServicePort int   `json:"kitchen_service_port"`
-	Host              string `json:"host"`
-	ReadTimeout       string `json:"read_timeout"`
-	WriteTimeout      string `json:"write_timeout"`
-	IdleTimeout       string `json:"idle_timeout"`
+	APIGatewayPort     int    `json:"api_gateway_port"`
+	ProducerPort       int    `json:"producer_port"`
+	ConsumerPort       int    `json:"consumer_port"`
+	StreamsPort        int    `json:"streams_port"`
+	AISearchPort       int    `json:"ai_search_port"`
+	AuthServicePort    int    `json:"auth_service_port"`
+	PaymentServicePort int    `json:"payment_service_port"`
+	OrderServicePort   int    `json:"order_service_port"`
+	KitchenServicePort int    `json:"kitchen_service_port"`
+	Host               string `json:"host"`
+	ReadTimeout        string `json:"read_timeout"`
+	WriteTimeout       string `json:"write_timeout"`
+	IdleTimeout        string `json:"idle_timeout"`
 }
 
 // DatabaseConfig represents database configuration
@@ -94,42 +98,44 @@ type RedisConfig struct {
 
 // KafkaConfig represents Kafka configuration
 type KafkaConfig struct {
-	Brokers         []string `json:"brokers"`
-	Topic           string   `json:"topic"`
-	ProcessedTopic  string   `json:"processed_topic"`
-	ConsumerGroup   string   `json:"consumer_group"`
-	WorkerPoolSize  int      `json:"worker_pool_size"`
-	RetryMax        int      `json:"retry_max"`
-	RequiredAcks    string   `json:"required_acks"`
+	Brokers        []string `json:"brokers"`
+	Topic          string   `json:"topic"`
+	ProcessedTopic string   `json:"processed_topic"`
+	ConsumerGroup  string   `json:"consumer_group"`
+	WorkerPoolSize int      `json:"worker_pool_size"`
+	RetryMax       int      `json:"retry_max"`
+	RequiredAcks   string   `json:"required_acks"`
 }
 
 // SecurityConfig represents security configuration
 type SecurityConfig struct {
-	JWTSecret           string `json:"jwt_secret"`
-	JWTExpiry           string `json:"jwt_expiry"`
-	RefreshTokenExpiry  string `json:"refresh_token_expiry"`
-	JWTIssuer           string `json:"jwt_issuer"`
-	JWTAudience         string `json:"jwt_audience"`
-	APIKeySecret        string `json:"api_key_secret"`
-	WebhookSecret       string `json:"webhook_secret"`
-	EncryptionKey       string `json:"encryption_key"`
+	JWTSecret          string `json:"jwt_secret"`
+	JWTExpiry          string `json:"jwt_expiry"`
+	RefreshTokenExpiry string `json:"refresh_token_expiry"`
+	JWTIssuer          string `json:"jwt_issuer"`
+	JWTAudience        string `json:"jwt_audience"`
+	APIKeySecret       string `json:"api_key_secret"`
+	WebhookSecret      string `json:"webhook_secret"`
+	EncryptionKey      string `json:"encryption_key"`
 }
 
 // Web3Config represents Web3 configuration
 type Web3Config struct {
-	Ethereum EthereumConfig `json:"ethereum"`
-	Bitcoin  BitcoinConfig  `json:"bitcoin"`
-	Solana   SolanaConfig   `json:"solana"`
-	DeFi     DeFiConfig     `json:"defi"`
+	Ethereum   EthereumConfig   `json:"ethereum"`
+	Bitcoin    BitcoinConfig    `json:"bitcoin"`
+	Solana     SolanaConfig     `json:"solana"`
+	DeFi       DeFiConfig       `json:"defi"`
+	Payment    PaymentConfig    `json:"payment"`
+	Blockchain BlockchainConfig `json:"blockchain"`
 }
 
 // EthereumConfig represents Ethereum configuration
 type EthereumConfig struct {
-	RPCURL      string `json:"rpc_url"`
-	TestnetURL  string `json:"testnet_url"`
-	PrivateKey  string `json:"private_key"`
-	GasLimit    int64  `json:"gas_limit"`
-	GasPrice    int64  `json:"gas_price"`
+	RPCURL     string `json:"rpc_url"`
+	TestnetURL string `json:"testnet_url"`
+	PrivateKey string `json:"private_key"`
+	GasLimit   int64  `json:"gas_limit"`
+	GasPrice   int64  `json:"gas_price"`
 }
 
 // BitcoinConfig represents Bitcoin configuration
@@ -148,35 +154,140 @@ type SolanaConfig struct {
 
 // DeFiConfig represents DeFi configuration
 type DeFiConfig struct {
-	UniswapV3Router      string `json:"uniswap_v3_router"`
-	AaveLendingPool      string `json:"aave_lending_pool"`
-	CompoundComptroller  string `json:"compound_comptroller"`
+	UniswapV3Router     string `json:"uniswap_v3_router"`
+	AaveLendingPool     string `json:"aave_lending_pool"`
+	CompoundComptroller string `json:"compound_comptroller"`
 
 	// Enhanced DeFi configuration
-	OneInchAPIKey        string `json:"oneinch_api_key"`
-	ChainlinkEnabled     bool   `json:"chainlink_enabled"`
-	ArbitrageEnabled     bool   `json:"arbitrage_enabled"`
-	YieldFarmingEnabled  bool   `json:"yield_farming_enabled"`
-	TradingBotsEnabled   bool   `json:"trading_bots_enabled"`
+	OneInchAPIKey       string `json:"oneinch_api_key"`
+	ChainlinkEnabled    bool   `json:"chainlink_enabled"`
+	ArbitrageEnabled    bool   `json:"arbitrage_enabled"`
+	YieldFarmingEnabled bool   `json:"yield_farming_enabled"`
+	TradingBotsEnabled  bool   `json:"trading_bots_enabled"`
+}
+
+// PaymentConfig represents payment processing configuration
+type PaymentConfig struct {
+	Port                int      `json:"port"`
+	HealthPort          int      `json:"health_port"`
+	SupportedChains     []string `json:"supported_chains"`
+	SupportedCurrencies []string `json:"supported_currencies"`
+	PaymentTimeout      int      `json:"payment_timeout_minutes"`
+	ConfirmationBlocks  int      `json:"confirmation_blocks"`
+	EnableTestMode      bool     `json:"enable_test_mode"`
+}
+
+// BlockchainConfig represents blockchain client configuration
+type BlockchainConfig struct {
+	Ethereum EthereumConfig `json:"ethereum"`
+	BSC      EthereumConfig `json:"bsc"`
+	Polygon  EthereumConfig `json:"polygon"`
+	Solana   SolanaConfig   `json:"solana"`
 }
 
 // AIConfig represents AI configuration
 type AIConfig struct {
-	GeminiAPIKey            string `json:"gemini_api_key"`
-	OpenAIAPIKey            string `json:"openai_api_key"`
-	OllamaURL               string `json:"ollama_url"`
-	SearchEmbeddingModel    string `json:"search_embedding_model"`
-	SearchVectorDimensions  int    `json:"search_vector_dimensions"`
+	GeminiAPIKey              string  `json:"gemini_api_key"`
+	OpenAIAPIKey              string  `json:"openai_api_key"`
+	OllamaURL                 string  `json:"ollama_url"`
+	SearchEmbeddingModel      string  `json:"search_embedding_model"`
+	SearchVectorDimensions    int     `json:"search_vector_dimensions"`
 	SearchSimilarityThreshold float64 `json:"search_similarity_threshold"`
-	SearchMaxResults        int    `json:"search_max_results"`
+	SearchMaxResults          int     `json:"search_max_results"`
+
+	// AI Orchestrator configuration
+	Orchestrator OrchestratorConfig `json:"orchestrator"`
+	Kafka        KafkaConfig        `json:"kafka"`
+	Agents       AgentsConfig       `json:"agents"`
+}
+
+// OrchestratorConfig represents AI orchestrator configuration
+type OrchestratorConfig struct {
+	Port         int `json:"port"`
+	HealthPort   int `json:"health_port"`
+	MaxTasks     int `json:"max_tasks"`
+	MaxWorkflows int `json:"max_workflows"`
+}
+
+// AgentsConfig represents AI agents configuration
+type AgentsConfig struct {
+	BeverageInventor         AgentConfig `json:"beverage_inventor"`
+	InventoryManager         AgentConfig `json:"inventory_manager"`
+	TaskManager              AgentConfig `json:"task_manager"`
+	SocialMedia              AgentConfig `json:"social_media"`
+	FeedbackAnalyst          AgentConfig `json:"feedback_analyst"`
+	Scheduler                AgentConfig `json:"scheduler"`
+	InterLocationCoordinator AgentConfig `json:"inter_location_coordinator"`
+	Notifier                 AgentConfig `json:"notifier"`
+	TastingCoordinator       AgentConfig `json:"tasting_coordinator"`
+}
+
+// AgentConfig represents individual agent configuration
+type AgentConfig struct {
+	Enabled    bool   `json:"enabled"`
+	MaxTasks   int    `json:"max_tasks"`
+	Timeout    int    `json:"timeout_seconds"`
+	RetryCount int    `json:"retry_count"`
+	LogLevel   string `json:"log_level"`
+}
+
+// AnalyticsConfig represents analytics service configuration
+type AnalyticsConfig struct {
+	Port           int                  `json:"port"`
+	HealthPort     int                  `json:"health_port"`
+	DataProcessing DataProcessingConfig `json:"data_processing"`
+	BusinessIntel  BusinessIntelConfig  `json:"business_intelligence"`
+	RealTime       RealTimeConfig       `json:"real_time"`
+	MultiTenant    MultiTenantConfig    `json:"multi_tenant"`
+	Export         ExportConfig         `json:"export"`
+}
+
+// DataProcessingConfig represents data processing configuration
+type DataProcessingConfig struct {
+	BatchSize       int           `json:"batch_size"`
+	ProcessInterval time.Duration `json:"process_interval"`
+	RetentionDays   int           `json:"retention_days"`
+	Workers         int           `json:"workers"`
+}
+
+// BusinessIntelConfig represents business intelligence configuration
+type BusinessIntelConfig struct {
+	ModelTrainingInterval time.Duration `json:"model_training_interval"`
+	PredictionHorizonDays int           `json:"prediction_horizon_days"`
+	ConfidenceThreshold   float64       `json:"confidence_threshold"`
+	EnableMLModels        bool          `json:"enable_ml_models"`
+}
+
+// RealTimeConfig represents real-time analytics configuration
+type RealTimeConfig struct {
+	StreamBufferSize int           `json:"stream_buffer_size"`
+	EventTTL         time.Duration `json:"event_ttl"`
+	MaxSubscribers   int           `json:"max_subscribers"`
+	EnableStreaming  bool          `json:"enable_streaming"`
+}
+
+// MultiTenantConfig represents multi-tenant configuration
+type MultiTenantConfig struct {
+	Enabled        bool   `json:"enabled"`
+	IsolationLevel string `json:"isolation_level"`
+	MaxTenants     int    `json:"max_tenants"`
+	ResourceLimits bool   `json:"resource_limits"`
+}
+
+// ExportConfig represents export configuration
+type ExportConfig struct {
+	MaxFileSize      int64         `json:"max_file_size_mb"`
+	SupportedFormats []string      `json:"supported_formats"`
+	TempDirectory    string        `json:"temp_directory"`
+	CleanupInterval  time.Duration `json:"cleanup_interval"`
 }
 
 // IntegrationsConfig represents external integrations configuration
 type IntegrationsConfig struct {
-	SMTP      SMTPConfig      `json:"smtp"`
-	Twilio    TwilioConfig    `json:"twilio"`
-	Slack     SlackConfig     `json:"slack"`
-	ClickUp   ClickUpConfig   `json:"clickup"`
+	SMTP         SMTPConfig         `json:"smtp"`
+	Twilio       TwilioConfig       `json:"twilio"`
+	Slack        SlackConfig        `json:"slack"`
+	ClickUp      ClickUpConfig      `json:"clickup"`
 	GoogleSheets GoogleSheetsConfig `json:"google_sheets"`
 }
 
@@ -326,6 +437,26 @@ func GetEnvAsFloat64(key string, defaultValue float64) float64 {
 func GetEnvAsSlice(key string, defaultValue []string) []string {
 	if value, exists := os.LookupEnv(key); exists {
 		return strings.Split(value, ",")
+	}
+	return defaultValue
+}
+
+// GetEnvAsDuration gets environment variable as time.Duration or returns default value
+func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
+	if value, exists := os.LookupEnv(key); exists {
+		if duration, err := time.ParseDuration(value); err == nil {
+			return duration
+		}
+	}
+	return defaultValue
+}
+
+// GetEnvAsInt64 gets environment variable as int64 or returns default value
+func GetEnvAsInt64(key string, defaultValue int64) int64 {
+	if value, exists := os.LookupEnv(key); exists {
+		if intValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return intValue
+		}
 	}
 	return defaultValue
 }
@@ -537,6 +668,43 @@ func LoadConfigFromEnv() (*Config, error) {
 				YieldFarmingEnabled: GetEnvAsBool("YIELD_FARMING_ENABLED", true),
 				TradingBotsEnabled:  GetEnvAsBool("TRADING_BOTS_ENABLED", false),
 			},
+			Payment: PaymentConfig{
+				Port:                GetEnvAsInt("WEB3_PAYMENT_PORT", 8083),
+				HealthPort:          GetEnvAsInt("WEB3_PAYMENT_HEALTH_PORT", 8084),
+				SupportedChains:     GetEnvAsSlice("WEB3_SUPPORTED_CHAINS", []string{"ethereum", "bsc", "polygon", "solana"}),
+				SupportedCurrencies: GetEnvAsSlice("WEB3_SUPPORTED_CURRENCIES", []string{"ETH", "BNB", "MATIC", "SOL", "USDC", "USDT", "COFFEE"}),
+				PaymentTimeout:      GetEnvAsInt("WEB3_PAYMENT_TIMEOUT_MINUTES", 15),
+				ConfirmationBlocks:  GetEnvAsInt("WEB3_CONFIRMATION_BLOCKS", 3),
+				EnableTestMode:      GetEnvAsBool("WEB3_ENABLE_TEST_MODE", true),
+			},
+			Blockchain: BlockchainConfig{
+				Ethereum: EthereumConfig{
+					RPCURL:     GetEnv("BLOCKCHAIN_ETHEREUM_RPC_URL", "https://mainnet.infura.io/v3/your-project-id"),
+					TestnetURL: GetEnv("BLOCKCHAIN_ETHEREUM_TESTNET_RPC_URL", "https://goerli.infura.io/v3/your-project-id"),
+					PrivateKey: GetEnv("BLOCKCHAIN_ETHEREUM_PRIVATE_KEY", "your-ethereum-private-key"),
+					GasLimit:   int64(GetEnvAsInt("BLOCKCHAIN_ETHEREUM_GAS_LIMIT", 21000)),
+					GasPrice:   int64(GetEnvAsInt("BLOCKCHAIN_ETHEREUM_GAS_PRICE", 20000000000)),
+				},
+				BSC: EthereumConfig{
+					RPCURL:     GetEnv("BLOCKCHAIN_BSC_RPC_URL", "https://bsc-dataseed.binance.org/"),
+					TestnetURL: GetEnv("BLOCKCHAIN_BSC_TESTNET_RPC_URL", "https://data-seed-prebsc-1-s1.binance.org:8545/"),
+					PrivateKey: GetEnv("BLOCKCHAIN_BSC_PRIVATE_KEY", "your-bsc-private-key"),
+					GasLimit:   int64(GetEnvAsInt("BLOCKCHAIN_BSC_GAS_LIMIT", 21000)),
+					GasPrice:   int64(GetEnvAsInt("BLOCKCHAIN_BSC_GAS_PRICE", 5000000000)),
+				},
+				Polygon: EthereumConfig{
+					RPCURL:     GetEnv("BLOCKCHAIN_POLYGON_RPC_URL", "https://polygon-rpc.com/"),
+					TestnetURL: GetEnv("BLOCKCHAIN_POLYGON_TESTNET_RPC_URL", "https://rpc-mumbai.maticvigil.com/"),
+					PrivateKey: GetEnv("BLOCKCHAIN_POLYGON_PRIVATE_KEY", "your-polygon-private-key"),
+					GasLimit:   int64(GetEnvAsInt("BLOCKCHAIN_POLYGON_GAS_LIMIT", 21000)),
+					GasPrice:   int64(GetEnvAsInt("BLOCKCHAIN_POLYGON_GAS_PRICE", 30000000000)),
+				},
+				Solana: SolanaConfig{
+					RPCURL:     GetEnv("BLOCKCHAIN_SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"),
+					TestnetURL: GetEnv("BLOCKCHAIN_SOLANA_TESTNET_RPC_URL", "https://api.testnet.solana.com"),
+					PrivateKey: GetEnv("BLOCKCHAIN_SOLANA_PRIVATE_KEY", "your-solana-private-key"),
+				},
+			},
 		},
 
 		AI: AIConfig{
@@ -547,6 +715,123 @@ func LoadConfigFromEnv() (*Config, error) {
 			SearchVectorDimensions:    GetEnvAsInt("AI_SEARCH_VECTOR_DIMENSIONS", 384),
 			SearchSimilarityThreshold: GetEnvAsFloat64("AI_SEARCH_SIMILARITY_THRESHOLD", 0.7),
 			SearchMaxResults:          GetEnvAsInt("AI_SEARCH_MAX_RESULTS", 50),
+
+			Orchestrator: OrchestratorConfig{
+				Port:         GetEnvAsInt("AI_ORCHESTRATOR_PORT", 8094),
+				HealthPort:   GetEnvAsInt("AI_ORCHESTRATOR_HEALTH_PORT", 8095),
+				MaxTasks:     GetEnvAsInt("AI_ORCHESTRATOR_MAX_TASKS", 1000),
+				MaxWorkflows: GetEnvAsInt("AI_ORCHESTRATOR_MAX_WORKFLOWS", 100),
+			},
+
+			Kafka: KafkaConfig{
+				Brokers:        GetEnvAsSlice("AI_KAFKA_BROKERS", []string{"localhost:9092"}),
+				Topic:          GetEnv("AI_KAFKA_TOPIC", "ai_agents"),
+				ConsumerGroup:  GetEnv("AI_KAFKA_CONSUMER_GROUP", "ai-orchestrator-group"),
+				RetryMax:       GetEnvAsInt("AI_KAFKA_RETRY_MAX", 3),
+				RequiredAcks:   GetEnv("AI_KAFKA_REQUIRED_ACKS", "all"),
+				WorkerPoolSize: GetEnvAsInt("AI_KAFKA_WORKER_POOL_SIZE", 5),
+			},
+
+			Agents: AgentsConfig{
+				BeverageInventor: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_BEVERAGE_INVENTOR_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_BEVERAGE_INVENTOR_MAX_TASKS", 10),
+					Timeout:    GetEnvAsInt("AI_AGENT_BEVERAGE_INVENTOR_TIMEOUT", 30),
+					RetryCount: GetEnvAsInt("AI_AGENT_BEVERAGE_INVENTOR_RETRY_COUNT", 3),
+					LogLevel:   GetEnv("AI_AGENT_BEVERAGE_INVENTOR_LOG_LEVEL", "info"),
+				},
+				InventoryManager: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_INVENTORY_MANAGER_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_INVENTORY_MANAGER_MAX_TASKS", 10),
+					Timeout:    GetEnvAsInt("AI_AGENT_INVENTORY_MANAGER_TIMEOUT", 30),
+					RetryCount: GetEnvAsInt("AI_AGENT_INVENTORY_MANAGER_RETRY_COUNT", 3),
+					LogLevel:   GetEnv("AI_AGENT_INVENTORY_MANAGER_LOG_LEVEL", "info"),
+				},
+				TaskManager: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_TASK_MANAGER_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_TASK_MANAGER_MAX_TASKS", 20),
+					Timeout:    GetEnvAsInt("AI_AGENT_TASK_MANAGER_TIMEOUT", 30),
+					RetryCount: GetEnvAsInt("AI_AGENT_TASK_MANAGER_RETRY_COUNT", 3),
+					LogLevel:   GetEnv("AI_AGENT_TASK_MANAGER_LOG_LEVEL", "info"),
+				},
+				SocialMedia: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_SOCIAL_MEDIA_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_SOCIAL_MEDIA_MAX_TASKS", 5),
+					Timeout:    GetEnvAsInt("AI_AGENT_SOCIAL_MEDIA_TIMEOUT", 60),
+					RetryCount: GetEnvAsInt("AI_AGENT_SOCIAL_MEDIA_RETRY_COUNT", 2),
+					LogLevel:   GetEnv("AI_AGENT_SOCIAL_MEDIA_LOG_LEVEL", "info"),
+				},
+				FeedbackAnalyst: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_FEEDBACK_ANALYST_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_FEEDBACK_ANALYST_MAX_TASKS", 15),
+					Timeout:    GetEnvAsInt("AI_AGENT_FEEDBACK_ANALYST_TIMEOUT", 45),
+					RetryCount: GetEnvAsInt("AI_AGENT_FEEDBACK_ANALYST_RETRY_COUNT", 3),
+					LogLevel:   GetEnv("AI_AGENT_FEEDBACK_ANALYST_LOG_LEVEL", "info"),
+				},
+				Scheduler: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_SCHEDULER_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_SCHEDULER_MAX_TASKS", 25),
+					Timeout:    GetEnvAsInt("AI_AGENT_SCHEDULER_TIMEOUT", 30),
+					RetryCount: GetEnvAsInt("AI_AGENT_SCHEDULER_RETRY_COUNT", 3),
+					LogLevel:   GetEnv("AI_AGENT_SCHEDULER_LOG_LEVEL", "info"),
+				},
+				InterLocationCoordinator: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_INTER_LOCATION_COORDINATOR_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_INTER_LOCATION_COORDINATOR_MAX_TASKS", 8),
+					Timeout:    GetEnvAsInt("AI_AGENT_INTER_LOCATION_COORDINATOR_TIMEOUT", 60),
+					RetryCount: GetEnvAsInt("AI_AGENT_INTER_LOCATION_COORDINATOR_RETRY_COUNT", 3),
+					LogLevel:   GetEnv("AI_AGENT_INTER_LOCATION_COORDINATOR_LOG_LEVEL", "info"),
+				},
+				Notifier: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_NOTIFIER_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_NOTIFIER_MAX_TASKS", 50),
+					Timeout:    GetEnvAsInt("AI_AGENT_NOTIFIER_TIMEOUT", 15),
+					RetryCount: GetEnvAsInt("AI_AGENT_NOTIFIER_RETRY_COUNT", 2),
+					LogLevel:   GetEnv("AI_AGENT_NOTIFIER_LOG_LEVEL", "info"),
+				},
+				TastingCoordinator: AgentConfig{
+					Enabled:    GetEnvAsBool("AI_AGENT_TASTING_COORDINATOR_ENABLED", true),
+					MaxTasks:   GetEnvAsInt("AI_AGENT_TASTING_COORDINATOR_MAX_TASKS", 5),
+					Timeout:    GetEnvAsInt("AI_AGENT_TASTING_COORDINATOR_TIMEOUT", 120),
+					RetryCount: GetEnvAsInt("AI_AGENT_TASTING_COORDINATOR_RETRY_COUNT", 2),
+					LogLevel:   GetEnv("AI_AGENT_TASTING_COORDINATOR_LOG_LEVEL", "info"),
+				},
+			},
+		},
+
+		Analytics: AnalyticsConfig{
+			Port:       GetEnvAsInt("ANALYTICS_PORT", 8096),
+			HealthPort: GetEnvAsInt("ANALYTICS_HEALTH_PORT", 8097),
+			DataProcessing: DataProcessingConfig{
+				BatchSize:       GetEnvAsInt("ANALYTICS_BATCH_SIZE", 1000),
+				ProcessInterval: GetEnvAsDuration("ANALYTICS_PROCESS_INTERVAL", 30*time.Second),
+				RetentionDays:   GetEnvAsInt("ANALYTICS_RETENTION_DAYS", 90),
+				Workers:         GetEnvAsInt("ANALYTICS_WORKERS", 4),
+			},
+			BusinessIntel: BusinessIntelConfig{
+				ModelTrainingInterval: GetEnvAsDuration("ANALYTICS_MODEL_TRAINING_INTERVAL", 24*time.Hour),
+				PredictionHorizonDays: GetEnvAsInt("ANALYTICS_PREDICTION_HORIZON_DAYS", 30),
+				ConfidenceThreshold:   GetEnvAsFloat64("ANALYTICS_CONFIDENCE_THRESHOLD", 0.8),
+				EnableMLModels:        GetEnvAsBool("ANALYTICS_ENABLE_ML_MODELS", true),
+			},
+			RealTime: RealTimeConfig{
+				StreamBufferSize: GetEnvAsInt("ANALYTICS_STREAM_BUFFER_SIZE", 10000),
+				EventTTL:         GetEnvAsDuration("ANALYTICS_EVENT_TTL", 24*time.Hour),
+				MaxSubscribers:   GetEnvAsInt("ANALYTICS_MAX_SUBSCRIBERS", 100),
+				EnableStreaming:  GetEnvAsBool("ANALYTICS_ENABLE_STREAMING", true),
+			},
+			MultiTenant: MultiTenantConfig{
+				Enabled:        GetEnvAsBool("ANALYTICS_MULTI_TENANT_ENABLED", true),
+				IsolationLevel: GetEnv("ANALYTICS_ISOLATION_LEVEL", "tenant"),
+				MaxTenants:     GetEnvAsInt("ANALYTICS_MAX_TENANTS", 100),
+				ResourceLimits: GetEnvAsBool("ANALYTICS_RESOURCE_LIMITS", true),
+			},
+			Export: ExportConfig{
+				MaxFileSize:      GetEnvAsInt64("ANALYTICS_MAX_FILE_SIZE_MB", 100),
+				SupportedFormats: GetEnvAsSlice("ANALYTICS_SUPPORTED_FORMATS", []string{"csv", "excel", "pdf", "json"}),
+				TempDirectory:    GetEnv("ANALYTICS_TEMP_DIRECTORY", "/tmp/analytics"),
+				CleanupInterval:  GetEnvAsDuration("ANALYTICS_CLEANUP_INTERVAL", 1*time.Hour),
+			},
 		},
 
 		Integrations: IntegrationsConfig{

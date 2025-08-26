@@ -1,0 +1,378 @@
+---
+# Service Account for Go Coffee Services
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: go-coffee-service-account
+  namespace: go-coffee-platform
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+automountServiceAccountToken: true
+---
+# ClusterRole for Go Coffee Services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: go-coffee-service-role
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+rules:
+# Minimal permissions for service discovery and health checks
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+  resourceNames: [] # Restrict to own pods only
+# Metrics and monitoring
+- apiGroups: [""]
+  resources: ["nodes/metrics", "pods/metrics"]
+  verbs: ["get"]
+---
+# ClusterRoleBinding for Go Coffee Services
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: go-coffee-service-binding
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+subjects:
+- kind: ServiceAccount
+  name: go-coffee-service-account
+  namespace: go-coffee-platform
+roleRef:
+  kind: ClusterRole
+  name: go-coffee-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Pod Security Policy (if PSP is enabled)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: go-coffee-psp
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: false
+---
+# Network Policy for Go Coffee Platform
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-coffee-network-policy
+  namespace: go-coffee-platform
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  # Allow ingress from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+  # Allow inter-service communication within namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-platform
+  egress:
+  # Allow egress to monitoring namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-monitoring
+  # Allow inter-service communication within namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: go-coffee-platform
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow HTTPS egress for external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow HTTP egress for external APIs (if needed)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+---
+# Secret for Go Coffee Platform
+apiVersion: v1
+kind: Secret
+metadata:
+  name: go-coffee-secrets
+  namespace: go-coffee-platform
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: security
+type: Opaque
+stringData:
+  # Database Configuration
+  database-url: "postgres://go_coffee_user:CHANGE_ME@postgres:5432/go_coffee?sslmode=require"
+  
+  # Redis Configuration
+  redis-url: "redis://:CHANGE_ME@redis:6379/0"
+  
+  # Blockchain RPC URLs
+  ethereum-rpc-url: "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"
+  bsc-rpc-url: "https://bsc-dataseed.binance.org/"
+  polygon-rpc-url: "https://polygon-rpc.com/"
+  solana-rpc-url: "https://api.mainnet-beta.solana.com"
+  
+  # AI API Keys
+  openai-api-key: "sk-YOUR_OPENAI_API_KEY"
+  gemini-api-key: "YOUR_GEMINI_API_KEY"
+  
+  # External Integration Keys
+  clickup-api-token: "YOUR_CLICKUP_TOKEN"
+  slack-webhook-url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  google-sheets-credentials: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "client_id": "your-client-id",
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  airtable-api-key: "YOUR_AIRTABLE_API_KEY"
+  
+  # JWT Secrets
+  jwt-secret: "YOUR_SUPER_SECRET_JWT_KEY_CHANGE_ME"
+  jwt-refresh-secret: "YOUR_SUPER_SECRET_REFRESH_KEY_CHANGE_ME"
+---
+# ConfigMap for Go Coffee Platform
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-coffee-config
+  namespace: go-coffee-platform
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: configuration
+data:
+  # Application Configuration
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  ENVIRONMENT: "production"
+  
+  # Kafka Configuration
+  KAFKA_BROKERS: "kafka:9092"
+  KAFKA_TOPIC: "coffee_orders"
+  KAFKA_CONSUMER_GROUP: "go-coffee-consumers"
+  KAFKA_AUTO_OFFSET_RESET: "earliest"
+  KAFKA_ENABLE_AUTO_COMMIT: "true"
+  KAFKA_SESSION_TIMEOUT: "30000"
+  KAFKA_HEARTBEAT_INTERVAL: "3000"
+  
+  # AI Configuration
+  AI_KAFKA_TOPIC: "ai_agents"
+  AI_KAFKA_CONSUMER_GROUP: "ai-orchestrator-group"
+  AI_ORCHESTRATOR_MAX_TASKS: "1000"
+  AI_ORCHESTRATOR_MAX_WORKFLOWS: "100"
+  
+  # Web3 Configuration
+  WEB3_SUPPORTED_CHAINS: '["ethereum","bsc","polygon","solana"]'
+  WEB3_SUPPORTED_CURRENCIES: '["ETH","BNB","MATIC","SOL","USDC","USDT","COFFEE"]'
+  WEB3_PAYMENT_TIMEOUT_MINUTES: "15"
+  WEB3_CONFIRMATION_BLOCKS: "3"
+  WEB3_ENABLE_TEST_MODE: "false"
+  
+  # Monitoring Configuration
+  METRICS_ENABLED: "true"
+  METRICS_PORT: "9090"
+  HEALTH_CHECK_ENABLED: "true"
+  HEALTH_CHECK_INTERVAL: "30s"
+  
+  # OpenTelemetry Configuration
+  OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+  OTEL_PROPAGATORS: "tracecontext,baggage,b3"
+  OTEL_TRACES_SAMPLER: "traceidratio"
+  OTEL_TRACES_SAMPLER_ARG: "0.1"
+  OTEL_METRICS_EXEMPLAR_FILTER: "trace_based"
+  
+  # Security Configuration
+  CORS_ALLOWED_ORIGINS: "https://go-coffee.com,https://app.go-coffee.com"
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+  CORS_ALLOWED_HEADERS: "Content-Type,Authorization,X-Requested-With"
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "100"
+  RATE_LIMIT_BURST: "20"
+  
+  # External Integration Configuration
+  CLICKUP_WORKSPACE_ID: "YOUR_WORKSPACE_ID"
+  SLACK_CHANNEL: "#go-coffee-alerts"
+  GOOGLE_SHEETS_SPREADSHEET_ID: "YOUR_SPREADSHEET_ID"
+  AIRTABLE_BASE_ID: "YOUR_BASE_ID"
+---
+# Pod Disruption Budget for Producer Service
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: producer-service-pdb
+  namespace: go-coffee-platform
+  labels:
+    app: producer-service
+    component: core
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: producer-service
+---
+# Pod Disruption Budget for Web3 Payment Service
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web3-payment-service-pdb
+  namespace: go-coffee-platform
+  labels:
+    app: web3-payment-service
+    component: web3
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web3-payment-service
+---
+# Pod Disruption Budget for AI Orchestrator Service
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-orchestrator-service-pdb
+  namespace: go-coffee-platform
+  labels:
+    app: ai-orchestrator-service
+    component: ai
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ai-orchestrator-service
+---
+# Horizontal Pod Autoscaler for Producer Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: producer-service-hpa
+  namespace: go-coffee-platform
+  labels:
+    app: producer-service
+    component: core
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: producer-service
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+---
+# Horizontal Pod Autoscaler for AI Orchestrator Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-orchestrator-service-hpa
+  namespace: go-coffee-platform
+  labels:
+    app: ai-orchestrator-service
+    component: ai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-orchestrator-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60

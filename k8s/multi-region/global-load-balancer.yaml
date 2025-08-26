@@ -1,0 +1,333 @@
+---
+# Global Load Balancer Configuration for Multi-Region Deployment
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: go-coffee-ssl-cert
+  namespace: go-coffee-platform
+spec:
+  domains:
+  - go-coffee.com
+  - api.go-coffee.com
+  - app.go-coffee.com
+  - analytics.go-coffee.com
+  - *.go-coffee.com
+---
+# Global Static IP
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeGlobalAddress
+metadata:
+  name: go-coffee-global-ip
+  namespace: go-coffee-platform
+spec:
+  description: "Global IP for Go Coffee Platform"
+  ipVersion: IPV4
+---
+# Global HTTP(S) Load Balancer
+apiVersion: networking.gke.io/v1
+kind: FrontendConfig
+metadata:
+  name: go-coffee-frontend-config
+  namespace: go-coffee-platform
+spec:
+  redirectToHttps:
+    enabled: true
+    responseCodeName: MOVED_PERMANENTLY_DEFAULT
+  sslPolicy: go-coffee-ssl-policy
+---
+# SSL Policy
+apiVersion: networking.gke.io/v1beta1
+kind: GCPSSLPolicy
+metadata:
+  name: go-coffee-ssl-policy
+  namespace: go-coffee-platform
+spec:
+  minTlsVersion: TLS_1_2
+  profile: MODERN
+  customFeatures:
+  - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+---
+# Backend Configuration
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: go-coffee-backend-config
+  namespace: go-coffee-platform
+spec:
+  healthCheck:
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 2
+    unhealthyThreshold: 3
+    type: HTTP
+    requestPath: /health
+    port: 8080
+  sessionAffinity:
+    affinityType: "CLIENT_IP"
+    affinityCookieTtlSec: 3600
+  timeoutSec: 30
+  connectionDraining:
+    drainingTimeoutSec: 60
+  cdn:
+    enabled: true
+    cachePolicy:
+      includeHost: true
+      includeProtocol: true
+      includeQueryString: false
+    negativeCaching: true
+    negativeCachingPolicy:
+    - code: 404
+      ttl: 120
+    - code: 410
+      ttl: 120
+  customRequestHeaders:
+    headers:
+    - "X-Client-Region:{client_region}"
+    - "X-Client-City:{client_city}"
+    - "X-Forwarded-Proto:https"
+---
+# Multi-Region Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: go-coffee-global-ingress
+  namespace: go-coffee-platform
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: go-coffee-global-ip
+    networking.gke.io/managed-certificates: go-coffee-ssl-cert
+    kubernetes.io/ingress.class: "gce"
+    cloud.google.com/backend-config: '{"default": "go-coffee-backend-config"}'
+    networking.gke.io/v1beta1.FrontendConfig: go-coffee-frontend-config
+    ingress.gcp.kubernetes.io/frontend-config: go-coffee-frontend-config
+spec:
+  rules:
+  # Main API
+  - host: api.go-coffee.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: producer-service
+            port:
+              number: 80
+  # Web3 Payment API
+  - host: api.go-coffee.com
+    http:
+      paths:
+      - path: /web3
+        pathType: Prefix
+        backend:
+          service:
+            name: web3-payment-service
+            port:
+              number: 80
+  # AI Orchestrator API
+  - host: api.go-coffee.com
+    http:
+      paths:
+      - path: /ai
+        pathType: Prefix
+        backend:
+          service:
+            name: ai-orchestrator-service
+            port:
+              number: 80
+  # Analytics API
+  - host: analytics.go-coffee.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-service
+            port:
+              number: 80
+  # Main Website
+  - host: go-coffee.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 80
+  # App
+  - host: app.go-coffee.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app-service
+            port:
+              number: 80
+---
+# Regional Backend Services for Multi-Region Setup
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-coffee-us-east-backend
+  namespace: go-coffee-platform
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "go-coffee-backend-config"}'
+spec:
+  type: NodePort
+  selector:
+    app: go-coffee-regional
+    region: us-east
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-coffee-us-west-backend
+  namespace: go-coffee-platform
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "go-coffee-backend-config"}'
+spec:
+  type: NodePort
+  selector:
+    app: go-coffee-regional
+    region: us-west
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-coffee-europe-backend
+  namespace: go-coffee-platform
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "go-coffee-backend-config"}'
+spec:
+  type: NodePort
+  selector:
+    app: go-coffee-regional
+    region: europe
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-coffee-asia-backend
+  namespace: go-coffee-platform
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "go-coffee-backend-config"}'
+spec:
+  type: NodePort
+  selector:
+    app: go-coffee-regional
+    region: asia
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+---
+# Traffic Splitting Configuration
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: go-coffee-traffic-split
+  namespace: go-coffee-platform
+spec:
+  hosts:
+  - api.go-coffee.com
+  gateways:
+  - go-coffee-gateway
+  http:
+  - match:
+    - headers:
+        x-client-region:
+          exact: "us-east"
+    route:
+    - destination:
+        host: go-coffee-us-east-backend
+      weight: 100
+  - match:
+    - headers:
+        x-client-region:
+          exact: "us-west"
+    route:
+    - destination:
+        host: go-coffee-us-west-backend
+      weight: 100
+  - match:
+    - headers:
+        x-client-region:
+          exact: "europe"
+    route:
+    - destination:
+        host: go-coffee-europe-backend
+      weight: 100
+  - match:
+    - headers:
+        x-client-region:
+          exact: "asia"
+    route:
+    - destination:
+        host: go-coffee-asia-backend
+      weight: 100
+  - route:
+    - destination:
+        host: go-coffee-us-east-backend
+      weight: 40
+    - destination:
+        host: go-coffee-us-west-backend
+      weight: 30
+    - destination:
+        host: go-coffee-europe-backend
+      weight: 20
+    - destination:
+        host: go-coffee-asia-backend
+      weight: 10
+---
+# Istio Gateway
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: go-coffee-gateway
+  namespace: go-coffee-platform
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: go-coffee-tls-secret
+    hosts:
+    - "*.go-coffee.com"
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*.go-coffee.com"
+    tls:
+      httpsRedirect: true

@@ -33,11 +33,11 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	analytics     *analytics.Service
-	metrics       *monitoring.PrometheusMetrics
+	analytics       *analytics.Service
+	metrics         *monitoring.PrometheusMetrics
 	businessMetrics *monitoring.BusinessMetrics
-	clients       map[*websocket.Conn]bool
-	broadcast     chan []byte
+	clients         map[*websocket.Conn]bool
+	broadcast       chan []byte
 }
 
 func main() {
@@ -46,7 +46,10 @@ func main() {
 	businessMetrics := monitoring.NewBusinessMetrics(metrics)
 
 	// Initialize analytics service
-	analyticsService := analytics.NewService()
+	analyticsService, err := analytics.NewService(nil, nil)
+	if err != nil {
+		log.Fatalf("❌ Failed to initialize analytics service: %v", err)
+	}
 
 	// Create server instance
 	server := &Server{
@@ -410,7 +413,7 @@ func (s *Server) createDashboard(c *gin.Context) {
 
 func (s *Server) getDashboard(c *gin.Context) {
 	id := c.Param("id")
-	dashboard, exists := s.analytics.GetDashboard(id)
+	dashboard, exists := s.analytics.GetDashboardWithExists(id)
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Dashboard not found"})
 		return

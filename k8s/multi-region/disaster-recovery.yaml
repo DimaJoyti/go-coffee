@@ -1,0 +1,353 @@
+---
+# Disaster Recovery Configuration for Go Coffee Platform
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: disaster-recovery-config
+  namespace: go-coffee-platform
+data:
+  # Recovery Time Objective (RTO) and Recovery Point Objective (RPO)
+  rto_minutes: "15"  # Maximum acceptable downtime
+  rpo_minutes: "5"   # Maximum acceptable data loss
+  
+  # Backup Configuration
+  backup_schedule: "0 */6 * * *"  # Every 6 hours
+  backup_retention_days: "30"
+  
+  # Failover Configuration
+  auto_failover_enabled: "true"
+  failover_threshold_errors: "10"
+  failover_threshold_latency_ms: "5000"
+  
+  # Regional Priorities
+  primary_region: "us-east-1"
+  secondary_region: "us-west-2"
+  tertiary_region: "eu-west-1"
+  
+  # Health Check Configuration
+  health_check_interval_seconds: "30"
+  health_check_timeout_seconds: "10"
+  health_check_failure_threshold: "3"
+---
+# Cross-Region Database Replication
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: go-coffee-postgres-primary
+  namespace: go-coffee-platform
+spec:
+  instances: 3
+  primaryUpdateStrategy: unsupervised
+  
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      wal_level: "replica"
+      max_wal_senders: "10"
+      max_replication_slots: "10"
+      hot_standby: "on"
+      archive_mode: "on"
+      archive_command: "gcloud storage cp %p gs://go-coffee-wal-backup/%f"
+  
+  backup:
+    retentionPolicy: "30d"
+    barmanObjectStore:
+      destinationPath: "gs://go-coffee-backup/postgres"
+      gcs:
+        bucket: "go-coffee-backup"
+        path: "/postgres"
+      wal:
+        retention: "7d"
+      data:
+        retention: "30d"
+  
+  monitoring:
+    enabled: true
+    prometheusRule:
+      enabled: true
+  
+  replica:
+    enabled: true
+    source: "go-coffee-postgres-primary"
+---
+# Redis Sentinel for High Availability
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-sentinel
+  namespace: go-coffee-platform
+spec:
+  serviceName: redis-sentinel
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redis-sentinel
+  template:
+    metadata:
+      labels:
+        app: redis-sentinel
+    spec:
+      containers:
+      - name: redis-sentinel
+        image: redis:7-alpine
+        command:
+        - redis-sentinel
+        - /etc/redis/sentinel.conf
+        ports:
+        - containerPort: 26379
+          name: sentinel
+        volumeMounts:
+        - name: config
+          mountPath: /etc/redis
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+      - name: config
+        configMap:
+          name: redis-sentinel-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-sentinel-config
+  namespace: go-coffee-platform
+data:
+  sentinel.conf: |
+    port 26379
+    sentinel monitor go-coffee-redis redis-master 6379 2
+    sentinel down-after-milliseconds go-coffee-redis 5000
+    sentinel failover-timeout go-coffee-redis 10000
+    sentinel parallel-syncs go-coffee-redis 1
+    sentinel auth-pass go-coffee-redis ${REDIS_PASSWORD}
+    logfile ""
+    dir /data
+---
+# Kafka Cross-Region Replication
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaMirrorMaker2
+metadata:
+  name: go-coffee-kafka-mirror
+  namespace: go-coffee-platform
+spec:
+  version: 3.6.0
+  replicas: 3
+  connectCluster: "target-cluster"
+  clusters:
+  - alias: "source-cluster"
+    bootstrapServers: kafka-source:9092
+    config:
+      config.storage.replication.factor: 3
+      offset.storage.replication.factor: 3
+      status.storage.replication.factor: 3
+  - alias: "target-cluster"
+    bootstrapServers: kafka-target:9092
+    config:
+      config.storage.replication.factor: 3
+      offset.storage.replication.factor: 3
+      status.storage.replication.factor: 3
+  mirrors:
+  - sourceCluster: "source-cluster"
+    targetCluster: "target-cluster"
+    sourceConnector:
+      config:
+        replication.factor: 3
+        offset-syncs.topic.replication.factor: 3
+        sync.topic.acls.enabled: "false"
+        refresh.topics.interval.seconds: 60
+    heartbeatConnector:
+      config:
+        heartbeats.topic.replication.factor: 3
+    checkpointConnector:
+      config:
+        checkpoints.topic.replication.factor: 3
+        refresh.groups.interval.seconds: 600
+    topicsPattern: "coffee_.*"
+    groupsPattern: "go-coffee-.*"
+---
+# Automated Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: disaster-recovery-backup
+  namespace: go-coffee-platform
+spec:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: google/cloud-sdk:alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Database backup
+              kubectl exec -n go-coffee-platform postgres-primary-1 -- pg_dump -U postgres go_coffee | gzip > /tmp/db-backup-$(date +%Y%m%d-%H%M%S).sql.gz
+              gsutil cp /tmp/db-backup-*.sql.gz gs://go-coffee-backup/database/
+              
+              # Application state backup
+              kubectl get all -n go-coffee-platform -o yaml > /tmp/k8s-backup-$(date +%Y%m%d-%H%M%S).yaml
+              gsutil cp /tmp/k8s-backup-*.yaml gs://go-coffee-backup/kubernetes/
+              
+              # Clean up old backups
+              gsutil -m rm gs://go-coffee-backup/database/$(gsutil ls gs://go-coffee-backup/database/ | head -n -30)
+              gsutil -m rm gs://go-coffee-backup/kubernetes/$(gsutil ls gs://go-coffee-backup/kubernetes/ | head -n -30)
+            env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /var/secrets/google/key.json
+            volumeMounts:
+            - name: google-cloud-key
+              mountPath: /var/secrets/google
+          volumes:
+          - name: google-cloud-key
+            secret:
+              secretName: google-cloud-key
+          restartPolicy: OnFailure
+---
+# Health Check and Failover Controller
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: disaster-recovery-controller
+  namespace: go-coffee-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: disaster-recovery-controller
+  template:
+    metadata:
+      labels:
+        app: disaster-recovery-controller
+    spec:
+      containers:
+      - name: controller
+        image: go-coffee/disaster-recovery-controller:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PRIMARY_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: disaster-recovery-config
+              key: primary_region
+        - name: SECONDARY_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: disaster-recovery-config
+              key: secondary_region
+        - name: AUTO_FAILOVER_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: disaster-recovery-config
+              key: auto_failover_enabled
+        - name: HEALTH_CHECK_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: disaster-recovery-config
+              key: health_check_interval_seconds
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+# Service Monitor for Disaster Recovery
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: disaster-recovery-monitor
+  namespace: go-coffee-platform
+spec:
+  selector:
+    matchLabels:
+      app: disaster-recovery-controller
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+---
+# Disaster Recovery Alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: disaster-recovery-alerts
+  namespace: go-coffee-platform
+spec:
+  groups:
+  - name: disaster-recovery
+    rules:
+    - alert: PrimaryRegionDown
+      expr: up{job="go-coffee-services", region="us-east-1"} == 0
+      for: 2m
+      labels:
+        severity: critical
+        component: disaster-recovery
+      annotations:
+        summary: "Primary region is down"
+        description: "Primary region us-east-1 has been down for more than 2 minutes"
+        runbook_url: "https://docs.go-coffee.com/runbooks/disaster-recovery"
+    
+    - alert: DatabaseReplicationLag
+      expr: pg_replication_lag_seconds > 300
+      for: 5m
+      labels:
+        severity: warning
+        component: database
+      annotations:
+        summary: "Database replication lag is high"
+        description: "Database replication lag is {{ $value }} seconds"
+    
+    - alert: BackupFailed
+      expr: increase(backup_failures_total[1h]) > 0
+      for: 0m
+      labels:
+        severity: critical
+        component: backup
+      annotations:
+        summary: "Backup job failed"
+        description: "Backup job has failed {{ $value }} times in the last hour"
+    
+    - alert: CrossRegionLatencyHigh
+      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="go-coffee-services"}[5m])) > 2
+      for: 10m
+      labels:
+        severity: warning
+        component: network
+      annotations:
+        summary: "Cross-region latency is high"
+        description: "95th percentile latency is {{ $value }} seconds"

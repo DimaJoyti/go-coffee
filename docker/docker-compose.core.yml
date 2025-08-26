@@ -1,0 +1,271 @@
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo 'ruok' | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    healthcheck:
+      test: ["CMD", "bash", "-c", "unset JMX_PORT; kafka-topics --bootstrap-server kafka:29092 --list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: go_coffee
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Core Coffee Services
+  producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    container_name: coffee-producer
+    ports:
+      - "3000:3000"
+      - "9090:9090"  # metrics
+    environment:
+      - SERVER_PORT=3000
+      - KAFKA_BROKERS=["kafka:29092"]
+      - KAFKA_TOPIC=coffee_orders
+      - KAFKA_RETRY_MAX=5
+      - KAFKA_REQUIRED_ACKS=all
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  consumer:
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile
+    container_name: coffee-consumer
+    ports:
+      - "8081:8081"  # health port
+    environment:
+      - HEALTH_PORT=8081
+      - KAFKA_BROKERS=["kafka:29092"]
+      - KAFKA_TOPIC=coffee_orders
+      - KAFKA_PROCESSED_TOPIC=processed_orders
+      - KAFKA_CONSUMER_GROUP=coffee-consumer-group
+      - KAFKA_WORKER_POOL_SIZE=5
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  streams:
+    build:
+      context: ./streams
+      dockerfile: Dockerfile
+    container_name: coffee-streams
+    ports:
+      - "8082:8082"  # health port
+    environment:
+      - HEALTH_PORT=8082
+      - KAFKA_BROKERS=["kafka:29092"]
+      - KAFKA_INPUT_TOPIC=coffee_orders
+      - KAFKA_OUTPUT_TOPIC=processed_orders
+      - KAFKA_APPLICATION_ID=coffee-streams-app
+      - KAFKA_AUTO_OFFSET_RESET=earliest
+      - KAFKA_PROCESSING_GUARANTEE=at_least_once
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  web3-payment:
+    build:
+      context: .
+      dockerfile: Dockerfile.web3-payment
+    container_name: coffee-web3-payment
+    ports:
+      - "8083:8083"  # main port
+      - "8084:8084"  # health port
+    environment:
+      - WEB3_PAYMENT_PORT=8083
+      - WEB3_PAYMENT_HEALTH_PORT=8084
+      - WEB3_SUPPORTED_CHAINS=["ethereum","bsc","polygon","solana"]
+      - WEB3_SUPPORTED_CURRENCIES=["ETH","BNB","MATIC","SOL","USDC","USDT","COFFEE"]
+      - WEB3_PAYMENT_TIMEOUT_MINUTES=15
+      - WEB3_CONFIRMATION_BLOCKS=3
+      - WEB3_ENABLE_TEST_MODE=true
+      - BLOCKCHAIN_ETHEREUM_RPC_URL=https://mainnet.infura.io/v3/your-project-id
+      - BLOCKCHAIN_BSC_RPC_URL=https://bsc-dataseed.binance.org/
+      - BLOCKCHAIN_POLYGON_RPC_URL=https://polygon-rpc.com/
+      - BLOCKCHAIN_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  ai-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.ai-orchestrator
+    container_name: coffee-ai-orchestrator
+    ports:
+      - "8094:8094"  # main port
+      - "8095:8095"  # health port
+    environment:
+      - AI_ORCHESTRATOR_PORT=8094
+      - AI_ORCHESTRATOR_HEALTH_PORT=8095
+      - AI_ORCHESTRATOR_MAX_TASKS=1000
+      - AI_ORCHESTRATOR_MAX_WORKFLOWS=100
+      - AI_KAFKA_BROKERS=["kafka:29092"]
+      - AI_KAFKA_TOPIC=ai_agents
+      - AI_KAFKA_CONSUMER_GROUP=ai-orchestrator-group
+      - AI_KAFKA_RETRY_MAX=3
+      - AI_KAFKA_REQUIRED_ACKS=all
+      - AI_KAFKA_WORKER_POOL_SIZE=5
+      - AI_AGENT_BEVERAGE_INVENTOR_ENABLED=true
+      - AI_AGENT_INVENTORY_MANAGER_ENABLED=true
+      - AI_AGENT_TASK_MANAGER_ENABLED=true
+      - AI_AGENT_SOCIAL_MEDIA_ENABLED=true
+      - AI_AGENT_FEEDBACK_ANALYST_ENABLED=true
+      - AI_AGENT_SCHEDULER_ENABLED=true
+      - AI_AGENT_INTER_LOCATION_COORDINATOR_ENABLED=true
+      - AI_AGENT_NOTIFIER_ENABLED=true
+      - AI_AGENT_TASTING_COORDINATOR_ENABLED=true
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your-openai-api-key}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-your-gemini-api-key}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Monitoring Services
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+    name: go-coffee-network

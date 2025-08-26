@@ -177,7 +177,7 @@ redis:
         cpu: 500m
         memory: 1Gi
 
-# Monitoring Configuration
+# Enhanced Monitoring Configuration
 monitoring:
   prometheus:
     enabled: true
@@ -192,7 +192,7 @@ monitoring:
         limits:
           cpu: 2000m
           memory: 4Gi
-  
+
   grafana:
     enabled: true
     adminPassword: "admin"
@@ -213,27 +213,91 @@ monitoring:
         cpu: 500m
         memory: 512Mi
 
-# Tracing Configuration
+# OpenTelemetry Configuration
+opentelemetry:
+  enabled: true
+  collector:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    config:
+      exporters:
+        jaeger:
+          endpoint: "jaeger-collector:14250"
+        prometheus:
+          endpoint: "0.0.0.0:8889"
+        otlp:
+          endpoint: "tempo:4317"
+
+# Distributed Tracing Configuration
 tracing:
   jaeger:
     enabled: true
-    strategy: production
-    collector:
+    allInOne:
       resources:
         requests:
-          cpu: 100m
-          memory: 128Mi
-        limits:
-          cpu: 500m
+          cpu: 200m
           memory: 512Mi
-    query:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 128Mi
         limits:
-          cpu: 500m
-          memory: 512Mi
+          cpu: 1000m
+          memory: 2Gi
+  tempo:
+    enabled: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# Enhanced Security Configuration
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  rbac:
+    enabled: true
+  serviceAccount:
+    create: true
+    name: "go-coffee-service-account"
+
+# Auto-scaling Configuration
+autoscaling:
+  enabled: true
+  producer:
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+  web3Payment:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilization: 75
+    targetMemoryUtilization: 85
+  aiOrchestrator:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilization: 75
+    targetMemoryUtilization: 85
+
+# Pod Disruption Budgets
+podDisruptionBudget:
+  enabled: true
+  producer:
+    minAvailable: 2
+  web3Payment:
+    minAvailable: 1
+  aiOrchestrator:
+    minAvailable: 1
+
+# Legacy Tracing Configuration (merged with enhanced above)
 
 # Logging Configuration
 logging:
@@ -276,24 +340,7 @@ serviceMesh:
       hosts:
         - "*.gocoffee.dev"
 
-# Security Configuration
-security:
-  certManager:
-    enabled: true
-    clusterIssuer:
-      name: letsencrypt-prod
-      email: admin@gocoffee.dev
-      server: https://acme-v02.api.letsencrypt.org/directory
-  
-  networkPolicies:
-    enabled: true
-    defaultDeny: true
-  
-  podSecurityPolicies:
-    enabled: true
-    
-  rbac:
-    enabled: true
+# Legacy Security Configuration (merged with enhanced above)
 
 # Operators Configuration
 operators:
@@ -358,11 +405,7 @@ backup:
     type: "gcs"
     bucket: "go-coffee-backups"
 
-# Scaling Configuration
-autoscaling:
-  enabled: true
-  minReplicas: 1
-  maxReplicas: 100
+# Legacy Scaling Configuration (merged with enhanced above)
   metrics:
     - type: Resource
       resource:
@@ -395,7 +438,4 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-# Pod Disruption Budgets
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
+# Legacy Pod Disruption Budgets (merged with enhanced above)

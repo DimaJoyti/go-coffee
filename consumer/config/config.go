@@ -8,7 +8,13 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Kafka KafkaConfig `json:"kafka"`
+	Server ServerConfig `json:"server"`
+	Kafka  KafkaConfig  `json:"kafka"`
+}
+
+// ServerConfig holds server configuration
+type ServerConfig struct {
+	HealthPort int `json:"health_port"`
 }
 
 // KafkaConfig holds Kafka configuration
@@ -23,6 +29,9 @@ type KafkaConfig struct {
 // LoadConfig loads configuration from environment variables or a config file
 func LoadConfig() (*Config, error) {
 	config := &Config{
+		Server: ServerConfig{
+			HealthPort: getEnvAsInt("HEALTH_PORT", 8081),
+		},
 		Kafka: KafkaConfig{
 			Brokers:        getEnvAsSlice("KAFKA_BROKERS", []string{"localhost:9092"}),
 			Topic:          getEnv("KAFKA_TOPIC", "coffee_orders"),

@@ -16,7 +16,7 @@ RUN go mod download
 COPY . .
 
 # Збірка додатку
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o producer .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o producer ./main.go
 
 # Використання мінімального образу для запуску
 FROM alpine:latest
@@ -43,15 +43,19 @@ RUN chown -R appuser:appgroup /app
 # Перехід на непривілейованого користувача
 USER appuser
 
-# Відкриття порту
-EXPOSE 3000
+# Відкриття портів
+EXPOSE 3000 9090
 
 # Встановлення змінних середовища за замовчуванням
 ENV SERVER_PORT=3000
-ENV KAFKA_BROKERS=["kafka:9092"]
+ENV KAFKA_BROKERS=["kafka:29092"]
 ENV KAFKA_TOPIC=coffee_orders
 ENV KAFKA_RETRY_MAX=5
 ENV KAFKA_REQUIRED_ACKS=all
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Запуск додатку
 CMD ["./producer"]

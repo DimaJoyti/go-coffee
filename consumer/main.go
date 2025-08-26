@@ -4,25 +4,35 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/DimaJoyti/go-coffee/consumer/config"
 	"github.com/DimaJoyti/go-coffee/consumer/kafka"
 	"github.com/DimaJoyti/go-coffee/consumer/worker"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func main() {
-	// Set up logging
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-	log.Println("Starting consumer...")
+	// Initialize structured logger
+	logger := initLogger()
+	defer logger.Sync()
+
+	logger.Info("Starting Coffee Consumer Service...")
 
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		logger.Fatal("Failed to load configuration", zap.Error(err))
 	}
+
+	// Start health check server
+	go startHealthServer(logger, cfg)
 
 	// Create worker pool
 	workerPool := worker.NewWorkerPool(cfg.Kafka.WorkerPoolSize)
@@ -32,7 +42,7 @@ func main() {
 	// Create Kafka consumer group
 	groupConsumer, err := kafka.NewGroupConsumer(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create Kafka consumer group: %v", err)
+		logger.Fatal("Failed to create Kafka consumer group", zap.Error(err))
 	}
 	defer groupConsumer.Close()
 
@@ -50,27 +60,27 @@ func main() {
 	// Create a goroutine to run the consumer group
 	go func() {
 		topics := []string{cfg.Kafka.Topic, cfg.Kafka.ProcessedTopic}
-		log.Printf("Starting to consume from topics: %v", topics)
+		logger.Info("Starting to consume from topics", zap.Strings("topics", topics))
 
 		// Consume messages
 		for {
 			// Consume messages from both topics
 			if err := groupConsumer.Consume(ctx, topics, handler); err != nil {
-				log.Printf("Error from consumer: %v", err)
+				logger.Error("Error from consumer", zap.Error(err))
 			}
 
 			// Check if context was cancelled, signaling that the consumer should stop
 			if ctx.Err() != nil {
-				log.Println("Context cancelled, stopping consumer")
+				logger.Info("Context cancelled, stopping consumer")
 				return
 			}
-			log.Println("Consumer restarting...")
+			logger.Info("Consumer restarting...")
 		}
 	}()
 
 	// Wait for consumer to be ready
 	handler.WaitReady()
-	fmt.Println("Consumer started")
+	logger.Info("Consumer started successfully")
 
 	// Process messages
 	go func() {
@@ -82,8 +92,69 @@ func main() {
 
 	// Wait for termination signal
 	<-sigchan
-	log.Println("Interrupt detected, shutting down...")
+	logger.Info("Interrupt detected, shutting down...")
 	cancel() // Cancel the context to stop the consumer
 
-	log.Println("Consumer stopped")
+	logger.Info("Consumer stopped gracefully")
+}
+
+// initLogger initializes a structured logger with appropriate configuration
+func initLogger() *zap.Logger {
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	config.OutputPaths = []string{"stdout"}
+	config.ErrorOutputPaths = []string{"stderr"}
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.MessageKey = "message"
+	config.EncoderConfig.LevelKey = "level"
+	config.EncoderConfig.CallerKey = "caller"
+	config.EncoderConfig.StacktraceKey = "stacktrace"
+
+	logger, err := config.Build()
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+
+	return logger
+}
+
+// startHealthServer starts a health check server for the consumer
+func startHealthServer(logger *zap.Logger, cfg *config.Config) {
+	mux := http.NewServeMux()
+
+	// Health check endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"ok","service":"coffee-consumer","timestamp":"%s"}`,
+			time.Now().UTC().Format(time.RFC3339))
+	})
+
+	// Readiness check endpoint
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"ready","service":"coffee-consumer","timestamp":"%s"}`,
+			time.Now().UTC().Format(time.RFC3339))
+	})
+
+	// Metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
+
+	// Start health server on a different port
+	healthPort := 8081
+	if cfg.Server.HealthPort != 0 {
+		healthPort = cfg.Server.HealthPort
+	}
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", healthPort),
+		Handler: mux,
+	}
+
+	logger.Info("Starting health check server", zap.Int("port", healthPort))
+	if err := server.ListenAndServe(); err != nil {
+		logger.Error("Health server error", zap.Error(err))
+	}
 }
