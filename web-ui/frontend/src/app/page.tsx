@@ -21,7 +21,7 @@ const DataDebug = dynamic(() => import('@/components/debug/DataDebug'), {
 })
 
 export default function HomePage() {
-  const [currentView, setCurrentView] = useState<'landing' | 'dashboard' | 'test'>('test')
+  const [currentView, setCurrentView] = useState<'landing' | 'dashboard' | 'test'>('landing')
   const [count, setCount] = useState(0)
   const [systemInfo, setSystemInfo] = useState({
     timestamp: new Date(),

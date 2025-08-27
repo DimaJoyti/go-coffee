@@ -4,7 +4,10 @@ import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import HeroSection from './HeroSection'
 import FeaturesSection from './FeaturesSection'
+import ServiceArchitecture from './ServiceArchitecture'
+import TechStack from './TechStack'
 import StatsSection from './StatsSection'
+import InteractiveDemo from './InteractiveDemo'
 import TradingPreview from './TradingPreview'
 import CTASection from './CTASection'
 import Navigation from './Navigation'
@@ -35,16 +38,25 @@ export default function LandingPage({ onEnterDashboard }: LandingPageProps) {
 
       {/* Hero Section */}
       <HeroSection onEnterDashboard={onEnterDashboard} scrollY={scrollY} />
-      
-      {/* Features Section */}
+
+      {/* Enhanced Features Section */}
       <FeaturesSection />
-      
-      {/* Stats Section */}
+
+      {/* Service Architecture Section */}
+      <ServiceArchitecture />
+
+      {/* Technology Stack Section */}
+      <TechStack />
+
+      {/* Interactive Demo Section */}
+      <InteractiveDemo />
+
+      {/* Enhanced Stats Section */}
       <StatsSection />
-      
+
       {/* Trading Preview */}
       <TradingPreview />
-      
+
       {/* CTA Section */}
       <CTASection onEnterDashboard={onEnterDashboard} />
       

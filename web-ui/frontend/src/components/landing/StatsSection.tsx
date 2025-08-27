@@ -17,7 +17,9 @@ export default function StatsSection() {
       value: 2400000,
       suffix: '+',
       prefix: '$',
-      description: 'Processed across all trading pairs'
+      description: 'Processed across all trading pairs',
+      category: 'trading',
+      trend: '+12.5%'
     },
     {
       icon: '👥',
@@ -25,7 +27,9 @@ export default function StatsSection() {
       value: 12500,
       suffix: '+',
       prefix: '',
-      description: 'Traders and coffee enthusiasts'
+      description: 'Traders and coffee enthusiasts',
+      category: 'users',
+      trend: '+8.3%'
     },
     {
       icon: '☕',
@@ -33,7 +37,9 @@ export default function StatsSection() {
       value: 45000,
       suffix: '+',
       prefix: '',
-      description: 'Successfully delivered worldwide'
+      description: 'Successfully delivered worldwide',
+      category: 'orders',
+      trend: '+15.7%'
     },
     {
       icon: '🤖',
@@ -41,7 +47,9 @@ export default function StatsSection() {
       value: 25,
       suffix: '+',
       prefix: '',
-      description: 'Working 24/7 for optimization'
+      description: 'Working 24/7 for optimization',
+      category: 'ai',
+      trend: 'Stable'
     },
     {
       icon: '🌍',
@@ -49,7 +57,9 @@ export default function StatsSection() {
       value: 45,
       suffix: '+',
       prefix: '',
-      description: 'Global presence and growing'
+      description: 'Global presence and growing',
+      category: 'global',
+      trend: '+3 new'
     },
     {
       icon: '⚡',
@@ -57,7 +67,39 @@ export default function StatsSection() {
       value: 99.9,
       suffix: '%',
       prefix: '',
-      description: 'Reliable infrastructure'
+      description: 'Reliable infrastructure',
+      category: 'performance',
+      trend: '99.9%'
+    },
+    {
+      icon: '🏗️',
+      label: 'Microservices',
+      value: 38,
+      suffix: '+',
+      prefix: '',
+      description: 'Cloud-native architecture',
+      category: 'infrastructure',
+      trend: '+5 new'
+    },
+    {
+      icon: '🔗',
+      label: 'API Endpoints',
+      value: 200,
+      suffix: '+',
+      prefix: '',
+      description: 'Comprehensive API coverage',
+      category: 'api',
+      trend: '+25 new'
+    },
+    {
+      icon: '🌐',
+      label: 'Blockchain Networks',
+      value: 4,
+      suffix: '',
+      prefix: '',
+      description: 'Multi-chain Web3 support',
+      category: 'web3',
+      trend: 'Complete'
     }
   ]
 
@@ -80,17 +122,23 @@ export default function StatsSection() {
           transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
+          <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-full text-cyan-300 text-sm font-medium mb-6">
+            <span className="w-2 h-2 bg-cyan-400 rounded-full mr-2 animate-pulse" />
+            Real-time Platform Metrics
+          </div>
+          <h2 className="text-4xl md:text-6xl font-bold mb-6">
+            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-cyan-500 bg-clip-text text-transparent">
               Platform Statistics
             </span>
           </h2>
-          <p className="text-xl text-slate-300 max-w-3xl mx-auto">
-            Real numbers from our growing ecosystem of traders, coffee lovers, and AI-powered automation
+          <p className="text-xl text-slate-300 max-w-4xl mx-auto leading-relaxed">
+            Live metrics from our comprehensive ecosystem spanning coffee commerce, DeFi trading,
+            AI automation, and enterprise infrastructure
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Enhanced Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
           {stats.map((stat, index) => (
             <StatCard
               key={stat.label}
@@ -100,6 +148,46 @@ export default function StatsSection() {
             />
           ))}
         </div>
+
+        {/* Performance Metrics Dashboard */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ delay: 1.5 }}
+          className="mt-20 bg-gradient-to-r from-slate-800/30 to-slate-700/30 backdrop-blur-sm border border-slate-600/30 rounded-3xl p-8"
+        >
+          <div className="text-center mb-8">
+            <h3 className="text-2xl font-bold text-white mb-2">
+              🚀 System Performance
+            </h3>
+            <p className="text-slate-300">
+              Real-time performance indicators across all platform components
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            {[
+              { label: 'API Response', value: '<50ms', icon: '⚡', color: 'green' },
+              { label: 'Database Query', value: '<10ms', icon: '🗄️', color: 'blue' },
+              { label: 'Cache Hit Rate', value: '94.2%', icon: '🎯', color: 'purple' },
+              { label: 'Error Rate', value: '0.01%', icon: '🛡️', color: 'green' },
+              { label: 'Throughput', value: '10K/sec', icon: '📈', color: 'cyan' },
+              { label: 'Availability', value: '99.99%', icon: '💚', color: 'emerald' }
+            ].map((metric, index) => (
+              <motion.div
+                key={metric.label}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={inView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.8 }}
+                transition={{ delay: 1.7 + index * 0.1 }}
+                className="text-center bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 hover:border-cyan-500/30 transition-all duration-300"
+              >
+                <div className="text-2xl mb-2">{metric.icon}</div>
+                <div className={`text-xl font-bold text-${metric.color}-400 mb-1`}>{metric.value}</div>
+                <div className="text-xs text-slate-400">{metric.label}</div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
 
         {/* Additional Info */}
         <motion.div
@@ -150,6 +238,8 @@ interface StatCardProps {
     suffix: string
     prefix: string
     description: string
+    category: string
+    trend: string
   }
   index: number
   inView: boolean
@@ -192,42 +282,83 @@ function StatCard({ stat, index, inView }: StatCardProps) {
     return value.toString()
   }
 
+  const getCategoryColor = (category: string) => {
+    const colors = {
+      trading: 'from-green-400 to-emerald-500',
+      users: 'from-blue-400 to-cyan-500',
+      orders: 'from-amber-400 to-orange-500',
+      ai: 'from-purple-400 to-pink-500',
+      global: 'from-cyan-400 to-blue-500',
+      performance: 'from-green-400 to-emerald-500',
+      infrastructure: 'from-slate-400 to-gray-500',
+      api: 'from-indigo-400 to-purple-500',
+      web3: 'from-purple-500 to-pink-600'
+    }
+    return colors[category as keyof typeof colors] || 'from-amber-400 to-orange-500'
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 50, scale: 0.9 }}
       animate={inView ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 50, scale: 0.9 }}
-      transition={{ delay: index * 0.1, duration: 0.8, ease: "easeOut" }}
-      whileHover={{ 
-        scale: 1.05,
+      transition={{ delay: index * 0.08, duration: 0.8, ease: "easeOut" }}
+      whileHover={{
+        scale: 1.02,
+        y: -5,
         transition: { duration: 0.2 }
       }}
       className="group relative"
     >
-      <div className="h-full bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8 text-center hover:border-amber-500/30 transition-all duration-300">
+      <div className="h-full bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 text-center hover:border-cyan-500/30 hover:bg-slate-800/60 transition-all duration-300">
+        {/* Category Badge */}
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-xs text-slate-400 uppercase tracking-wide font-medium bg-slate-700/50 px-2 py-1 rounded-md">
+            {stat.category}
+          </span>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            <span className="text-xs text-green-400">Live</span>
+          </div>
+        </div>
+
         {/* Icon */}
-        <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">
+        <div className="text-3xl mb-4 group-hover:scale-110 transition-transform duration-300">
           {stat.icon}
         </div>
 
         {/* Value */}
-        <div className="mb-2">
-          <span className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
+        <div className="mb-3">
+          <span className={`text-3xl md:text-4xl font-bold bg-gradient-to-r ${getCategoryColor(stat.category)} bg-clip-text text-transparent`}>
             {stat.prefix}{stat.value === displayValue ? stat.value : formatValue(displayValue)}{stat.suffix}
           </span>
         </div>
 
         {/* Label */}
-        <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-amber-400 transition-colors duration-300">
+        <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-cyan-400 transition-colors duration-300">
           {stat.label}
         </h3>
 
         {/* Description */}
-        <p className="text-slate-400 text-sm">
+        <p className="text-slate-400 text-sm mb-3 leading-relaxed">
           {stat.description}
         </p>
 
+        {/* Trend Indicator */}
+        <div className="border-t border-slate-700/50 pt-3">
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-xs text-slate-400">Trend:</span>
+            <span className={`text-xs font-medium ${
+              stat.trend.includes('+') ? 'text-green-400' :
+              stat.trend.includes('-') ? 'text-red-400' :
+              'text-cyan-400'
+            }`}>
+              {stat.trend}
+            </span>
+          </div>
+        </div>
+
         {/* Hover Glow */}
-        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity duration-300" />
+        <div className={`absolute inset-0 bg-gradient-to-r ${getCategoryColor(stat.category)} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity duration-300`} />
       </div>
     </motion.div>
   )

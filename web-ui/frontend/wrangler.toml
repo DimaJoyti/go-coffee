@@ -1,5 +1,5 @@
   main = ".open-next/worker.js"
-  name = "web-ui"
+  name = "go-coffee-ui"
   compatibility_date = "2025-03-25"
   compatibility_flags = ["nodejs_compat"]
   [assets]
