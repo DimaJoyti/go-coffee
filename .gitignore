@@ -133,3 +133,5 @@ web-ui/frontend/.next
 web-ui/frontend/.open-next
 web-ui/frontend/package-lock.json
 .env.staging
+web-ui/package-lock.json
+.env.performance

@@ -62,6 +62,35 @@ func (l Level) Color() string {
 	}
 }
 
+// UnmarshalYAML implements yaml.Unmarshaler for Level
+func (l *Level) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	
+	switch strings.ToLower(s) {
+	case "debug":
+		*l = DebugLevel
+	case "info":
+		*l = InfoLevel
+	case "warn", "warning":
+		*l = WarnLevel
+	case "error":
+		*l = ErrorLevel
+	case "fatal":
+		*l = FatalLevel
+	default:
+		return fmt.Errorf("invalid log level: %s", s)
+	}
+	return nil
+}
+
+// MarshalYAML implements yaml.Marshaler for Level
+func (l Level) MarshalYAML() (interface{}, error) {
+	return strings.ToLower(l.String()), nil
+}
+
 // Logger provides structured, colorized logging with enhanced features
 type Logger struct {
 	logger     *log.Logger

@@ -2,6 +2,145 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom animations and styles */
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(245, 158, 11, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.8);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-scroll {
+  animation: scroll 30s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Custom gradient backgrounds */
+.bg-gradient-radial {
+  background: radial-gradient(circle, var(--tw-gradient-stops));
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+/* Responsive text scaling */
+@media (max-width: 640px) {
+  .text-responsive-xl {
+    font-size: 2rem;
+    line-height: 2.5rem;
+  }
+
+  .text-responsive-2xl {
+    font-size: 2.5rem;
+    line-height: 3rem;
+  }
+
+  .text-responsive-3xl {
+    font-size: 3rem;
+    line-height: 3.5rem;
+  }
+}
+
+@media (min-width: 641px) {
+  .text-responsive-xl {
+    font-size: 3rem;
+    line-height: 3.5rem;
+  }
+
+  .text-responsive-2xl {
+    font-size: 4rem;
+    line-height: 4.5rem;
+  }
+
+  .text-responsive-3xl {
+    font-size: 5rem;
+    line-height: 5.5rem;
+  }
+}
+
+/* Loading states */
+.loading-shimmer {
+  background: linear-gradient(90deg,
+    rgba(148, 163, 184, 0.1) 25%,
+    rgba(148, 163, 184, 0.2) 50%,
+    rgba(148, 163, 184, 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Focus states for accessibility */
+.focus-ring:focus {
+  outline: 2px solid rgba(245, 158, 11, 0.5);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -23,7 +162,23 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 25 95% 53%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Enhanced Coffee Theme Variables */
+    --coffee-primary: 25 95% 53%;
+    --coffee-secondary: 30 80% 45%;
+    --coffee-accent: 35 85% 60%;
+    --coffee-muted: 20 15% 85%;
+    --coffee-dark: 15 25% 15%;
+
+    /* Glass morphism variables */
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+
+    /* Animation variables */
+    --animation-speed: 0.3s;
+    --animation-curve: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
@@ -46,6 +201,18 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 25 95% 53%;
+
+    /* Enhanced Dark Theme Variables */
+    --coffee-primary: 25 95% 53%;
+    --coffee-secondary: 30 80% 45%;
+    --coffee-accent: 35 85% 60%;
+    --coffee-muted: 217.2 32.6% 25%;
+    --coffee-dark: 222.2 84% 4.9%;
+
+    /* Dark glass morphism */
+    --glass-bg: rgba(15, 23, 42, 0.8);
+    --glass-border: rgba(148, 163, 184, 0.1);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -60,28 +227,74 @@
 }
 
 @layer components {
+  /* Enhanced Glass Effects */
   .glass-effect {
-    @apply backdrop-blur-md bg-white/10 border border-white/20;
+    @apply backdrop-blur-md bg-white/10 border border-white/20 shadow-lg;
   }
-  
+
+  .glass-card {
+    @apply backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl shadow-2xl;
+  }
+
+  .glass-button {
+    @apply backdrop-blur-sm bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 transition-all duration-300;
+  }
+
+  /* Enhanced Coffee Gradients */
   .coffee-gradient {
     @apply bg-gradient-to-br from-coffee-400 via-coffee-500 to-coffee-600;
   }
-  
+
+  .coffee-gradient-subtle {
+    @apply bg-gradient-to-br from-coffee-50 via-coffee-100 to-coffee-200;
+  }
+
+  .coffee-gradient-dark {
+    @apply bg-gradient-to-br from-coffee-800 via-coffee-900 to-coffee-950;
+  }
+
+  /* Enhanced Crypto Effects */
   .crypto-glow {
-    @apply shadow-lg shadow-crypto-bitcoin/20;
+    @apply shadow-lg shadow-crypto-bitcoin/20 hover:shadow-xl hover:shadow-crypto-bitcoin/30 transition-all duration-300;
   }
-  
+
+  .crypto-card {
+    @apply bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm;
+  }
+
+  /* Modern Card Styles */
   .metric-card {
-    @apply bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-all duration-200;
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300;
   }
-  
+
+  .feature-card {
+    @apply bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 hover:border-coffee-500/50 transition-all duration-500;
+  }
+
+  .stats-card {
+    @apply bg-gradient-to-br from-coffee-900/20 to-coffee-800/20 backdrop-blur-sm border border-coffee-700/30 rounded-xl p-6 hover:from-coffee-800/30 hover:to-coffee-700/30 transition-all duration-300;
+  }
+
+  /* Enhanced Navigation */
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground;
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 hover:bg-coffee-500/10 hover:text-coffee-300 hover:translate-x-1;
   }
-  
+
   .sidebar-item.active {
-    @apply bg-primary text-primary-foreground;
+    @apply bg-gradient-to-r from-coffee-500/20 to-coffee-400/20 text-coffee-300 border-r-2 border-coffee-400 shadow-lg;
+  }
+
+  /* Button Variants */
+  .btn-primary {
+    @apply bg-gradient-to-r from-coffee-500 to-coffee-600 hover:from-coffee-600 hover:to-coffee-700 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300;
+  }
+
+  .btn-secondary {
+    @apply bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white font-medium px-6 py-3 rounded-xl border border-slate-600 hover:border-slate-500 transition-all duration-300;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-white/10 text-white font-medium px-6 py-3 rounded-xl border border-white/20 hover:border-white/30 backdrop-blur-sm transition-all duration-300;
   }
 }
 
@@ -89,37 +302,81 @@
   .text-balance {
     text-wrap: balance;
   }
-  
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Modern Utility Classes */
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-coffee-400 to-coffee-600 bg-clip-text text-transparent;
+  }
+
+  .gradient-text-crypto {
+    @apply bg-gradient-to-r from-crypto-bitcoin to-crypto-ethereum bg-clip-text text-transparent;
+  }
+
+  .glow-text {
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+  }
+
+  .coffee-shadow {
+    box-shadow: 0 10px 25px rgba(139, 69, 19, 0.3);
+  }
+
+  .crypto-shadow {
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+  }
+
+  .hover-lift {
+    @apply hover:scale-105 hover:-translate-y-1 transition-transform duration-300;
+  }
+
+  .hover-glow {
+    @apply hover:shadow-glow transition-shadow duration-300;
+  }
+
+  .animate-in {
+    @apply animate-fade-in-up;
+  }
+
+  .stagger-1 {
+    animation-delay: 0.1s;
+  }
+
+  .stagger-2 {
+    animation-delay: 0.2s;
+  }
+
+  .stagger-3 {
+    animation-delay: 0.3s;
+  }
+
+  .stagger-4 {
+    animation-delay: 0.4s;
+  }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
 
-::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-}
 
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground));
-}
-
-/* Loading animations */
+/* Enhanced Loading animations */
 @keyframes shimmer {
   0% {
     background-position: -200px 0;
@@ -129,10 +386,63 @@
   }
 }
 
+@keyframes coffee-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(212, 165, 116, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(212, 165, 116, 0);
+  }
+}
+
+@keyframes crypto-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(247, 147, 26, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(247, 147, 26, 0.8), 0 0 30px rgba(98, 126, 234, 0.3);
+  }
+}
+
+@keyframes typewriter {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
 .shimmer {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
+}
+
+.coffee-pulse {
+  animation: coffee-pulse 2s ease-in-out infinite;
+}
+
+.crypto-glow-animate {
+  animation: crypto-glow 3s ease-in-out infinite;
+}
+
+.typewriter {
+  overflow: hidden;
+  border-right: 2px solid rgba(245, 158, 11, 0.75);
+  white-space: nowrap;
+  animation: typewriter 3s steps(40, end), blink 0.75s step-end infinite;
 }
 
 /* Chart animations */

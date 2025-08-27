@@ -3,17 +3,22 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const cardVariants = cva(
-  "rounded-lg border bg-card text-card-foreground shadow-sm",
+  "rounded-xl border bg-card text-card-foreground shadow-sm transition-all duration-300",
   {
     variants: {
       variant: {
-        default: "border-border",
+        default: "border-border backdrop-blur-sm",
         outline: "border-2 border-border",
         ghost: "border-transparent shadow-none",
-        elevated: "shadow-lg border-border/50",
-        glass: "backdrop-blur-md bg-white/10 border-white/20",
-        coffee: "bg-gradient-to-br from-coffee-50 to-coffee-100 border-coffee-200",
-        crypto: "bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 dark:from-slate-900 dark:to-slate-800 dark:border-slate-700",
+        elevated: "shadow-xl border-border/50 hover:shadow-2xl",
+        glass: "glass-card",
+        coffee: "bg-gradient-to-br from-coffee-50 to-coffee-100 border-coffee-200 dark:from-coffee-900/20 dark:to-coffee-800/20 dark:border-coffee-700/30",
+        crypto: "crypto-card",
+        feature: "feature-card",
+        stats: "stats-card",
+        metric: "metric-card",
+        glow: "shadow-glow hover:shadow-glow-lg border-coffee-500/30",
+        premium: "bg-gradient-to-br from-brand-gold/10 to-brand-amber/10 border-brand-gold/30 shadow-xl",
       },
       padding: {
         none: "p-0",
@@ -42,8 +47,8 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
       ref={ref}
       className={cn(
         cardVariants({ variant, padding }),
-        hover && "transition-all duration-200 hover:shadow-md hover:-translate-y-1",
-        interactive && "cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/50",
+        hover && "hover-lift hover:shadow-xl",
+        interactive && "cursor-pointer hover:shadow-xl hover:border-coffee-500/50 hover:scale-[1.02]",
         className
       )}
       {...props}

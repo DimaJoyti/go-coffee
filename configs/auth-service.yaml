@@ -4,9 +4,9 @@
 database:
   host: localhost
   port: 5432
-  database: go_coffee_auth
-  username: postgres
-  password: postgres
+  database: aios_dev
+  username: aios
+  password: aios_password
   ssl_mode: disable
   max_conns: 25
   min_conns: 5
@@ -100,7 +100,7 @@ http:
       - "Authorization"
       - "Content-Type"
     allow_credentials: true
-    max_age: 300
+    max_age: 300s
 
 # Logger configuration
 logger:
