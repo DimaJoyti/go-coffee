@@ -1,0 +1,395 @@
+name: Go Coffee Backend CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - 'k8s/**'
+      - '.github/workflows/backend-cicd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+
+env:
+  GO_VERSION: '1.21'
+  REGISTRY: docker.io
+  IMAGE_NAME: go-coffee/backend
+  HELM_VERSION: '3.12.0'
+
+jobs:
+  # Backend Testing and Quality Checks
+  backend-test:
+    name: Backend Tests & Quality
+    runs-on: [self-hosted, go-coffee]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: go_coffee_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Verify dependencies
+      run: go mod verify
+    
+    - name: Run go vet
+      run: go vet ./...
+    
+    - name: Run staticcheck
+      uses: dominikh/staticcheck-action@v1.3.0
+      with:
+        version: "2023.1.6"
+    
+    - name: Run gosec security scanner
+      run: |
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        gosec -fmt sarif -out gosec-results.sarif ./...
+      continue-on-error: true
+    
+    - name: Run tests with coverage
+      run: |
+        go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        go tool cover -html=coverage.out -o coverage.html
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/go_coffee_test?sslmode=disable
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test-secret-key
+        ENVIRONMENT: test
+    
+    - name: Check code coverage
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Code coverage: $COVERAGE%"
+        echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
+        if (( $(echo "$COVERAGE < ${CODE_COVERAGE_THRESHOLD:-80}" | bc -l) )); then
+          echo "❌ Code coverage $COVERAGE% is below threshold ${CODE_COVERAGE_THRESHOLD:-80}%"
+          exit 1
+        fi
+        echo "✅ Code coverage $COVERAGE% meets threshold"
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: backend
+        name: backend-coverage
+    
+    - name: Run benchmarks
+      run: go test -bench=. -benchmem ./... | tee benchmark.txt
+
+  # Backend Build and Container Image
+  backend-build:
+    name: Build Backend Container
+    runs-on: [self-hosted, go-coffee]
+    needs: backend-test
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+        labels: |
+          org.opencontainers.image.title=Go Coffee Backend
+          org.opencontainers.image.description=Go Coffee Platform Backend API
+          org.opencontainers.image.vendor=Go Coffee Inc.
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          GO_VERSION=${{ env.GO_VERSION }}
+          BUILD_VERSION=${{ github.sha }}
+          BUILD_TIME=${{ github.event.head_commit.timestamp }}
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Integration Tests
+  integration-test:
+    name: Integration Tests
+    runs-on: [self-hosted, go-coffee]
+    needs: backend-build
+    if: github.event_name == 'push'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: go_coffee_integration
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run backend container
+      run: |
+        docker run -d --name go-coffee-backend \
+          --network host \
+          -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/go_coffee_integration?sslmode=disable \
+          -e REDIS_URL=redis://localhost:6379 \
+          -e JWT_SECRET=integration-test-secret \
+          -e ENVIRONMENT=integration \
+          -p 8080:8080 \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+    
+    - name: Wait for backend to be ready
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:8080/health; do sleep 2; done'
+    
+    - name: Run API integration tests
+      run: |
+        # Install newman for API testing
+        npm install -g newman
+        
+        # Run Postman collection tests
+        if [ -f "tests/postman/go-coffee-api.postman_collection.json" ]; then
+          newman run tests/postman/go-coffee-api.postman_collection.json \
+            --environment tests/postman/integration.postman_environment.json \
+            --reporters cli,json \
+            --reporter-json-export newman-results.json
+        else
+          echo "No Postman collection found, running basic API tests"
+          curl -f http://localhost:8080/health
+          curl -f http://localhost:8080/api/v1/coffee/menu
+        fi
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker stop go-coffee-backend || true
+        docker rm go-coffee-backend || true
+
+  # Kubernetes Deployment
+  k8s-deploy:
+    name: Deploy to Kubernetes
+    runs-on: [self-hosted, go-coffee]
+    needs: [backend-build, integration-test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+        export KUBECONFIG=/tmp/kubeconfig
+        kubectl config current-context
+    
+    - name: Deploy to staging
+      if: github.ref == 'refs/heads/develop'
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Update deployment image
+        kubectl set image deployment/coffee-service \
+          coffee-service=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          -n go-coffee-staging
+        
+        # Wait for rollout
+        kubectl rollout status deployment/coffee-service -n go-coffee-staging --timeout=300s
+        
+        # Verify deployment
+        kubectl get pods -n go-coffee-staging -l app=coffee-service
+    
+    - name: Deploy to production
+      if: github.ref == 'refs/heads/main'
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        
+        # Update deployment image
+        kubectl set image deployment/coffee-service \
+          coffee-service=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          -n go-coffee
+        
+        # Wait for rollout
+        kubectl rollout status deployment/coffee-service -n go-coffee --timeout=300s
+        
+        # Verify deployment
+        kubectl get pods -n go-coffee -l app=coffee-service
+    
+    - name: Run smoke tests
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        NAMESPACE="go-coffee"
+        if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+          NAMESPACE="go-coffee-staging"
+        fi
+        
+        # Get service URL
+        SERVICE_URL=$(kubectl get ingress coffee-ingress -n $NAMESPACE -o jsonpath='{.spec.rules[0].host}')
+        
+        # Run smoke tests
+        curl -f "https://$SERVICE_URL/health" || exit 1
+        curl -f "https://$SERVICE_URL/api/v1/coffee/menu" || exit 1
+        
+        echo "✅ Smoke tests passed"
+
+  # Performance Testing
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: k8s-deploy
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install k6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+    
+    - name: Run load tests
+      run: |
+        cat > loadtest.js << 'EOF'
+        import http from 'k6/http';
+        import { check, sleep } from 'k6';
+        
+        export let options = {
+          stages: [
+            { duration: '2m', target: 100 },
+            { duration: '5m', target: 100 },
+            { duration: '2m', target: 200 },
+            { duration: '5m', target: 200 },
+            { duration: '2m', target: 0 },
+          ],
+        };
+        
+        export default function () {
+          let response = http.get('https://api.go-coffee.com/health');
+          check(response, { 'status was 200': (r) => r.status == 200 });
+          sleep(1);
+        }
+        EOF
+        
+        k6 run loadtest.js
+
+  # Notification
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [k8s-deploy, performance-test]
+    if: always()
+    
+    steps:
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: |
+          Backend deployment ${{ job.status }}!
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+          Coverage: ${{ env.COVERAGE }}%
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: always()

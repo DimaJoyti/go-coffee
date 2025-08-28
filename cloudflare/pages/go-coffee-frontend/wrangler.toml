@@ -1,0 +1,167 @@
+name = "go-coffee-frontend"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "../../../web-ui/frontend/.next"
+
+# Account configuration
+account_id = "6244f6d02d9c7684386c1c849bdeaf56"
+
+# Pages configuration
+[env.production]
+name = "go-coffee-frontend"
+
+# Environment variables for production
+[env.production.vars]
+ENVIRONMENT = "production"
+NEXT_PUBLIC_API_URL = "https://api.go-coffee.com"
+NEXT_PUBLIC_WS_URL = "wss://events.go-coffee.com"
+NEXT_PUBLIC_CDN_URL = "https://cdn.go-coffee.com"
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_live_..."
+NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-..."
+NEXT_PUBLIC_SENTRY_DSN = "https://..."
+NODE_VERSION = "18"
+
+# KV Namespace bindings for frontend caching
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "f12294ae42924b729024f030e9b5611c"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "be1b38800d8d4f00820a04d1e5866552"
+
+# R2 bucket bindings for assets
+[[env.production.r2_buckets]]
+binding = "ASSETS"
+bucket_name = "go-coffee-assets"
+
+[[env.production.r2_buckets]]
+binding = "IMAGES"
+bucket_name = "go-coffee-images"
+
+# Service bindings to Workers
+[[env.production.services]]
+binding = "ORDER_PROCESSOR"
+service = "go-coffee-order-processor"
+
+[[env.production.services]]
+binding = "EVENT_ROUTER"
+service = "go-coffee-event-router"
+
+# Custom domains
+[[env.production.routes]]
+pattern = "go-coffee.com"
+custom_domain = true
+
+[[env.production.routes]]
+pattern = "app.go-coffee.com"
+custom_domain = true
+
+[[env.production.routes]]
+pattern = "www.go-coffee.com"
+custom_domain = true
+
+# Staging environment
+[env.staging]
+name = "go-coffee-frontend-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+NEXT_PUBLIC_API_URL = "https://api-staging.go-coffee.com"
+NEXT_PUBLIC_WS_URL = "wss://events-staging.go-coffee.com"
+NEXT_PUBLIC_CDN_URL = "https://cdn-staging.go-coffee.com"
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_..."
+NODE_VERSION = "18"
+
+[[env.staging.routes]]
+pattern = "staging.go-coffee.com"
+custom_domain = true
+
+# Development environment
+[env.development]
+name = "go-coffee-frontend-dev"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+NEXT_PUBLIC_API_URL = "https://api-dev.go-coffee.com"
+NEXT_PUBLIC_WS_URL = "wss://events-dev.go-coffee.com"
+NEXT_PUBLIC_CDN_URL = "https://cdn-dev.go-coffee.com"
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_..."
+NODE_VERSION = "18"
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "../../../web-ui/frontend"
+destination_dir = ".next"
+
+[build.environment]
+NODE_VERSION = "18"
+NPM_VERSION = "9"
+
+# Headers for security and performance
+[[headers]]
+for = "/*"
+[headers.values]
+X-Frame-Options = "DENY"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+[[headers]]
+for = "/api/*"
+[headers.values]
+Access-Control-Allow-Origin = "https://go-coffee.com"
+Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+Access-Control-Allow-Headers = "Content-Type, Authorization"
+
+[[headers]]
+for = "*.js"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "*.css"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "*.png"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "*.jpg"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "*.svg"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# Redirects
+[[redirects]]
+from = "/admin"
+to = "https://admin.go-coffee.com"
+status = 301
+
+[[redirects]]
+from = "/api/*"
+to = "https://api.go-coffee.com/:splat"
+status = 200
+
+[[redirects]]
+from = "/ws/*"
+to = "https://events.go-coffee.com/:splat"
+status = 200
+
+# Functions for dynamic content
+[functions]
+directory = "../../../web-ui/frontend/functions"
+
+# Analytics and monitoring
+[analytics]
+enabled = true
+
+[web_analytics]
+enabled = true

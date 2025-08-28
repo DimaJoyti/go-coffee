@@ -99,7 +99,7 @@ export default function TradingPreview() {
   )
 }
 
-function TradingInterface({ prices }: { prices: any }) {
+function TradingInterface({ prices }: { prices: Record<string, number> }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">

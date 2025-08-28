@@ -1,0 +1,470 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-coffee-platform
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: argocd-application
+    environment: production
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/DimaJoyti/go-coffee.git
+    targetRevision: main
+    path: k8s/overlays/production
+    
+    # Kustomize configuration
+    kustomize:
+      images:
+        - name: go-coffee/backend
+          newTag: latest
+        - name: go-coffee/frontend
+          newTag: latest
+      
+      # Common labels applied to all resources
+      commonLabels:
+        app.kubernetes.io/managed-by: argocd
+        app.kubernetes.io/part-of: go-coffee-platform
+      
+      # Patches for production environment
+      patches:
+        - target:
+            kind: Deployment
+            name: coffee-service
+          patch: |-
+            - op: replace
+              path: /spec/replicas
+              value: 3
+        - target:
+            kind: Deployment
+            name: frontend-deployment
+          patch: |-
+            - op: replace
+              path: /spec/replicas
+              value: 2
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: go-coffee
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+    
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Health checks and status
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+    - group: networking.k8s.io
+      kind: Ingress
+      jsonPointers:
+        - /status/loadBalancer
+  
+  # Notification configuration
+  operation:
+    initiatedBy:
+      automated: true
+    
+    info:
+      - name: "Deployment Info"
+        value: "Automated deployment via ArgoCD"
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-coffee-staging
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: argocd-application
+    environment: staging
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/DimaJoyti/go-coffee.git
+    targetRevision: develop
+    path: k8s/overlays/staging
+    
+    kustomize:
+      images:
+        - name: go-coffee/backend
+          newTag: develop
+        - name: go-coffee/frontend
+          newTag: develop
+      
+      commonLabels:
+        app.kubernetes.io/managed-by: argocd
+        app.kubernetes.io/part-of: go-coffee-platform
+        environment: staging
+      
+      patches:
+        - target:
+            kind: Deployment
+            name: coffee-service
+          patch: |-
+            - op: replace
+              path: /spec/replicas
+              value: 1
+        - target:
+            kind: Deployment
+            name: frontend-deployment
+          patch: |-
+            - op: replace
+              path: /spec/replicas
+              value: 1
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: go-coffee-staging
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-coffee-multi-env
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: argocd-applicationset
+spec:
+  generators:
+  - list:
+      elements:
+      - env: production
+        branch: main
+        replicas: "3"
+        namespace: go-coffee
+      - env: staging
+        branch: develop
+        replicas: "1"
+        namespace: go-coffee-staging
+      - env: development
+        branch: develop
+        replicas: "1"
+        namespace: go-coffee-dev
+  
+  template:
+    metadata:
+      name: 'go-coffee-{{env}}'
+      namespace: cicd
+      labels:
+        app.kubernetes.io/name: go-coffee
+        environment: '{{env}}'
+    
+    spec:
+      project: default
+      
+      source:
+        repoURL: https://github.com/DimaJoyti/go-coffee.git
+        targetRevision: '{{branch}}'
+        path: k8s/overlays/{{env}}
+        
+        kustomize:
+          images:
+            - name: go-coffee/backend
+              newTag: '{{branch}}'
+            - name: go-coffee/frontend
+              newTag: '{{branch}}'
+          
+          commonLabels:
+            app.kubernetes.io/managed-by: argocd
+            app.kubernetes.io/part-of: go-coffee-platform
+            environment: '{{env}}'
+          
+          patches:
+            - target:
+                kind: Deployment
+                name: coffee-service
+              patch: |-
+                - op: replace
+                  path: /spec/replicas
+                  value: {{replicas}}
+      
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: go-coffee-project
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: argocd-project
+spec:
+  description: Go Coffee Platform Project
+  
+  sourceRepos:
+  - 'https://github.com/DimaJoyti/go-coffee.git'
+  - 'https://charts.bitnami.com/bitnami'
+  - 'https://prometheus-community.github.io/helm-charts'
+  
+  destinations:
+  - namespace: 'go-coffee*'
+    server: https://kubernetes.default.svc
+  - namespace: monitoring
+    server: https://kubernetes.default.svc
+  - namespace: security
+    server: https://kubernetes.default.svc
+  
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: security.istio.io
+    kind: PeerAuthentication
+  
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: Secret
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ServiceAccount
+  - group: apps
+    kind: Deployment
+  - group: apps
+    kind: StatefulSet
+  - group: apps
+    kind: DaemonSet
+  - group: networking.k8s.io
+    kind: Ingress
+  - group: autoscaling
+    kind: HorizontalPodAutoscaler
+  - group: policy
+    kind: PodDisruptionBudget
+  
+  roles:
+  - name: admin
+    description: Admin access to Go Coffee project
+    policies:
+    - p, proj:go-coffee-project:admin, applications, *, go-coffee-project/*, allow
+    - p, proj:go-coffee-project:admin, repositories, *, *, allow
+    - p, proj:go-coffee-project:admin, clusters, *, *, allow
+    groups:
+    - go-coffee:admin
+  
+  - name: developer
+    description: Developer access to Go Coffee project
+    policies:
+    - p, proj:go-coffee-project:developer, applications, get, go-coffee-project/*, allow
+    - p, proj:go-coffee-project:developer, applications, sync, go-coffee-project/*, allow
+    - p, proj:go-coffee-project:developer, repositories, get, *, allow
+    groups:
+    - go-coffee:developer
+  
+  - name: readonly
+    description: Read-only access to Go Coffee project
+    policies:
+    - p, proj:go-coffee-project:readonly, applications, get, go-coffee-project/*, allow
+    - p, proj:go-coffee-project:readonly, repositories, get, *, allow
+    groups:
+    - go-coffee:readonly
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: argocd-notifications
+    app.kubernetes.io/part-of: argocd
+data:
+  service.slack: |
+    token: $slack-token
+    username: ArgoCD
+    channel: deployments
+    iconEmoji: ":rocket:"
+  
+  service.email: |
+    host: smtp.gmail.com
+    port: 587
+    from: argocd@go-coffee.com
+    username: $email-username
+    password: $email-password
+  
+  template.app-deployed: |
+    email:
+      subject: Application {{.app.metadata.name}} deployed
+    message: |
+      {{if eq .serviceType "slack"}}:white_check_mark:{{end}} Application {{.app.metadata.name}} is now running new version.
+    slack:
+      attachments: |
+        [{
+          "title": "{{ .app.metadata.name}}",
+          "title_link":"{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "#18be52",
+          "fields": [
+          {
+            "title": "Sync Status",
+            "value": "{{.app.status.sync.status}}",
+            "short": true
+          },
+          {
+            "title": "Repository",
+            "value": "{{.app.spec.source.repoURL}}",
+            "short": true
+          },
+          {
+            "title": "Revision",
+            "value": "{{.app.status.sync.revision}}",
+            "short": true
+          }
+          {{range $index, $c := .app.status.conditions}}
+          {{if not $index}},{{end}}
+          {{if $index}},{{end}}
+          {
+            "title": "{{$c.type}}",
+            "value": "{{$c.message}}",
+            "short": true
+          }
+          {{end}}
+          ]
+        }]
+  
+  template.app-health-degraded: |
+    email:
+      subject: Application {{.app.metadata.name}} has degraded health
+    message: |
+      {{if eq .serviceType "slack"}}:exclamation:{{end}} Application {{.app.metadata.name}} has degraded health.
+    slack:
+      attachments: |
+        [{
+          "title": "{{ .app.metadata.name}}",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "#f4c430",
+          "fields": [
+          {
+            "title": "Health Status",
+            "value": "{{.app.status.health.status}}",
+            "short": true
+          },
+          {
+            "title": "Repository",
+            "value": "{{.app.spec.source.repoURL}}",
+            "short": true
+          }
+          {{range $index, $c := .app.status.conditions}}
+          {{if not $index}},{{end}}
+          {{if $index}},{{end}}
+          {
+            "title": "{{$c.type}}",
+            "value": "{{$c.message}}",
+            "short": true
+          }
+          {{end}}
+          ]
+        }]
+  
+  template.app-sync-failed: |
+    email:
+      subject: Application {{.app.metadata.name}} sync failed
+    message: |
+      {{if eq .serviceType "slack"}}:exclamation:{{end}} Application {{.app.metadata.name}} sync failed.
+    slack:
+      attachments: |
+        [{
+          "title": "{{ .app.metadata.name}}",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "#E96D76",
+          "fields": [
+          {
+            "title": "Sync Status",
+            "value": "{{.app.status.sync.status}}",
+            "short": true
+          },
+          {
+            "title": "Repository",
+            "value": "{{.app.spec.source.repoURL}}",
+            "short": true
+          }
+          {{range $index, $c := .app.status.conditions}}
+          {{if not $index}},{{end}}
+          {{if $index}},{{end}}
+          {
+            "title": "{{$c.type}}",
+            "value": "{{$c.message}}",
+            "short": true
+          }
+          {{end}}
+          ]
+        }]
+  
+  subscriptions: |
+    - recipients:
+      - slack:deployments
+      - email:platform@go-coffee.com
+      triggers:
+      - on-deployed
+      - on-health-degraded
+      - on-sync-failed
+      - on-sync-succeeded

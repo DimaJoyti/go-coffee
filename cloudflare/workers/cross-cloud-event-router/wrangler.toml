@@ -1,0 +1,178 @@
+name = "go-coffee-event-router"
+main = "src/index.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Account configuration
+account_id = "6244f6d02d9c7684386c1c849bdeaf56"
+
+# Worker configuration
+workers_dev = true
+route = { pattern = "events.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+PROJECT_NAME = "go-coffee"
+LOG_LEVEL = "info"
+ENABLE_AWS_ROUTING = "true"
+ENABLE_GCP_ROUTING = "true"
+ENABLE_AZURE_ROUTING = "true"
+AWS_REGION = "us-east-1"
+GCP_REGION = "us-central1"
+AZURE_LOCATION = "East US"
+
+# Event routing configuration
+EVENT_ROUTING_TABLE = '''
+{
+  "coffee.order.created": {
+    "aws_target": "order-processor",
+    "gcp_target": "order-handler",
+    "azure_target": "order-function",
+    "priority": 1,
+    "retry_policy": "exponential_backoff"
+  },
+  "coffee.payment.processed": {
+    "aws_target": "payment-processor",
+    "gcp_target": "payment-handler",
+    "azure_target": "payment-function",
+    "priority": 1,
+    "retry_policy": "linear_backoff"
+  },
+  "coffee.inventory.updated": {
+    "aws_target": "inventory-processor",
+    "gcp_target": "inventory-handler",
+    "azure_target": "inventory-function",
+    "priority": 2,
+    "retry_policy": "exponential_backoff"
+  },
+  "coffee.user.registered": {
+    "aws_target": "user-processor",
+    "gcp_target": "user-handler",
+    "azure_target": "user-function",
+    "priority": 3,
+    "retry_policy": "linear_backoff"
+  }
+}
+'''
+
+# KV Namespace bindings
+[[kv_namespaces]]
+binding = "CACHE"
+id = "f12294ae42924b729024f030e9b5611c"
+preview_id = "f12294ae42924b729024f030e9b5611c"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "be1b38800d8d4f00820a04d1e5866552"
+preview_id = "be1b38800d8d4f00820a04d1e5866552"
+
+[[kv_namespaces]]
+binding = "ORDERS"
+id = "6a65944658824e6b8bbc9f9e24e10317"
+preview_id = "6a65944658824e6b8bbc9f9e24e10317"
+
+# R2 bucket bindings
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "go-coffee-assets"
+preview_bucket_name = "go-coffee-assets"
+
+[[r2_buckets]]
+binding = "EVENT_LOGS"
+bucket_name = "go-coffee-backups"
+preview_bucket_name = "go-coffee-backups"
+
+# Durable Objects for event state management
+[[durable_objects.bindings]]
+name = "EVENT_ROUTER"
+class_name = "EventRouter"
+script_name = "go-coffee-event-router"
+
+# Analytics Engine binding
+[[analytics_engine_datasets]]
+binding = "EVENT_ANALYTICS"
+
+# Queue bindings for event processing
+[[queues.producers]]
+binding = "EVENT_QUEUE"
+queue = "cross-cloud-events"
+
+[[queues.consumers]]
+queue = "cross-cloud-events"
+max_batch_size = 50
+max_batch_timeout = 10
+max_retries = 5
+dead_letter_queue = "cross-cloud-events-dlq"
+
+# Service bindings
+[[services]]
+binding = "AI_COORDINATOR"
+service = "go-coffee-ai-coordinator"
+
+[[services]]
+binding = "ORDER_PROCESSOR"
+service = "go-coffee-order-processor"
+
+# Cron triggers for cleanup and maintenance
+[triggers]
+crons = ["0 0 * * * *"]  # Daily at midnight
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "src"
+
+# Development configuration
+[env.development]
+name = "go-coffee-event-router-dev"
+workers_dev = true
+
+[env.development.vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+ENABLE_AWS_ROUTING = "false"
+ENABLE_GCP_ROUTING = "false"
+ENABLE_AZURE_ROUTING = "false"
+
+# Staging configuration
+[env.staging]
+name = "go-coffee-event-router-staging"
+route = { pattern = "events-staging.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+LOG_LEVEL = "info"
+ENABLE_AWS_ROUTING = "true"
+ENABLE_GCP_ROUTING = "false"
+ENABLE_AZURE_ROUTING = "false"
+
+# Production configuration
+[env.production]
+name = "go-coffee-event-router"
+route = { pattern = "events.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+[env.production.vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "warn"
+ENABLE_AWS_ROUTING = "true"
+ENABLE_GCP_ROUTING = "true"
+ENABLE_AZURE_ROUTING = "true"
+CORS_ORIGINS = "https://go-coffee.com,https://app.go-coffee.com,https://admin.go-coffee.com"
+RATE_LIMIT_REQUESTS = "1000"
+RATE_LIMIT_WINDOW = "60"
+
+# Custom domains
+[[env.production.routes]]
+pattern = "router.go-coffee.com/*"
+zone_name = "go-coffee.com"
+
+[[env.production.routes]]
+pattern = "events-api.go-coffee.com/*"
+zone_name = "go-coffee.com"
+
+# Observability configuration
+[observability]
+enabled = true
+head_sampling_rate = 0.05

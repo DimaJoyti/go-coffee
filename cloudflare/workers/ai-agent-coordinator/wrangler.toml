@@ -1,0 +1,144 @@
+name = "go-coffee-ai-coordinator"
+main = "src/index.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Account configuration
+account_id = "6244f6d02d9c7684386c1c849bdeaf56"
+
+# Worker configuration
+workers_dev = true
+route = { pattern = "ai-coordinator.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+PROJECT_NAME = "go-coffee"
+LOG_LEVEL = "info"
+AI_COORDINATION_ENABLED = "true"
+KAFKA_BROKERS = "kafka.go-coffee.com:9092"
+KAFKA_TOPIC_PREFIX = "go-coffee"
+
+# KV Namespace bindings
+[[kv_namespaces]]
+binding = "CACHE"
+id = "f12294ae42924b729024f030e9b5611c"
+preview_id = "f12294ae42924b729024f030e9b5611c"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "be1b38800d8d4f00820a04d1e5866552"
+preview_id = "be1b38800d8d4f00820a04d1e5866552"
+
+[[kv_namespaces]]
+binding = "ORDERS"
+id = "6a65944658824e6b8bbc9f9e24e10317"
+preview_id = "6a65944658824e6b8bbc9f9e24e10317"
+
+# R2 bucket bindings
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "go-coffee-assets"
+preview_bucket_name = "go-coffee-assets"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "go-coffee-images"
+preview_bucket_name = "go-coffee-images"
+
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "go-coffee-backups"
+preview_bucket_name = "go-coffee-backups"
+
+# Durable Objects (for stateful coordination)
+[[durable_objects.bindings]]
+name = "AI_COORDINATOR"
+class_name = "AICoordinator"
+script_name = "go-coffee-ai-coordinator"
+
+# Analytics Engine binding
+[[analytics_engine_datasets]]
+binding = "AI_ANALYTICS"
+
+# Queue bindings for async processing
+[[queues.producers]]
+binding = "TASK_QUEUE"
+queue = "ai-coordination-tasks"
+
+[[queues.consumers]]
+queue = "ai-coordination-tasks"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "ai-coordination-dlq"
+
+# Service bindings for inter-worker communication
+[[services]]
+binding = "ORDER_PROCESSOR"
+service = "go-coffee-order-processor"
+
+[[services]]
+binding = "EVENT_ROUTER"
+service = "go-coffee-event-router"
+
+# Cron triggers for periodic tasks
+[triggers]
+crons = ["0 */5 * * * *"]  # Every 5 minutes
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "src"
+
+# Development configuration
+[env.development]
+name = "go-coffee-ai-coordinator-dev"
+workers_dev = true
+
+[env.development.vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+
+# Staging configuration
+[env.staging]
+name = "go-coffee-ai-coordinator-staging"
+route = { pattern = "ai-coordinator-staging.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+LOG_LEVEL = "info"
+
+# Production configuration
+[env.production]
+name = "go-coffee-ai-coordinator"
+route = { pattern = "ai-coordinator.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+[env.production.vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "warn"
+AI_COORDINATION_ENABLED = "true"
+SECURITY_HEADERS = '''
+{
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+}
+'''
+
+# Observability configuration
+[observability]
+enabled = true
+head_sampling_rate = 0.01
+
+# Custom domains
+[[env.production.routes]]
+pattern = "ai.go-coffee.com/*"
+zone_name = "go-coffee.com"
+
+[[env.production.routes]]
+pattern = "coordinator.go-coffee.com/*"
+zone_name = "go-coffee.com"

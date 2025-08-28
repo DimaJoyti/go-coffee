@@ -1,0 +1,491 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Go Coffee Platform Overview",
+    "tags": ["go-coffee", "platform", "overview"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 1,
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": [
+        {
+          "name": "environment",
+          "type": "query",
+          "query": "label_values(up, environment)",
+          "refresh": 1,
+          "includeAll": false,
+          "multi": false,
+          "current": {
+            "value": "dev",
+            "text": "dev"
+          }
+        },
+        {
+          "name": "service",
+          "type": "query",
+          "query": "label_values(up{environment=\"$environment\"}, service)",
+          "refresh": 1,
+          "includeAll": true,
+          "multi": true,
+          "current": {
+            "value": "All",
+            "text": "All"
+          }
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Platform Health Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(up{environment=\"$environment\"})",
+            "legendFormat": "Services Up"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 10
+                },
+                {
+                  "color": "green",
+                  "value": 15
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Coffee Orders per Minute",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(coffee_orders_total{environment=\"$environment\"}[1m]) * 60",
+            "legendFormat": "Orders/min"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 6,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Revenue per Hour",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(coffee_revenue_total{environment=\"$environment\"}[1h]) * 3600",
+            "legendFormat": "Revenue/hour"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "currencyUSD"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 4,
+        "title": "AI Agents Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(ai_agent_status{environment=\"$environment\", status=\"active\"})",
+            "legendFormat": "Active Agents"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "green",
+                  "value": 9
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        }
+      },
+      {
+        "id": 5,
+        "title": "Request Rate by Service",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{environment=\"$environment\", service=~\"$service\"}[5m])) by (service)",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Requests/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 6,
+        "title": "Response Time P95",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{environment=\"$environment\", service=~\"$service\"}[5m])) by (service, le))",
+            "legendFormat": "{{service}} P95"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Seconds",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 7,
+        "title": "Error Rate by Service",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{environment=\"$environment\", service=~\"$service\", status=~\"5..\"}[5m])) by (service) / sum(rate(http_requests_total{environment=\"$environment\", service=~\"$service\"}[5m])) by (service)",
+            "legendFormat": "{{service}} Error Rate"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Error Rate",
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 24,
+          "x": 0,
+          "y": 17
+        }
+      },
+      {
+        "id": 8,
+        "title": "Coffee Order Processing Pipeline",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(kafka_messages_produced_total{environment=\"$environment\", topic=\"coffee_orders\"}[5m])",
+            "legendFormat": "Orders Produced"
+          },
+          {
+            "expr": "rate(kafka_messages_consumed_total{environment=\"$environment\", topic=\"coffee_orders\"}[5m])",
+            "legendFormat": "Orders Consumed"
+          },
+          {
+            "expr": "rate(kafka_messages_produced_total{environment=\"$environment\", topic=\"processed_orders\"}[5m])",
+            "legendFormat": "Orders Processed"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Messages/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 26
+        }
+      },
+      {
+        "id": 9,
+        "title": "DeFi Trading Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(defi_trades_total{environment=\"$environment\", status=\"success\"}[5m])",
+            "legendFormat": "Successful Trades"
+          },
+          {
+            "expr": "rate(defi_trades_total{environment=\"$environment\", status=\"failed\"}[5m])",
+            "legendFormat": "Failed Trades"
+          },
+          {
+            "expr": "rate(defi_arbitrage_opportunities_total{environment=\"$environment\"}[5m])",
+            "legendFormat": "Arbitrage Opportunities"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Trades/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 26
+        }
+      },
+      {
+        "id": 10,
+        "title": "AI Agent Task Processing",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(ai_agent_tasks_total{environment=\"$environment\", status=\"completed\"}[5m])) by (agent_type)",
+            "legendFormat": "{{agent_type}} Completed"
+          },
+          {
+            "expr": "sum(rate(ai_agent_tasks_total{environment=\"$environment\", status=\"failed\"}[5m])) by (agent_type)",
+            "legendFormat": "{{agent_type}} Failed"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Tasks/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 24,
+          "x": 0,
+          "y": 35
+        }
+      },
+      {
+        "id": 11,
+        "title": "Infrastructure Resource Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "avg(cpu_usage_percent{environment=\"$environment\"}) by (instance)",
+            "legendFormat": "CPU Usage - {{instance}}"
+          },
+          {
+            "expr": "avg(memory_usage_percent{environment=\"$environment\"}) by (instance)",
+            "legendFormat": "Memory Usage - {{instance}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Percentage",
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 44
+        }
+      },
+      {
+        "id": 12,
+        "title": "Database Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(database_queries_total{environment=\"$environment\", status=\"success\"}[5m])",
+            "legendFormat": "Successful Queries"
+          },
+          {
+            "expr": "rate(database_queries_total{environment=\"$environment\", status=\"error\"}[5m])",
+            "legendFormat": "Failed Queries"
+          },
+          {
+            "expr": "avg(database_query_duration_seconds{environment=\"$environment\"})",
+            "legendFormat": "Avg Query Duration"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Queries/sec",
+            "min": 0
+          },
+          {
+            "label": "Seconds",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 44
+        }
+      },
+      {
+        "id": 13,
+        "title": "Multi-Cloud Distribution",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(up{environment=\"$environment\"}) by (cloud_provider)",
+            "legendFormat": "{{cloud_provider}}"
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 8,
+          "x": 0,
+          "y": 53
+        }
+      },
+      {
+        "id": 14,
+        "title": "Network Traffic",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(network_bytes_received_total{environment=\"$environment\"}[5m])",
+            "legendFormat": "Bytes Received"
+          },
+          {
+            "expr": "rate(network_bytes_transmitted_total{environment=\"$environment\"}[5m])",
+            "legendFormat": "Bytes Transmitted"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Bytes/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 8,
+          "x": 8,
+          "y": 53
+        }
+      },
+      {
+        "id": 15,
+        "title": "Recent Alerts",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "ALERTS{environment=\"$environment\", alertstate=\"firing\"}",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true,
+                "instance": true
+              },
+              "indexByName": {},
+              "renameByName": {
+                "alertname": "Alert",
+                "severity": "Severity",
+                "summary": "Summary"
+              }
+            }
+          }
+        ],
+        "gridPos": {
+          "h": 9,
+          "w": 8,
+          "x": 16,
+          "y": 53
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "increase(deployment_events_total{environment=\"$environment\"}[1m])",
+          "iconColor": "blue",
+          "titleFormat": "Deployment: {{service}}"
+        }
+      ]
+    }
+  }
+}

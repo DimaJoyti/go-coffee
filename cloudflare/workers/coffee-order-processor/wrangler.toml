@@ -1,0 +1,183 @@
+name = "go-coffee-order-processor"
+main = "src/index.js"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Account configuration
+account_id = "6244f6d02d9c7684386c1c849bdeaf56"
+
+# Worker configuration
+workers_dev = true
+route = { pattern = "orders.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+PROJECT_NAME = "go-coffee"
+LOG_LEVEL = "info"
+ORDER_PROCESSING_ENABLED = "true"
+PAYMENT_PROCESSING_ENABLED = "true"
+INVENTORY_TRACKING_ENABLED = "true"
+NOTIFICATION_ENABLED = "true"
+KAFKA_BROKERS = "kafka.go-coffee.com:9092"
+KAFKA_TOPIC_PREFIX = "go-coffee"
+
+# Payment configuration
+STRIPE_PUBLISHABLE_KEY = "pk_test_..."
+PAYMENT_WEBHOOK_SECRET = "whsec_..."
+
+# Notification configuration
+TWILIO_ACCOUNT_SID = "AC..."
+SENDGRID_API_KEY = "SG..."
+
+# KV Namespace bindings
+[[kv_namespaces]]
+binding = "CACHE"
+id = "f12294ae42924b729024f030e9b5611c"
+preview_id = "f12294ae42924b729024f030e9b5611c"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "be1b38800d8d4f00820a04d1e5866552"
+preview_id = "be1b38800d8d4f00820a04d1e5866552"
+
+[[kv_namespaces]]
+binding = "ORDERS"
+id = "6a65944658824e6b8bbc9f9e24e10317"
+preview_id = "6a65944658824e6b8bbc9f9e24e10317"
+
+# R2 bucket bindings
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "go-coffee-assets"
+preview_bucket_name = "go-coffee-assets"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "go-coffee-images"
+preview_bucket_name = "go-coffee-images"
+
+[[r2_buckets]]
+binding = "ORDER_RECEIPTS"
+bucket_name = "go-coffee-backups"
+preview_bucket_name = "go-coffee-backups"
+
+# Durable Objects for order state management
+[[durable_objects.bindings]]
+name = "ORDER_PROCESSOR"
+class_name = "OrderProcessor"
+script_name = "go-coffee-order-processor"
+
+# Analytics Engine binding
+[[analytics_engine_datasets]]
+binding = "ORDER_ANALYTICS"
+
+# Queue bindings for order processing
+[[queues.producers]]
+binding = "ORDER_QUEUE"
+queue = "coffee-orders"
+
+[[queues.consumers]]
+queue = "coffee-orders"
+max_batch_size = 25
+max_batch_timeout = 15
+max_retries = 3
+dead_letter_queue = "coffee-orders-dlq"
+
+[[queues.producers]]
+binding = "PAYMENT_QUEUE"
+queue = "payment-processing"
+
+[[queues.consumers]]
+queue = "payment-processing"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "payment-processing-dlq"
+
+# Service bindings
+[[services]]
+binding = "EVENT_ROUTER"
+service = "go-coffee-event-router"
+
+[[services]]
+binding = "AI_COORDINATOR"
+service = "go-coffee-ai-coordinator"
+
+# Cron triggers for order management
+[triggers]
+crons = [
+  "0 */10 * * * *",  # Every 10 minutes - process pending orders
+  "0 0 */6 * * *"    # Every 6 hours - cleanup completed orders
+]
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "src"
+
+# Development configuration
+[env.development]
+name = "go-coffee-order-processor-dev"
+workers_dev = true
+
+[env.development.vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+ORDER_PROCESSING_ENABLED = "true"
+PAYMENT_PROCESSING_ENABLED = "false"
+INVENTORY_TRACKING_ENABLED = "false"
+NOTIFICATION_ENABLED = "false"
+
+# Staging configuration
+[env.staging]
+name = "go-coffee-order-processor-staging"
+route = { pattern = "orders-staging.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+LOG_LEVEL = "info"
+ORDER_PROCESSING_ENABLED = "true"
+PAYMENT_PROCESSING_ENABLED = "true"
+INVENTORY_TRACKING_ENABLED = "true"
+NOTIFICATION_ENABLED = "false"
+
+# Production configuration
+[env.production]
+name = "go-coffee-order-processor"
+route = { pattern = "orders.go-coffee.com/*", zone_name = "go-coffee.com" }
+
+[env.production.vars]
+ENVIRONMENT = "production"
+LOG_LEVEL = "warn"
+ORDER_PROCESSING_ENABLED = "true"
+PAYMENT_PROCESSING_ENABLED = "true"
+INVENTORY_TRACKING_ENABLED = "true"
+NOTIFICATION_ENABLED = "true"
+CORS_ORIGINS = "https://go-coffee.com,https://app.go-coffee.com"
+RATE_LIMIT_REQUESTS = "500"
+RATE_LIMIT_WINDOW = "60"
+MAX_ORDER_VALUE = "10000"
+MAX_ITEMS_PER_ORDER = "50"
+
+# Custom domains
+[[env.production.routes]]
+pattern = "api.go-coffee.com/orders/*"
+zone_name = "go-coffee.com"
+
+[[env.production.routes]]
+pattern = "processor.go-coffee.com/*"
+zone_name = "go-coffee.com"
+
+# Observability configuration
+[observability]
+enabled = true
+head_sampling_rate = 0.1
+
+# Secrets (to be set via wrangler secret put)
+# STRIPE_SECRET_KEY
+# DATABASE_URL
+# JWT_SECRET
+# TWILIO_AUTH_TOKEN
+# SENDGRID_API_KEY

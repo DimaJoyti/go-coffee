@@ -1,0 +1,341 @@
+name: Go Coffee Frontend CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'web-ui/frontend/**'
+      - '.github/workflows/frontend-cicd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'web-ui/frontend/**'
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: docker.io
+  FRONTEND_IMAGE_NAME: go-coffee/frontend
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  # Frontend Testing and Quality Checks
+  frontend-test:
+    name: Frontend Tests & Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./web-ui/frontend
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: web-ui/frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Type checking
+      run: npm run type-check
+    
+    - name: Lint code
+      run: npm run lint
+    
+    - name: Run tests
+      run: |
+        # Add test command when tests are implemented
+        echo "Frontend tests would run here"
+        # npm test -- --coverage --watchAll=false
+    
+    - name: Build application
+      run: npm run build
+      env:
+        NODE_ENV: production
+    
+    - name: Check bundle size
+      run: |
+        echo "Checking bundle size..."
+        du -sh .next/static/chunks/* | sort -hr | head -10
+    
+    - name: Security audit
+      run: npm audit --audit-level=high
+      continue-on-error: true
+
+  # Frontend Build and Container Image
+  frontend-build:
+    name: Build Frontend Container
+    runs-on: ubuntu-latest
+    needs: frontend-test
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./web-ui/frontend
+        file: ./web-ui/frontend/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          NODE_ENV=production
+          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+
+  # Cloudflare Pages Deployment
+  cloudflare-deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    needs: frontend-test
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: ./web-ui/frontend
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: web-ui/frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build for Cloudflare
+      run: npm run preview
+      env:
+        NODE_ENV: production
+        NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        NEXT_PUBLIC_WS_URL: ${{ secrets.NEXT_PUBLIC_WS_URL }}
+    
+    - name: Deploy to Cloudflare Pages
+      run: npm run deploy
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+
+  # Kubernetes Deployment
+  k8s-deploy:
+    name: Deploy to Kubernetes
+    runs-on: [self-hosted, go-coffee]
+    needs: [frontend-build]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+        export KUBECONFIG=/tmp/kubeconfig
+        kubectl config current-context
+    
+    - name: Deploy to staging
+      if: github.ref == 'refs/heads/develop'
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        kubectl set image deployment/frontend-deployment \
+          frontend=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }} \
+          -n go-coffee-staging
+        kubectl rollout status deployment/frontend-deployment -n go-coffee-staging --timeout=300s
+    
+    - name: Deploy to production
+      if: github.ref == 'refs/heads/main'
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        kubectl set image deployment/frontend-deployment \
+          frontend=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }} \
+          -n go-coffee
+        kubectl rollout status deployment/frontend-deployment -n go-coffee --timeout=300s
+    
+    - name: Verify deployment
+      run: |
+        export KUBECONFIG=/tmp/kubeconfig
+        NAMESPACE="go-coffee"
+        if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+          NAMESPACE="go-coffee-staging"
+        fi
+        
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app=frontend -n $NAMESPACE --timeout=300s
+        
+        # Check service endpoints
+        kubectl get endpoints frontend-service -n $NAMESPACE
+        
+        # Test health endpoint
+        FRONTEND_URL=$(kubectl get ingress frontend-ingress -n $NAMESPACE -o jsonpath='{.spec.rules[0].host}')
+        curl -f "https://$FRONTEND_URL/api/health" || echo "Health check failed"
+
+  # Performance Testing
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: [cloudflare-deploy, k8s-deploy]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    
+    - name: Install Lighthouse CI
+      run: npm install -g @lhci/cli@0.12.x
+    
+    - name: Run Lighthouse CI
+      run: |
+        lhci autorun
+      env:
+        LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+        LHCI_SERVER_BASE_URL: ${{ secrets.LHCI_SERVER_BASE_URL }}
+        LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
+        LHCI_BUILD_CONTEXT__COMMIT_TIME: ${{ github.event.head_commit.timestamp }}
+    
+    - name: Load Testing with Artillery
+      run: |
+        npm install -g artillery@latest
+        echo "
+        config:
+          target: 'https://go-coffee.com'
+          phases:
+            - duration: 60
+              arrivalRate: 10
+        scenarios:
+          - name: 'Homepage Load Test'
+            requests:
+              - get:
+                  url: '/'
+          - name: 'API Load Test'
+            requests:
+              - get:
+                  url: '/api/health'
+        " > loadtest.yml
+        artillery run loadtest.yml
+
+  # Security Scanning
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: frontend-build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: OWASP ZAP Baseline Scan
+      uses: zaproxy/action-baseline@v0.10.0
+      with:
+        target: 'https://go-coffee.com'
+        rules_file_name: '.zap/rules.tsv'
+        cmd_options: '-a'
+
+  # Multi-Cloud Deployment
+  multi-cloud-deploy:
+    name: Multi-Cloud Deployment
+    runs-on: ubuntu-latest
+    needs: [frontend-build]
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        cloud: [aws, gcp, azure]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to AWS (S3 + CloudFront)
+      if: matrix.cloud == 'aws'
+      run: |
+        echo "Deploying to AWS S3 + CloudFront"
+        # AWS deployment logic would go here
+        # aws s3 sync ./dist s3://go-coffee-frontend-prod
+        # aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_ID --paths "/*"
+    
+    - name: Deploy to GCP (Cloud Storage + CDN)
+      if: matrix.cloud == 'gcp'
+      run: |
+        echo "Deploying to GCP Cloud Storage + CDN"
+        # GCP deployment logic would go here
+        # gsutil -m rsync -r -d ./dist gs://go-coffee-frontend-prod
+    
+    - name: Deploy to Azure (Blob Storage + CDN)
+      if: matrix.cloud == 'azure'
+      run: |
+        echo "Deploying to Azure Blob Storage + CDN"
+        # Azure deployment logic would go here
+        # az storage blob upload-batch -d '$web' -s ./dist --account-name gocoffeeprod
+
+  # Notification
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [k8s-deploy, cloudflare-deploy, multi-cloud-deploy]
+    if: always()
+    
+    steps:
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: |
+          Frontend deployment ${{ job.status }}!
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: always()

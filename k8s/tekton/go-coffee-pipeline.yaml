@@ -1,0 +1,459 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: go-coffee-ci-cd-pipeline
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-pipeline
+spec:
+  description: |
+    Complete CI/CD pipeline for Go Coffee platform including:
+    - Source code checkout
+    - Backend and frontend testing
+    - Security scanning
+    - Container image building
+    - Multi-environment deployment
+    - Performance testing
+  
+  params:
+    - name: git-url
+      type: string
+      description: Git repository URL
+      default: https://github.com/DimaJoyti/go-coffee.git
+    
+    - name: git-revision
+      type: string
+      description: Git revision (branch, tag, or commit SHA)
+      default: main
+    
+    - name: target-environment
+      type: string
+      description: Target deployment environment
+      default: staging
+    
+    - name: backend-image-name
+      type: string
+      description: Backend container image name
+      default: go-coffee/backend
+    
+    - name: frontend-image-name
+      type: string
+      description: Frontend container image name
+      default: go-coffee/frontend
+    
+    - name: skip-tests
+      type: string
+      description: Skip test execution (true/false)
+      default: "false"
+    
+    - name: deploy-enabled
+      type: string
+      description: Enable deployment (true/false)
+      default: "true"
+
+  workspaces:
+    - name: shared-data
+      description: Shared workspace for pipeline tasks
+    
+    - name: docker-credentials
+      description: Docker registry credentials
+    
+    - name: git-credentials
+      description: Git repository credentials
+
+  tasks:
+    # Task 1: Git Clone
+    - name: fetch-source
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: shared-data
+        - name: basic-auth
+          workspace: git-credentials
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+        - name: deleteExisting
+          value: "true"
+
+    # Task 2: Backend Testing
+    - name: backend-test
+      runAfter: ["fetch-source"]
+      when:
+        - input: "$(params.skip-tests)"
+          operator: in
+          values: ["false"]
+      taskSpec:
+        workspaces:
+          - name: source
+            description: Source code workspace
+        steps:
+          - name: setup-go
+            image: golang:1.21
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/bash
+              set -e
+              
+              echo "Setting up Go environment..."
+              go version
+              
+              echo "Downloading dependencies..."
+              go mod download
+              go mod verify
+              
+              echo "Running go vet..."
+              go vet ./...
+              
+              echo "Running staticcheck..."
+              go install honnef.co/go/tools/cmd/staticcheck@latest
+              staticcheck ./...
+          
+          - name: run-tests
+            image: golang:1.21
+            workingDir: $(workspaces.source.path)
+            env:
+              - name: CGO_ENABLED
+                value: "1"
+            script: |
+              #!/bin/bash
+              set -e
+              
+              echo "Running Go tests with coverage..."
+              go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+              
+              echo "Generating coverage report..."
+              go tool cover -html=coverage.out -o coverage.html
+              
+              echo "Checking coverage threshold..."
+              COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+              echo "Code coverage: $COVERAGE%"
+              
+              THRESHOLD=80
+              if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+                echo "❌ Coverage $COVERAGE% is below threshold $THRESHOLD%"
+                exit 1
+              fi
+              
+              echo "✅ Coverage $COVERAGE% meets threshold"
+          
+          - name: security-scan
+            image: golang:1.21
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/bash
+              set -e
+              
+              echo "Running gosec security scanner..."
+              go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+              gosec -fmt json -out gosec-report.json ./...
+              
+              echo "Security scan completed"
+              cat gosec-report.json
+      workspaces:
+        - name: source
+          workspace: shared-data
+
+    # Task 3: Frontend Testing
+    - name: frontend-test
+      runAfter: ["fetch-source"]
+      when:
+        - input: "$(params.skip-tests)"
+          operator: in
+          values: ["false"]
+      taskSpec:
+        workspaces:
+          - name: source
+            description: Source code workspace
+        steps:
+          - name: setup-node
+            image: node:18
+            workingDir: $(workspaces.source.path)/web-ui/frontend
+            script: |
+              #!/bin/bash
+              set -e
+              
+              echo "Setting up Node.js environment..."
+              node --version
+              npm --version
+              
+              echo "Installing dependencies..."
+              npm ci
+              
+              echo "Running type checking..."
+              npm run type-check
+              
+              echo "Running linting..."
+              npm run lint
+              
+              echo "Running tests..."
+              # npm test -- --coverage --watchAll=false
+              echo "Frontend tests would run here"
+              
+              echo "Building application..."
+              npm run build
+              
+              echo "Checking bundle size..."
+              du -sh .next/static/chunks/* | sort -hr | head -10
+      workspaces:
+        - name: source
+          workspace: shared-data
+
+    # Task 4: Build Backend Image
+    - name: build-backend-image
+      runAfter: ["backend-test"]
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      workspaces:
+        - name: source
+          workspace: shared-data
+        - name: dockerconfig
+          workspace: docker-credentials
+      params:
+        - name: IMAGE
+          value: "$(params.backend-image-name):$(params.git-revision)"
+        - name: DOCKERFILE
+          value: "./Dockerfile"
+        - name: CONTEXT
+          value: "."
+        - name: BUILD_EXTRA_ARGS
+          value: |
+            --build-arg GO_VERSION=1.21
+            --build-arg BUILD_VERSION=$(params.git-revision)
+            --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # Task 5: Build Frontend Image
+    - name: build-frontend-image
+      runAfter: ["frontend-test"]
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      workspaces:
+        - name: source
+          workspace: shared-data
+        - name: dockerconfig
+          workspace: docker-credentials
+      params:
+        - name: IMAGE
+          value: "$(params.frontend-image-name):$(params.git-revision)"
+        - name: DOCKERFILE
+          value: "./web-ui/frontend/Dockerfile"
+        - name: CONTEXT
+          value: "./web-ui/frontend"
+        - name: BUILD_EXTRA_ARGS
+          value: |
+            --build-arg NODE_ENV=production
+            --build-arg NEXT_PUBLIC_API_URL=https://api.go-coffee.com
+
+    # Task 6: Security Scanning
+    - name: security-scan-images
+      runAfter: ["build-backend-image", "build-frontend-image"]
+      taskSpec:
+        params:
+          - name: backend-image
+            type: string
+          - name: frontend-image
+            type: string
+        steps:
+          - name: scan-backend
+            image: aquasec/trivy:latest
+            script: |
+              #!/bin/sh
+              set -e
+              
+              echo "Scanning backend image for vulnerabilities..."
+              trivy image --exit-code 1 --severity HIGH,CRITICAL $(params.backend-image)
+          
+          - name: scan-frontend
+            image: aquasec/trivy:latest
+            script: |
+              #!/bin/sh
+              set -e
+              
+              echo "Scanning frontend image for vulnerabilities..."
+              trivy image --exit-code 1 --severity HIGH,CRITICAL $(params.frontend-image)
+      params:
+        - name: backend-image
+          value: "$(params.backend-image-name):$(params.git-revision)"
+        - name: frontend-image
+          value: "$(params.frontend-image-name):$(params.git-revision)"
+
+    # Task 7: Deploy to Kubernetes
+    - name: deploy-to-kubernetes
+      runAfter: ["security-scan-images"]
+      when:
+        - input: "$(params.deploy-enabled)"
+          operator: in
+          values: ["true"]
+      taskSpec:
+        params:
+          - name: environment
+            type: string
+          - name: backend-image
+            type: string
+          - name: frontend-image
+            type: string
+          - name: git-revision
+            type: string
+        workspaces:
+          - name: source
+            description: Source code workspace
+        steps:
+          - name: deploy
+            image: bitnami/kubectl:latest
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/bash
+              set -e
+              
+              ENVIRONMENT=$(params.environment)
+              NAMESPACE="go-coffee"
+              
+              if [[ "$ENVIRONMENT" == "staging" ]]; then
+                NAMESPACE="go-coffee-staging"
+              elif [[ "$ENVIRONMENT" == "development" ]]; then
+                NAMESPACE="go-coffee-dev"
+              fi
+              
+              echo "Deploying to environment: $ENVIRONMENT"
+              echo "Target namespace: $NAMESPACE"
+              
+              # Update backend deployment
+              kubectl set image deployment/coffee-service \
+                coffee-service=$(params.backend-image) \
+                -n $NAMESPACE
+              
+              # Update frontend deployment
+              kubectl set image deployment/frontend-deployment \
+                frontend=$(params.frontend-image) \
+                -n $NAMESPACE
+              
+              # Wait for rollout to complete
+              echo "Waiting for backend rollout..."
+              kubectl rollout status deployment/coffee-service -n $NAMESPACE --timeout=300s
+              
+              echo "Waiting for frontend rollout..."
+              kubectl rollout status deployment/frontend-deployment -n $NAMESPACE --timeout=300s
+              
+              echo "✅ Deployment completed successfully"
+          
+          - name: verify-deployment
+            image: bitnami/kubectl:latest
+            script: |
+              #!/bin/bash
+              set -e
+              
+              ENVIRONMENT=$(params.environment)
+              NAMESPACE="go-coffee"
+              
+              if [[ "$ENVIRONMENT" == "staging" ]]; then
+                NAMESPACE="go-coffee-staging"
+              elif [[ "$ENVIRONMENT" == "development" ]]; then
+                NAMESPACE="go-coffee-dev"
+              fi
+              
+              echo "Verifying deployment in namespace: $NAMESPACE"
+              
+              # Check pod status
+              kubectl get pods -n $NAMESPACE -l app=coffee-service
+              kubectl get pods -n $NAMESPACE -l app=frontend
+              
+              # Check service endpoints
+              kubectl get endpoints -n $NAMESPACE
+              
+              # Wait for pods to be ready
+              kubectl wait --for=condition=ready pod -l app=coffee-service -n $NAMESPACE --timeout=300s
+              kubectl wait --for=condition=ready pod -l app=frontend -n $NAMESPACE --timeout=300s
+              
+              echo "✅ Deployment verification completed"
+      workspaces:
+        - name: source
+          workspace: shared-data
+      params:
+        - name: environment
+          value: $(params.target-environment)
+        - name: backend-image
+          value: "$(params.backend-image-name):$(params.git-revision)"
+        - name: frontend-image
+          value: "$(params.frontend-image-name):$(params.git-revision)"
+        - name: git-revision
+          value: $(params.git-revision)
+
+    # Task 8: Integration Tests
+    - name: integration-tests
+      runAfter: ["deploy-to-kubernetes"]
+      taskSpec:
+        params:
+          - name: environment
+            type: string
+        steps:
+          - name: run-integration-tests
+            image: curlimages/curl:latest
+            script: |
+              #!/bin/sh
+              set -e
+              
+              ENVIRONMENT=$(params.environment)
+              
+              if [[ "$ENVIRONMENT" == "production" ]]; then
+                BASE_URL="https://api.go-coffee.com"
+              elif [[ "$ENVIRONMENT" == "staging" ]]; then
+                BASE_URL="https://staging-api.go-coffee.com"
+              else
+                BASE_URL="https://dev-api.go-coffee.com"
+              fi
+              
+              echo "Running integration tests against: $BASE_URL"
+              
+              # Health check
+              echo "Testing health endpoint..."
+              curl -f "$BASE_URL/health" || exit 1
+              
+              # API endpoints
+              echo "Testing coffee menu endpoint..."
+              curl -f "$BASE_URL/api/v1/coffee/menu" || exit 1
+              
+              echo "✅ Integration tests passed"
+      params:
+        - name: environment
+          value: $(params.target-environment)
+
+  finally:
+    # Cleanup and notification task
+    - name: cleanup-and-notify
+      taskSpec:
+        params:
+          - name: pipeline-status
+            type: string
+        steps:
+          - name: notify
+            image: curlimages/curl:latest
+            script: |
+              #!/bin/sh
+              
+              STATUS=$(params.pipeline-status)
+              
+              if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+                if [[ "$STATUS" == "Succeeded" ]]; then
+                  MESSAGE="✅ Go Coffee CI/CD Pipeline completed successfully!"
+                  COLOR="good"
+                else
+                  MESSAGE="❌ Go Coffee CI/CD Pipeline failed!"
+                  COLOR="danger"
+                fi
+                
+                curl -X POST -H 'Content-type: application/json' \
+                  --data "{\"attachments\":[{\"color\":\"$COLOR\",\"title\":\"$MESSAGE\",\"fields\":[{\"title\":\"Environment\",\"value\":\"$(params.target-environment)\",\"short\":true},{\"title\":\"Revision\",\"value\":\"$(params.git-revision)\",\"short\":true}]}]}" \
+                  "$SLACK_WEBHOOK_URL" || true
+              fi
+              
+              echo "Pipeline completed with status: $STATUS"
+      params:
+        - name: pipeline-status
+          value: $(tasks.status)

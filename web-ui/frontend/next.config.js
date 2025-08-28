@@ -15,13 +15,23 @@ const nextConfig = {
       },
     ];
   },
-  webpack: (config) => {
+  // Disable CSS optimization completely
+  experimental: {
+    optimizeCss: false,
+  },
+  webpack: (config, { dev, isServer }) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
       net: false,
       tls: false,
     };
+
+    // Completely disable CSS optimization in production
+    if (!dev && config.optimization) {
+      config.optimization.minimize = false;
+    }
+
     return config;
   },
 };

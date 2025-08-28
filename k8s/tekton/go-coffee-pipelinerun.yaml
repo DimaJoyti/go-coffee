@@ -1,0 +1,326 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: go-coffee-pipeline-run-
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-pipelinerun
+    tekton.dev/pipeline: go-coffee-ci-cd-pipeline
+spec:
+  pipelineRef:
+    name: go-coffee-ci-cd-pipeline
+  
+  params:
+    - name: git-url
+      value: https://github.com/DimaJoyti/go-coffee.git
+    - name: git-revision
+      value: main
+    - name: target-environment
+      value: staging
+    - name: backend-image-name
+      value: docker.io/go-coffee/backend
+    - name: frontend-image-name
+      value: docker.io/go-coffee/frontend
+    - name: skip-tests
+      value: "false"
+    - name: deploy-enabled
+      value: "true"
+  
+  workspaces:
+    - name: shared-data
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+          storageClassName: fast-ssd
+    
+    - name: docker-credentials
+      secret:
+        secretName: docker-credentials
+    
+    - name: git-credentials
+      secret:
+        secretName: git-credentials
+  
+  podTemplate:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      fsGroup: 65532
+    
+    nodeSelector:
+      kubernetes.io/arch: amd64
+      node-type: ci-cd
+    
+    tolerations:
+      - key: "ci-cd"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-type
+                  operator: In
+                  values: ["ci-cd"]
+  
+  timeouts:
+    pipeline: "1h0m0s"
+    tasks: "30m0s"
+    finally: "5m0s"
+
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: go-coffee-trigger-template
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-trigger
+spec:
+  params:
+    - name: git-revision
+      description: Git revision
+      default: main
+    - name: git-repository-url
+      description: Git repository URL
+      default: https://github.com/DimaJoyti/go-coffee.git
+    - name: target-environment
+      description: Target environment
+      default: staging
+  
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: go-coffee-pipeline-run-
+        namespace: cicd
+        labels:
+          app.kubernetes.io/name: go-coffee
+          tekton.dev/pipeline: go-coffee-ci-cd-pipeline
+          git-revision: $(tt.params.git-revision)
+      spec:
+        pipelineRef:
+          name: go-coffee-ci-cd-pipeline
+        
+        params:
+          - name: git-url
+            value: $(tt.params.git-repository-url)
+          - name: git-revision
+            value: $(tt.params.git-revision)
+          - name: target-environment
+            value: $(tt.params.target-environment)
+          - name: backend-image-name
+            value: docker.io/go-coffee/backend
+          - name: frontend-image-name
+            value: docker.io/go-coffee/frontend
+        
+        workspaces:
+          - name: shared-data
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 5Gi
+                storageClassName: fast-ssd
+          
+          - name: docker-credentials
+            secret:
+              secretName: docker-credentials
+          
+          - name: git-credentials
+            secret:
+              secretName: git-credentials
+        
+        timeouts:
+          pipeline: "1h0m0s"
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: go-coffee-trigger-binding
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-trigger
+spec:
+  params:
+    - name: git-revision
+      value: $(body.head_commit.id)
+    - name: git-repository-url
+      value: $(body.repository.clone_url)
+    - name: target-environment
+      value: |
+        $(if (body.ref == 'refs/heads/main') then 'production' 
+          elif (body.ref == 'refs/heads/develop') then 'staging' 
+          else 'development' end)
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: go-coffee-event-listener
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-eventlistener
+spec:
+  serviceAccountName: tekton-triggers-sa
+  
+  triggers:
+    - name: github-push-trigger
+      interceptors:
+        - name: github
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["push"]
+        - name: cel
+          params:
+            - name: filter
+              value: |
+                body.ref in ['refs/heads/main', 'refs/heads/develop'] &&
+                !body.head_commit.message.startsWith('[skip ci]')
+      bindings:
+        - ref: go-coffee-trigger-binding
+      template:
+        ref: go-coffee-trigger-template
+    
+    - name: github-pr-trigger
+      interceptors:
+        - name: github
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["pull_request"]
+        - name: cel
+          params:
+            - name: filter
+              value: |
+                body.action in ['opened', 'synchronize', 'reopened'] &&
+                body.pull_request.base.ref == 'main'
+      bindings:
+        - name: git-revision
+          value: $(body.pull_request.head.sha)
+        - name: git-repository-url
+          value: $(body.pull_request.head.repo.clone_url)
+        - name: target-environment
+          value: staging
+      template:
+        ref: go-coffee-trigger-template
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tekton-triggers-sa
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-serviceaccount
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tekton-triggers-role
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-clusterrole
+rules:
+  - apiGroups: ["triggers.tekton.dev"]
+    resources: ["eventlisteners", "triggerbindings", "triggertemplates"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "pipelineresources", "taskruns"]
+    verbs: ["create", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tekton-triggers-binding
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-clusterrolebinding
+subjects:
+  - kind: ServiceAccount
+    name: tekton-triggers-sa
+    namespace: cicd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-role
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: el-go-coffee-event-listener
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-eventlistener-service
+spec:
+  ports:
+    - name: http-listener
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app.kubernetes.io/managed-by: EventListener
+    app.kubernetes.io/part-of: Triggers
+    eventlistener: go-coffee-event-listener
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tekton-webhook-ingress
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: go-coffee
+    app.kubernetes.io/component: tekton-webhook-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - tekton-webhook.go-coffee.com
+      secretName: tekton-webhook-tls
+  rules:
+    - host: tekton-webhook.go-coffee.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: el-go-coffee-event-listener
+                port:
+                  number: 8080

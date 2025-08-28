@@ -1,0 +1,16 @@
+{
+  "name": "go-coffee-event-router",
+  "version": "1.0.0",
+  "description": "Cross-Cloud Event Router for Go Coffee Platform",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "echo 'Build complete - using src/index.js directly'",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production"
+  },
+  "keywords": ["cloudflare", "workers", "events", "routing", "multi-cloud"],
+  "author": "Go Coffee Platform Team",
+  "license": "MIT"
+}

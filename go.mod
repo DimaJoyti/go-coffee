@@ -42,7 +42,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/segmentio/kafka-go v0.4.48
+require (
+	github.com/aws/aws-lambda-go v1.47.0
+	github.com/segmentio/kafka-go v0.4.48
+)
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
